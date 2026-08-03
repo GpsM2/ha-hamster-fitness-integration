@@ -1,0 +1,120 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a new hamster",
+        "description": "Let's start with some basic information about your hamster.",
+        "data": {
+          "hamster_name": "Name",
+          "acquisition_date": "Acquisition date",
+          "wheel_circumference": "Wheel circumference"
+        },
+        "data_description": {
+          "hamster_name": "The name of your hamster. Used as the device name.",
+          "acquisition_date": "The date your hamster moved in with you.",
+          "wheel_circumference": "Circumference of the running wheel, used to calculate distance from rotations."
+        }
+      },
+      "sensors": {
+        "title": "Select source sensors",
+        "description": "Choose the existing sensors and notification targets that should feed this hamster's device.",
+        "data": {
+          "wheel_sensor": "Wheel rotation sensor",
+          "temperature_sensor": "Temperature sensor",
+          "door_sensor": "Cage/lid opening sensor",
+          "notify_services": "Notification targets"
+        },
+        "data_description": {
+          "wheel_sensor": "A sensor whose numeric state represents wheel rotations (e.g. a counter or pulse sensor).",
+          "temperature_sensor": "A temperature sensor (device_class: temperature) placed near the cage.",
+          "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
+          "notify_services": "Notify entities that should receive alerts and daily summaries."
+        }
+      },
+      "reconfigure": {
+        "title": "Update hamster settings",
+        "description": "Update the basic information about your hamster.",
+        "data": {
+          "hamster_name": "[%key:component::hamster_fitness::config::step::user::data::hamster_name%]",
+          "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data::acquisition_date%]",
+          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data::wheel_circumference%]"
+        },
+        "data_description": {
+          "hamster_name": "[%key:component::hamster_fitness::config::step::user::data_description::hamster_name%]",
+          "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data_description::acquisition_date%]",
+          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_circumference%]"
+        }
+      },
+      "reconfigure_sensors": {
+        "title": "[%key:component::hamster_fitness::config::step::sensors::title%]",
+        "description": "[%key:component::hamster_fitness::config::step::sensors::description%]",
+        "data": {
+          "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::wheel_sensor%]",
+          "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::temperature_sensor%]",
+          "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::door_sensor%]",
+          "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data::notify_services%]"
+        },
+        "data_description": {
+          "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::wheel_sensor%]",
+          "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::temperature_sensor%]",
+          "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::door_sensor%]",
+          "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data_description::notify_services%]"
+        }
+      }
+    },
+    "error": {
+      "invalid_name": "Please enter a name for your hamster.",
+      "invalid_circumference": "Wheel circumference must be greater than 0.",
+      "not_numeric": "The selected wheel sensor's current state is not a number."
+    },
+    "abort": {
+      "already_configured": "A hamster with this name has already been configured.",
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Hamster Fitness settings",
+        "description": "Fine-tune the health-score thresholds and the daily-summary notifications.",
+        "data": {
+          "ideal_temp_min": "Ideal temperature (min)",
+          "ideal_temp_max": "Ideal temperature (max)",
+          "min_distance_km": "Minimum daily distance",
+          "notifications_enabled": "Send push notifications",
+          "notification_time": "Daily summary time"
+        },
+        "data_description": {
+          "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
+          "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
+          "min_distance_km": "Below this daily distance, the health score drops sharply.",
+          "notifications_enabled": "Turn off to silence warnings and the daily summary entirely.",
+          "notification_time": "Local time at which the daily summary is sent."
+        }
+      }
+    },
+    "error": {
+      "invalid_temp_range": "The minimum temperature must be lower than the maximum."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "health_score": {
+        "name": "Health score"
+      },
+      "daily_distance": {
+        "name": "Daily distance"
+      }
+    },
+    "binary_sensor": {
+      "warning": {
+        "name": "Warning",
+        "state_attributes": {
+          "warning_reason": {
+            "name": "Warning reason"
+          }
+        }
+      }
+    }
+  }
+}

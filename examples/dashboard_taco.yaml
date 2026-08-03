@@ -1,0 +1,157 @@
+# ============================================================================
+# Hamster Fitness - Dashboard-Ansicht im "Samsung Health"-Stil
+# ============================================================================
+# Benötigt (siehe Installationsanleitung im Chat):
+#   - HACS-Frontend-Element "Mushroom" (piitaya/lovelace-mushroom)
+#   - HACS-Frontend-Element "ApexCharts Card" (RomRider/apexcharts-card)
+#
+# Alle Entity-IDs unten gehen von einem Hamster namens "Taco" aus
+# (sensor.taco_health_score, sensor.taco_daily_distance,
+# binary_sensor.taco_warning - so, wie sie die hamster_fitness-Integration
+# automatisch anlegt). Falls dein Hamster anders heißt oder du eine andere
+# Schreibweise hast, unter Einstellungen -> Geräte & Dienste -> Hamster
+# Fitness -> dein Hamster-Gerät nachschauen und die IDs unten anpassen.
+#
+# Card-Größen in der "Sections"-Ansicht lassen sich nach dem Einfügen
+# bequem per Drag&Drop im Dashboard-Editor anpassen - die YAML unten muss
+# dafür nicht pixelgenau sein.
+# ============================================================================
+
+views:
+  - title: Taco
+    path: taco
+    icon: mdi:rodent
+    type: sections
+    max_columns: 3
+    sections:
+      # ------------------------------------------------------------------
+      # 1) Kopfzeile: Name + Status-Chips (Temperatur, Warnung, Käfig-Tür)
+      # ------------------------------------------------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: 🐹 Taco
+            icon: mdi:rodent
+
+          - type: custom:mushroom-chips-card
+            alignment: center
+            chips:
+              # Temperatur-Chip - liest den Wert aus dem temperature-Attribut
+              # des Health-Score-Sensors (so brauchst du die eigentliche
+              # externe Temperatursensor-Entity-ID hier nicht zu kennen).
+              - type: template
+                icon: mdi:thermometer
+                icon_color: |-
+                  {% set t = state_attr('sensor.taco_health_score', 'temperature') %}
+                  {% if t is none %}
+                  grey
+                  {% elif t < 18 or t > 26 %}
+                  red
+                  {% elif t < 20 or t > 24 %}
+                  orange
+                  {% else %}
+                  green
+                  {% endif %}
+                content: >-
+                  {{ state_attr('sensor.taco_health_score', 'temperature') }} °C
+
+              # Warn-Chip - grün/Häkchen wenn alles ok, rot/Ausrufezeichen
+              # plus Klartext-Grund, sobald binary_sensor...warning "on" ist.
+              - type: template
+                icon: |-
+                  {% if is_state('binary_sensor.taco_warning', 'on') %}
+                  mdi:alert-circle
+                  {% else %}
+                  mdi:check-circle
+                  {% endif %}
+                icon_color: |-
+                  {% if is_state('binary_sensor.taco_warning', 'on') %}
+                  red
+                  {% else %}
+                  green
+                  {% endif %}
+                content: >-
+                  {{ state_attr('binary_sensor.taco_warning', 'warning_reason')
+                     if is_state('binary_sensor.taco_warning', 'on') else 'Alles gut' }}
+                tap_action:
+                  action: more-info
+                  entity: binary_sensor.taco_warning
+
+              # Optionaler Bonus-Chip: Käfig-/Deckel-Status. Trage hier deine
+              # ECHTE Deckel-Sensor-Entity-ID ein (die, die du im Config Flow
+              # als "Deckel-/Käfigöffnungssensor" ausgewählt hast).
+              - type: entity
+                entity: binary_sensor.hamsterkaefig_deckel
+                icon: mdi:door
+                name: Deckel
+
+      # ------------------------------------------------------------------
+      # 2) Health-Score als Ring-Chart (ApexCharts radialBar)
+      # ------------------------------------------------------------------
+      - type: grid
+        cards:
+          - type: custom:apexcharts-card
+            experimental:
+              color_threshold: true
+            chart_type: radialBar
+            header:
+              show: true
+              title: Health Score
+              show_states: true
+              colorize_states: true
+            series:
+              - entity: sensor.taco_health_score
+                name: Health Score
+                # Farbverlauf passend zur Warnschwelle aus der Integration
+                # (WARNING_SCORE_THRESHOLD = 50): rot bis 50, orange bis 75,
+                # ab 75 grün.
+                color_threshold:
+                  - value: 0
+                    color: "#f44336"
+                  - value: 50
+                    color: "#ff9800"
+                  - value: 75
+                    color: "#4caf50"
+            apex_config:
+              chart:
+                height: 260px
+              plotOptions:
+                radialBar:
+                  hollow:
+                    size: 62%
+                  dataLabels:
+                    value:
+                      fontSize: 34px
+                      fontWeight: 700
+
+      # ------------------------------------------------------------------
+      # 3) Laufstrecke der letzten 7 Tage (ApexCharts, Statistics-basiert)
+      # ------------------------------------------------------------------
+      - type: grid
+        cards:
+          - type: custom:apexcharts-card
+            graph_span: 7d
+            header:
+              show: true
+              title: Laufstrecke (7 Tage)
+              show_states: true
+              colorize_states: true
+            series:
+              - entity: sensor.taco_daily_distance
+                name: km
+                type: column
+                color: "#7c4dff"
+                # "change" pro Tag statt Rohzustand: die Statistik-Tabelle
+                # rechnet den täglichen Reset von daily_distance (state_class
+                # total_increasing) korrekt heraus, statt einen Sägezahn
+                # anzuzeigen.
+                statistics:
+                  type: change
+                  period: day
+            apex_config:
+              chart:
+                height: 220px
+              plotOptions:
+                bar:
+                  columnWidth: 55%
+                  borderRadius: 8

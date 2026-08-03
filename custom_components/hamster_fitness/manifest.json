@@ -1,0 +1,12 @@
+{
+  "domain": "hamster_fitness",
+  "name": "Hamster Fitness",
+  "codeowners": ["@GpsM2"],
+  "config_flow": true,
+  "documentation": "https://github.com/GpsM2/ha-hamster-fitness",
+  "integration_type": "device",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/GpsM2/ha-hamster-fitness/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
