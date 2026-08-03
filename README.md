@@ -88,16 +88,26 @@ erneut anpassen, ohne die Integration neu einrichten zu müssen.
 
 - Ideal-Temperaturbereich (min/max)
 - Mindest-Tagesstrecke, ab der der Health Score stark abfällt
-- Push-Benachrichtigungen an/aus
+- Warnungen an/aus (Temperatur, vernachlässigter Käfig, niedriger Score,
+  zu wenig Bewegung)
+- Tageszusammenfassung an/aus
 - Uhrzeit der täglichen Zusammenfassung
+
+Jede Benachrichtigung wird mit dem Namen des Hamsters als Titel und dem
+eigentlichen Text als Nachricht verschickt (auf Zielen, die das
+unterstützen, z. B. die mobile App).
 
 ## Angelegte Entities
 
 | Entity | Beschreibung |
 |---|---|
 | `sensor.<hamster>_health_score` | Gesundheits-Score (0–100 %) |
-| `sensor.<hamster>_daily_distance` | Laufstrecke seit Mitternacht (km) |
-| `binary_sensor.<hamster>_warning` | Warnung bei niedrigem Score, Extremtemperatur oder vernachlässigtem Käfig |
+| `sensor.<hamster>_daily_distance` | Laufstrecke seit dem letzten Reset um 9 Uhr morgens (km) |
+| `binary_sensor.<hamster>_warning` | Warnung bei niedrigem Score, Extremtemperatur, vernachlässigtem Käfig oder zu wenig Bewegung |
+
+Der Tages-Reset liegt bewusst auf 9 Uhr morgens statt Mitternacht, damit
+eine durchgehende nächtliche Laufphase nicht künstlich mitten in der Nacht
+auf zwei Kalendertage aufgeteilt wird.
 
 ## Beispiel-Dashboard
 

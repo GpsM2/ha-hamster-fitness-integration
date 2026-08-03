@@ -36,21 +36,23 @@ from .const import (
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_CIRCUMFERENCE,
     CONF_WHEEL_SENSOR,
+    DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_MIN_DISTANCE_KM,
     DEFAULT_NOTIFICATION_TIME,
-    DEFAULT_NOTIFICATIONS_ENABLED,
+    DEFAULT_WARNINGS_ENABLED,
     DEFAULT_WHEEL_CIRCUMFERENCE_CM,
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
     MAX_WHEEL_CIRCUMFERENCE_CM,
     MIN_WHEEL_CIRCUMFERENCE_CM,
+    OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
     OPTION_MIN_DISTANCE_KM,
     OPTION_NOTIFICATION_TIME,
-    OPTION_NOTIFICATIONS_ENABLED,
+    OPTION_WARNINGS_ENABLED,
     SKIP_VALIDATION_STATES,
 )
 
@@ -299,9 +301,13 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Required(
-                OPTION_NOTIFICATIONS_ENABLED,
+                OPTION_WARNINGS_ENABLED,
+                default=current.get(OPTION_WARNINGS_ENABLED, DEFAULT_WARNINGS_ENABLED),
+            ): BooleanSelector(),
+            vol.Required(
+                OPTION_DAILY_SUMMARY_ENABLED,
                 default=current.get(
-                    OPTION_NOTIFICATIONS_ENABLED, DEFAULT_NOTIFICATIONS_ENABLED
+                    OPTION_DAILY_SUMMARY_ENABLED, DEFAULT_DAILY_SUMMARY_ENABLED
                 ),
             ): BooleanSelector(),
             vol.Required(

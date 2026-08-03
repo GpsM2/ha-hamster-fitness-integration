@@ -76,19 +76,21 @@
     "step": {
       "init": {
         "title": "Hamster Fitness – Einstellungen",
-        "description": "Passe die Health-Score-Schwellenwerte und die Benachrichtigungen für die Tageszusammenfassung an.",
+        "description": "Passe die Health-Score-Schwellenwerte und die Benachrichtigungen an.",
         "data": {
           "ideal_temp_min": "Ideal-Temperatur (min)",
           "ideal_temp_max": "Ideal-Temperatur (max)",
           "min_distance_km": "Mindeststrecke pro Tag",
-          "notifications_enabled": "Push-Benachrichtigungen senden",
+          "warnings_enabled": "Warnungen senden",
+          "daily_summary_enabled": "Tageszusammenfassung senden",
           "notification_time": "Uhrzeit der Tageszusammenfassung"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
           "ideal_temp_max": "Obergrenze des idealen Käfig-Temperaturbereichs.",
           "min_distance_km": "Unterhalb dieser Tagesstrecke sinkt der Health-Score deutlich.",
-          "notifications_enabled": "Deaktivieren, um Warnungen und Tageszusammenfassung komplett stummzuschalten.",
+          "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
+          "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
           "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird."
         }
       }

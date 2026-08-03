@@ -32,14 +32,16 @@ SKIP_VALIDATION_STATES: Final[set[str]] = {"unknown", "unavailable"}
 OPTION_IDEAL_TEMP_MIN: Final = "ideal_temp_min"
 OPTION_IDEAL_TEMP_MAX: Final = "ideal_temp_max"
 OPTION_MIN_DISTANCE_KM: Final = "min_distance_km"
-OPTION_NOTIFICATIONS_ENABLED: Final = "notifications_enabled"
+OPTION_WARNINGS_ENABLED: Final = "warnings_enabled"
+OPTION_DAILY_SUMMARY_ENABLED: Final = "daily_summary_enabled"
 OPTION_NOTIFICATION_TIME: Final = "notification_time"
 
 # --- Options: Defaults ---
 DEFAULT_IDEAL_TEMP_MIN: Final[float] = 20.0
 DEFAULT_IDEAL_TEMP_MAX: Final[float] = 24.0
 DEFAULT_MIN_DISTANCE_KM: Final[float] = 2.0
-DEFAULT_NOTIFICATIONS_ENABLED: Final = True
+DEFAULT_WARNINGS_ENABLED: Final = True
+DEFAULT_DAILY_SUMMARY_ENABLED: Final = True
 DEFAULT_NOTIFICATION_TIME: Final = "08:00:00"
 
 # --- Health-Score-Parameter (fest, nicht über Options konfigurierbar) ---
@@ -54,6 +56,15 @@ TEMP_BUFFER_C: Final[float] = 2.0
 NEGLECT_THRESHOLD_HOURS: Final[float] = 48.0
 # Health-Score-Schwelle, unterhalb derer binary_sensor.<hamster>_warning angeht.
 WARNING_SCORE_THRESHOLD: Final[int] = 50
+
+# --- Tages-Reset-Metrik ---
+# Der Tages-Distanzzähler (sensor.<hamster>_daily_distance) wird nicht um
+# Mitternacht zurückgesetzt, sondern erst zu dieser lokalen Uhrzeit (nicht
+# per Options konfigurierbar, siehe Notiz in coordinator.py) - Hamster sind
+# nachtaktiv, ein Reset um 00 Uhr würde eine einzelne, zusammenhängende
+# Laufphase mitten in der Nacht künstlich auf zwei Kalendertage aufteilen.
+# 9 Uhr morgens liegt sicher nach dem typischen Aktivitätsende.
+DAILY_RESET_HOUR: Final[int] = 9
 
 # --- Nachtfenster-Metrik ---
 # "Nachts gelaufen" wird ab dieser lokalen Uhrzeit gezählt (nicht per

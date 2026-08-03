@@ -2,10 +2,10 @@
 
 This coordinator never polls (`update_interval=None`). It recalculates
 instantly whenever one of the tracked source entities changes state
-(see `_async_setup`), and twice more on a fixed daily schedule: at local
-midnight (resets the calendar-day baseline) and at NIGHT_WINDOW_START_HOUR
-(resets the "night window" baseline used for the nightly-activity
-comparison, see `_calculate`).
+(see `_async_setup`), and twice more on a fixed daily schedule: at
+DAILY_RESET_HOUR (resets the daily-distance baseline) and at
+NIGHT_WINDOW_START_HOUR (resets the "night window" baseline used for the
+nightly-activity comparison, see `_calculate`).
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from .const import (
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_CIRCUMFERENCE,
     CONF_WHEEL_SENSOR,
+    DAILY_RESET_HOUR,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_MIN_DISTANCE_KM,
@@ -68,8 +69,9 @@ class HamsterFitnessData:
     daily_distance_km: float = 0.0
     previous_day_distance_km: float = 0.0
     # Strecke seit dem letzten Fenster-Start (NIGHT_WINDOW_START_HOUR, z. B.
-    # 20 Uhr) - im Gegensatz zu daily_distance_km NICHT um Mitternacht
-    # gekappt, sondern deckt die tatsächliche nächtliche Aktivitätsphase ab.
+    # 20 Uhr) - im Gegensatz zu daily_distance_km NICHT erst um
+    # DAILY_RESET_HOUR gekappt, sondern deckt die tatsächliche nächtliche
+    # Aktivitätsphase ab.
     night_distance_km: float = 0.0
     temperature: float | None = None
     door_open: bool = False
@@ -78,7 +80,8 @@ class HamsterFitnessData:
     temperature_penalty: float = 0.0
     care_penalty: float = 0.0
     warning_on: bool = False
-    # code -> lesbarer Text, z. B. {"too_hot": "Zu heiß: 30.0 °C (> 26.0 °C)"}.
+    # code -> lesbarer Text, z. B.
+    # {"too_hot": "Im Käfig ist es ziemlich warm: 30,0 °C."}.
     # Der stabile code ermöglicht notify.py ein Cooldown pro Warngrund, ohne
     # durch schwankende Zahlenwerte im Text getäuscht zu werden.
     warning_reasons: dict[str, str] = field(default_factory=dict)
@@ -105,6 +108,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             hass, STORAGE_VERSION, f"{DOMAIN}_{entry.entry_id}_baseline"
         )
         self._baseline_count: float = 0.0
+        self._baseline_window_start: datetime | None = None
         self._last_known_count: float | None = None
         self._previous_day_distance_km: float = 0.0
 
@@ -131,7 +135,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
         entry.async_on_unload(
             async_track_time_change(
-                self.hass, self._async_handle_midnight, hour=0, minute=0, second=0
+                self.hass,
+                self._async_handle_daily_reset,
+                hour=DAILY_RESET_HOUR,
+                minute=0,
+                second=0,
             )
         )
         entry.async_on_unload(
@@ -149,13 +157,12 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         return self._calculate()
 
     # ------------------------------------------------------------------
-    # Persistenz der Tages-Baseline (Radumdrehungen um Mitternacht)
+    # Persistenz der Tages-Baseline (Radumdrehungen ab DAILY_RESET_HOUR)
     # ------------------------------------------------------------------
 
     async def _async_restore_state(self) -> None:
         """Load persisted baselines, falling back to "start counting now"."""
         stored = await self._store.async_load()
-        today = dt_util.now().date().isoformat()
         if stored:
             self._previous_day_distance_km = stored.get(
                 "previous_day_distance_km", 0.0
@@ -163,27 +170,38 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         needs_save = False
 
-        if stored and stored.get("baseline_date") == today:
+        expected_daily_start = _compute_window_start(dt_util.now(), DAILY_RESET_HOUR)
+        stored_daily_start = (
+            dt_util.parse_datetime(stored["baseline_window_start"])
+            if stored and stored.get("baseline_window_start")
+            else None
+        )
+        if stored_daily_start == expected_daily_start:
             self._baseline_count = stored.get("baseline_count", 0.0)
+            self._baseline_window_start = expected_daily_start
         else:
-            # Kein brauchbarer Wert für heute: bei Neustart NICHT bei 0
-            # anfangen, sondern beim aktuellen Zählerstand - sonst
-            # "erfindet" ein Neustart mitten am Tag zusätzliche Strecke.
+            # Kein brauchbarer Wert für das laufende Tagesfenster: bei
+            # Neustart NICHT bei 0 anfangen, sondern beim aktuellen
+            # Zählerstand - sonst "erfindet" ein Neustart mitten im Fenster
+            # zusätzliche Strecke.
             self._baseline_count = self._current_wheel_count() or 0.0
+            self._baseline_window_start = expected_daily_start
             needs_save = True
 
-        expected_window_start = _compute_night_window_start(dt_util.now())
-        stored_window_start = (
+        expected_night_start = _compute_window_start(
+            dt_util.now(), NIGHT_WINDOW_START_HOUR
+        )
+        stored_night_start = (
             dt_util.parse_datetime(stored["night_window_start"])
             if stored and stored.get("night_window_start")
             else None
         )
-        if stored_window_start == expected_window_start:
+        if stored_night_start == expected_night_start:
             self._night_baseline_count = stored.get("night_baseline_count", 0.0)
-            self._night_window_start = expected_window_start
+            self._night_window_start = expected_night_start
         else:
             self._night_baseline_count = self._current_wheel_count() or 0.0
-            self._night_window_start = expected_window_start
+            self._night_window_start = expected_night_start
             needs_save = True
 
         if needs_save:
@@ -193,7 +211,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         await self._store.async_save(
             {
                 "baseline_count": self._baseline_count,
-                "baseline_date": dt_util.now().date().isoformat(),
+                "baseline_window_start": (
+                    self._baseline_window_start.isoformat()
+                    if self._baseline_window_start
+                    else None
+                ),
                 "previous_day_distance_km": self._previous_day_distance_km,
                 "night_baseline_count": self._night_baseline_count,
                 "night_window_start": (
@@ -205,16 +227,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
 
     @callback
-    def _async_handle_midnight(self, now: datetime) -> None:
-        """Reset the daily distance baseline at local midnight.
+    def _async_handle_daily_reset(self, now: datetime) -> None:
+        """Reset the daily distance baseline at DAILY_RESET_HOUR.
 
-        `self.data` still holds yesterday's final snapshot at this point
-        (the event fires at 00:00:00 before any recalculation), so its
-        `daily_distance_km` becomes the new "yesterday" reference.
+        `self.data` still holds the previous window's final snapshot at this
+        point (the event fires at DAILY_RESET_HOUR:00:00 before any
+        recalculation), so its `daily_distance_km` becomes the new
+        "yesterday" reference.
         """
         if self.data is not None:
             self._previous_day_distance_km = self.data.daily_distance_km
         self._baseline_count = self._current_wheel_count() or 0.0
+        self._baseline_window_start = _compute_window_start(
+            dt_util.now(), DAILY_RESET_HOUR
+        )
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
 
@@ -222,7 +248,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     def _async_handle_night_window_reset(self, now: datetime) -> None:
         """Reset the night-window baseline at NIGHT_WINDOW_START_HOUR."""
         self._night_baseline_count = self._current_wheel_count() or 0.0
-        self._night_window_start = _compute_night_window_start(dt_util.now())
+        self._night_window_start = _compute_window_start(
+            dt_util.now(), NIGHT_WINDOW_START_HOUR
+        )
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
 
@@ -302,29 +330,27 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         reasons: dict[str, str] = {}
         if score < WARNING_SCORE_THRESHOLD:
-            reasons["low_score"] = (
-                f"Health-Score bei {score} % (unter {WARNING_SCORE_THRESHOLD} %)"
-            )
+            reasons["low_score"] = f"Der Health-Score ist auf {score} % gesunken."
         if distance_km < min_distance_km:
             reasons["too_little_exercise"] = (
-                f"Zu wenig Bewegung: {distance_km:.2f} km "
-                f"(< {min_distance_km:.1f} km)"
+                f"Bisher erst {_fmt_de(distance_km, 2)} km gelaufen, "
+                "deutlich weniger als üblich."
             )
         if temperature is not None:
             hard_min = ideal_temp_min - TEMP_BUFFER_C
             hard_max = ideal_temp_max + TEMP_BUFFER_C
             if temperature < hard_min:
                 reasons["too_cold"] = (
-                    f"Zu kalt: {temperature:.1f} °C (< {hard_min:.1f} °C)"
+                    f"Im Käfig ist es kalt geworden: {_fmt_de(temperature, 1)} °C."
                 )
             elif temperature > hard_max:
                 reasons["too_hot"] = (
-                    f"Zu heiß: {temperature:.1f} °C (> {hard_max:.1f} °C)"
+                    f"Im Käfig ist es ziemlich warm: {_fmt_de(temperature, 1)} °C."
                 )
         if hours_door_closed is not None and hours_door_closed > NEGLECT_THRESHOLD_HOURS:
             reasons["neglected"] = (
-                f"Käfig seit {hours_door_closed:.0f} Std. nicht geöffnet "
-                f"(> {NEGLECT_THRESHOLD_HOURS:.0f} Std.)"
+                f"Der Käfig wurde seit {hours_door_closed:.0f} Stunden "
+                "nicht mehr geöffnet."
             )
 
         return HamsterFitnessData(
@@ -355,17 +381,17 @@ def hamster_device_info(entry: HamsterFitnessConfigEntry) -> DeviceInfo:
     )
 
 
-def _compute_night_window_start(now_local: datetime) -> datetime:
-    """Return the most recent NIGHT_WINDOW_START_HOUR timestamp at/before now.
+def _compute_window_start(now_local: datetime, hour: int) -> datetime:
+    """Return the most recent daily reset timestamp (at `hour`) at/before now.
 
-    Example with NIGHT_WINDOW_START_HOUR=20: at 06:00 this returns
-    yesterday 20:00; at 21:00 it returns today 20:00. This is the single
-    reset point for the night-window baseline - there is no separate
-    "window end", since the next reset (24h later) implicitly closes it.
+    Example with hour=20: at 06:00 this returns yesterday 20:00; at 21:00 it
+    returns today 20:00. Shared by the daily-distance baseline
+    (DAILY_RESET_HOUR) and the night-window baseline
+    (NIGHT_WINDOW_START_HOUR) - each reset point is the single start of its
+    own window, there is no separate "window end" since the next reset 24h
+    later implicitly closes it.
     """
-    candidate = now_local.replace(
-        hour=NIGHT_WINDOW_START_HOUR, minute=0, second=0, microsecond=0
-    )
+    candidate = now_local.replace(hour=hour, minute=0, second=0, microsecond=0)
     if now_local < candidate:
         candidate -= timedelta(days=1)
     return candidate
@@ -377,6 +403,11 @@ def _as_float(value: str | None) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _fmt_de(value: float, decimals: int) -> str:
+    """Format a float with a German-style comma decimal separator."""
+    return f"{value:.{decimals}f}".replace(".", ",")
 
 
 def _distance_penalty(distance_km: float, min_distance_km: float) -> float:

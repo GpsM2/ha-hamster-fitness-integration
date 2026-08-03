@@ -88,10 +88,11 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
 
 
 class HamsterDailyDistanceSensor(HamsterFitnessSensorBase):
-    """Distance run on the wheel since local midnight.
+    """Distance run on the wheel since the last DAILY_RESET_HOUR.
 
-    Uses TOTAL_INCREASING, since this value only grows during the day and
-    resets to 0 at midnight - the same pattern used by daily energy/water
+    Uses TOTAL_INCREASING, since this value only grows during the window
+    and resets to 0 once a day (at DAILY_RESET_HOUR, not midnight - see
+    coordinator.py) - the same pattern used by daily energy/water
     counters, which also makes it compatible with long-term statistics.
     """
 

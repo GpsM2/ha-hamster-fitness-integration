@@ -76,19 +76,21 @@
     "step": {
       "init": {
         "title": "Hamster Fitness settings",
-        "description": "Fine-tune the health-score thresholds and the daily-summary notifications.",
+        "description": "Fine-tune the health-score thresholds and the notifications.",
         "data": {
           "ideal_temp_min": "Ideal temperature (min)",
           "ideal_temp_max": "Ideal temperature (max)",
           "min_distance_km": "Minimum daily distance",
-          "notifications_enabled": "Send push notifications",
+          "warnings_enabled": "Send warning notifications",
+          "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
           "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
           "min_distance_km": "Below this daily distance, the health score drops sharply.",
-          "notifications_enabled": "Turn off to silence warnings and the daily summary entirely.",
+          "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
+          "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent."
         }
       }

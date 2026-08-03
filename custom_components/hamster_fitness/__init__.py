@@ -23,9 +23,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntr
 
     entry.runtime_data = coordinator
 
-    # Registers the daily-summary timer and the warning listener - but only
-    # if OPTION_NOTIFICATIONS_ENABLED is True (see notify.py). Both are torn
-    # down automatically on unload/reload via entry.async_on_unload().
+    # Registers the daily-summary timer and the warning listener, each
+    # gated by its own option (OPTION_DAILY_SUMMARY_ENABLED /
+    # OPTION_WARNINGS_ENABLED, see notify.py). Both are torn down
+    # automatically on unload/reload via entry.async_on_unload().
     await HamsterFitnessNotifier(hass, entry, coordinator).async_setup()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
