@@ -170,13 +170,22 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         needs_save = False
 
+        # Wenn der Rad-Sensor seit dem letzten Speichern gewechselt wurde
+        # (z. B. per Reconfigure), sind die gespeicherten Baselines gegen
+        # den Zählerstand eines ANDEREN Sensors gemessen und dürfen nicht
+        # weiterverwendet werden - sonst entsteht aus der Differenz zweier
+        # unabhängiger Sensor-Skalen eine riesige Phantom-Distanz. Beide
+        # Baselines werden dann so behandelt, als gäbe es noch keinen
+        # gespeicherten Wert.
+        sensor_changed = bool(stored) and stored.get("wheel_sensor") != self._wheel_sensor
+
         expected_daily_start = _compute_window_start(dt_util.now(), DAILY_RESET_HOUR)
         stored_daily_start = (
             dt_util.parse_datetime(stored["baseline_window_start"])
             if stored and stored.get("baseline_window_start")
             else None
         )
-        if stored_daily_start == expected_daily_start:
+        if not sensor_changed and stored_daily_start == expected_daily_start:
             self._baseline_count = stored.get("baseline_count", 0.0)
             self._baseline_window_start = expected_daily_start
         else:
@@ -196,7 +205,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             if stored and stored.get("night_window_start")
             else None
         )
-        if stored_night_start == expected_night_start:
+        if not sensor_changed and stored_night_start == expected_night_start:
             self._night_baseline_count = stored.get("night_baseline_count", 0.0)
             self._night_window_start = expected_night_start
         else:
@@ -210,6 +219,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     async def _async_save_state(self) -> None:
         await self._store.async_save(
             {
+                "wheel_sensor": self._wheel_sensor,
                 "baseline_count": self._baseline_count,
                 "baseline_window_start": (
                     self._baseline_window_start.isoformat()
