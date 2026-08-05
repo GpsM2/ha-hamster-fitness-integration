@@ -7,12 +7,12 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Acquisition date",
-          "wheel_circumference": "Wheel circumference"
+          "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
-          "wheel_circumference": "Full circumference (distance travelled per rotation), NOT the diameter - if you only know the diameter, multiply it by 3.14159. This is independent of any wheel-size value you may have entered elsewhere, e.g. on an ESPHome device, which may expect the diameter instead."
+          "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
       "sensors": {
@@ -41,12 +41,12 @@
         "data": {
           "hamster_name": "[%key:component::hamster_fitness::config::step::user::data::hamster_name%]",
           "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data::acquisition_date%]",
-          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data::wheel_circumference%]"
+          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data::wheel_diameter%]"
         },
         "data_description": {
           "hamster_name": "[%key:component::hamster_fitness::config::step::user::data_description::hamster_name%]",
           "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data_description::acquisition_date%]",
-          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_circumference%]"
+          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_diameter%]"
         }
       },
       "reconfigure_sensors": {
@@ -72,7 +72,7 @@
     },
     "error": {
       "invalid_name": "Please enter a name for your hamster.",
-      "invalid_circumference": "Wheel circumference must be greater than 0.",
+      "invalid_diameter": "Wheel diameter must be greater than 0.",
       "not_numeric": "The selected wheel sensor's current state is not a number."
     },
     "abort": {

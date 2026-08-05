@@ -7,12 +7,12 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Einzugsdatum",
-          "wheel_circumference": "Radumfang"
+          "wheel_diameter": "Raddurchmesser"
         },
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
-          "wheel_circumference": "Der volle Umfang (Strecke pro Umdrehung), NICHT der Durchmesser - falls du nur den Durchmesser kennst: Umfang = Durchmesser × 3,14159. Das ist unabhängig von einer evtl. anderswo eingetragenen Radgröße (z. B. auf einem ESPHome-Gerät), die dort oft den Durchmesser statt des Umfangs erwartet."
+          "wheel_diameter": "Durchmesser des Laufrads, wie er üblicherweise auf der Verpackung oder im Produktangebot steht. Falls du für den Rad-Sensor zusätzlich ein ESPHome-Gerät nutzt, trag dort denselben Wert ein."
         }
       },
       "sensors": {
@@ -41,12 +41,12 @@
         "data": {
           "hamster_name": "[%key:component::hamster_fitness::config::step::user::data::hamster_name%]",
           "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data::acquisition_date%]",
-          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data::wheel_circumference%]"
+          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data::wheel_diameter%]"
         },
         "data_description": {
           "hamster_name": "[%key:component::hamster_fitness::config::step::user::data_description::hamster_name%]",
           "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data_description::acquisition_date%]",
-          "wheel_circumference": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_circumference%]"
+          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_diameter%]"
         }
       },
       "reconfigure_sensors": {
@@ -72,7 +72,7 @@
     },
     "error": {
       "invalid_name": "Bitte gib einen Namen für deinen Hamster ein.",
-      "invalid_circumference": "Der Radumfang muss größer als 0 sein.",
+      "invalid_diameter": "Der Raddurchmesser muss größer als 0 sein.",
       "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl."
     },
     "abort": {

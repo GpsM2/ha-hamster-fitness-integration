@@ -18,6 +18,7 @@ physical wheel/cage).
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Final
@@ -39,7 +40,7 @@ from .const import (
     CONF_HUMIDITY_SENSOR,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
-    CONF_WHEEL_CIRCUMFERENCE,
+    CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
     DAILY_RESET_HOUR,
     DEFAULT_IDEAL_TEMP_MAX,
@@ -120,7 +121,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             name=f"{DOMAIN} ({entry.title})",
             update_interval=None,  # push-only, siehe _async_handle_source_event
         )
-        self._wheel_circumference_cm: float = entry.data[CONF_WHEEL_CIRCUMFERENCE]
+        # Der Config Flow fragt den Durchmesser ab (so werden Hamsterräder
+        # verkauft), intern wird für die Distanzberechnung aber der Umfang
+        # gebraucht.
+        self._wheel_circumference_cm: float = entry.data[CONF_WHEEL_DIAMETER] * math.pi
         self._wheel_sensor: str = entry.data[CONF_WHEEL_SENSOR]
         self._temperature_sensor: str = entry.data[CONF_TEMPERATURE_SENSOR]
         self._door_sensor: str = entry.data[CONF_DOOR_SENSOR]

@@ -11,7 +11,7 @@ DOMAIN: Final = "hamster_fitness"
 # --- Config Flow: Stammdaten (Step "user") ---
 CONF_HAMSTER_NAME: Final = "hamster_name"
 CONF_ACQUISITION_DATE: Final = "acquisition_date"
-CONF_WHEEL_CIRCUMFERENCE: Final = "wheel_circumference"
+CONF_WHEEL_DIAMETER: Final = "wheel_diameter"
 
 # --- Config Flow: Quell-Entitäten (Step "sensors") ---
 CONF_WHEEL_SENSOR: Final = "wheel_sensor"
@@ -25,9 +25,15 @@ CONF_SPEED_SENSOR: Final = "speed_sensor"
 CONF_NOTIFY_SERVICES: Final = "notify_services"
 
 # --- Defaults / Grenzwerte ---
-DEFAULT_WHEEL_CIRCUMFERENCE_CM: Final[float] = 28.0  # Ø 9 cm Laufrad
-MIN_WHEEL_CIRCUMFERENCE_CM: Final[float] = 1.0
-MAX_WHEEL_CIRCUMFERENCE_CM: Final[float] = 100.0
+# Hamsterräder werden im Handel immer über den Durchmesser angegeben, nicht
+# den Umfang - daher fragt auch der Config Flow direkt danach (der Umfang
+# wird intern via _wheel_circumference_cm = diameter * pi hergeleitet, siehe
+# coordinator.py). Grenzen/Default sind bewusst identisch zum "Rad
+# Durchmesser"-Feld der ESPHome-Firmware (esphome/esphome-web-d018de.yaml),
+# damit hier derselbe Zahlenwert eingetragen werden kann.
+DEFAULT_WHEEL_DIAMETER_CM: Final[float] = 28.0
+MIN_WHEEL_DIAMETER_CM: Final[float] = 10.0
+MAX_WHEEL_DIAMETER_CM: Final[float] = 50.0
 
 # Zustände, bei denen eine numerische Validierung übersprungen wird
 # (Entität ist evtl. nur temporär nicht verfügbar).

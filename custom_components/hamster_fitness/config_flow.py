@@ -36,7 +36,7 @@ from .const import (
     CONF_NOTIFY_SERVICES,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
-    CONF_WHEEL_CIRCUMFERENCE,
+    CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
     DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_IDEAL_TEMP_MAX,
@@ -44,11 +44,11 @@ from .const import (
     DEFAULT_MIN_DISTANCE_KM,
     DEFAULT_NOTIFICATION_TIME,
     DEFAULT_WARNINGS_ENABLED,
-    DEFAULT_WHEEL_CIRCUMFERENCE_CM,
+    DEFAULT_WHEEL_DIAMETER_CM,
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
-    MAX_WHEEL_CIRCUMFERENCE_CM,
-    MIN_WHEEL_CIRCUMFERENCE_CM,
+    MAX_WHEEL_DIAMETER_CM,
+    MIN_WHEEL_DIAMETER_CM,
     OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
@@ -66,11 +66,11 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_HAMSTER_NAME): TextSelector(),
         vol.Required(CONF_ACQUISITION_DATE): DateSelector(),
         vol.Required(
-            CONF_WHEEL_CIRCUMFERENCE, default=DEFAULT_WHEEL_CIRCUMFERENCE_CM
+            CONF_WHEEL_DIAMETER, default=DEFAULT_WHEEL_DIAMETER_CM
         ): NumberSelector(
             NumberSelectorConfig(
-                min=MIN_WHEEL_CIRCUMFERENCE_CM,
-                max=MAX_WHEEL_CIRCUMFERENCE_CM,
+                min=MIN_WHEEL_DIAMETER_CM,
+                max=MAX_WHEEL_DIAMETER_CM,
                 step=0.1,
                 unit_of_measurement="cm",
                 mode=NumberSelectorMode.BOX,
@@ -146,12 +146,12 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             name = str(user_input[CONF_HAMSTER_NAME]).strip()
-            circumference = user_input[CONF_WHEEL_CIRCUMFERENCE]
+            diameter = user_input[CONF_WHEEL_DIAMETER]
 
             if not name:
                 errors[CONF_HAMSTER_NAME] = "invalid_name"
-            if circumference <= 0:
-                errors[CONF_WHEEL_CIRCUMFERENCE] = "invalid_circumference"
+            if diameter <= 0:
+                errors[CONF_WHEEL_DIAMETER] = "invalid_diameter"
 
             if not errors:
                 await self.async_set_unique_id(slugify(name))
@@ -216,12 +216,12 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             name = str(user_input[CONF_HAMSTER_NAME]).strip()
-            circumference = user_input[CONF_WHEEL_CIRCUMFERENCE]
+            diameter = user_input[CONF_WHEEL_DIAMETER]
 
             if not name:
                 errors[CONF_HAMSTER_NAME] = "invalid_name"
-            if circumference <= 0:
-                errors[CONF_WHEEL_CIRCUMFERENCE] = "invalid_circumference"
+            if diameter <= 0:
+                errors[CONF_WHEEL_DIAMETER] = "invalid_diameter"
 
             if not errors:
                 # unique_id bleibt bewusst unangetastet: er wurde beim

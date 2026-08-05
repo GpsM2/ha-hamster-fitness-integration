@@ -37,8 +37,12 @@ bleibt.
   Rad-Sensors, überlebt Geräte-Reboots und bleibt nach dem Auszug als
   Vergleichswert erhalten
 - Gewichts-Tracking (`number.<hamster>_weight`, Gramm, manuell einzutragen)
-- Beschreibung des Radumfang-Felds klargestellt (Umfang, nicht Durchmesser),
-  um Verwechslungen mit ESPHome-seitigen Durchmesser-Feldern zu vermeiden
+- `hamster_fitness` fragt jetzt wie im Handel üblich den **Raddurchmesser**
+  statt des Radumfangs ab (intern weiterhin über Umfang = Durchmesser × π
+  in die Distanzberechnung eingerechnet) - Grenzen/Default sind bewusst
+  identisch zum ESPHome-Feld "Rad Durchmesser", damit hier wie dort derselbe
+  Wert eingetragen werden kann. Löst die weiter unten vermutete
+  Verwechslungsgefahr strukturell, nicht nur per Beschreibungstext
 - Integrations-Icon entworfen, freigestellt, zugeschnitten und **aktiv**
   (`custom_components/hamster_fitness/brand/`, Quelle: GpsM2) - dank der
   neuen [Brands-Proxy-API](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api/)
@@ -82,9 +86,9 @@ Sensoren aller Hamster nachbauen.
 
 ### Distanzberechnung wirkt hoch im Vergleich zur ESP-eigenen Berechnung
 
-Wahrscheinlichste Ursache: `wheel_circumference` in `hamster_fitness`
-erwartet den **Umfang**, das ESPHome-Feld "Rad Durchmesser" dagegen den
-**Durchmesser** (wird dort intern × π gerechnet) - beide Felder hatten
-zufällig denselben Default-Wert (28.0), was die Verwechslung begünstigt
-(die Feldbeschreibung wurde inzwischen klargestellt, siehe oben). Noch
-nicht abschließend anhand echter Werte verifiziert.
+Der wahrscheinlichste Auslöser (Radumfang- statt Raddurchmesser-Feld, siehe
+oben) ist durch die Umstellung auf ein gemeinsames Durchmesser-Feld
+strukturell behoben. Nach dem Update einmal per Reconfigure den (jetzt als
+Durchmesser interpretierten) Wert prüfen/neu eintragen - falls die
+Diskrepanz danach weiterhin auftritt, war die Ursache etwas anderes und
+müsste anhand konkreter Sensor-Werte neu untersucht werden.

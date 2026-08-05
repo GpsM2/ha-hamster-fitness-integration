@@ -51,14 +51,14 @@ Die Firmware legt u. a. folgende Entities an:
 `sensor.hamsterrad_umdrehungen_gesamt` (der rohe Umdrehungszähler) als
 "Rad-Umdrehungssensor" ausgewählt werden — nicht einer der bereits fertig in
 km umgerechneten Strecken-Sensoren. Die Integration multipliziert den
-Sensorwert selbst mit dem konfigurierten Radumfang.
+Sensorwert selbst mit dem konfigurierten Raddurchmesser (siehe Abschnitt 3
+"Einrichtung" unten).
 
-**Achtung, Verwechslungsgefahr:** Das ESPHome-Feld "Rad Durchmesser" erwartet
-den **Durchmesser** (rechnet intern × π), das `hamster_fitness`-Feld
-"Radumfang" weiter unten dagegen den fertigen **Umfang** direkt. Trag hier
-nicht denselben Zahlenwert ein wie dort, sondern: Umfang = Durchmesser × π.
-`sensor.hamsterrad_geschwindigkeit` (Echtzeit-Geschwindigkeit) lässt sich
-optional ebenfalls in `hamster_fitness` einbinden, siehe Schritt 2 unten.
+Sowohl das ESPHome-Feld "Rad Durchmesser" als auch das `hamster_fitness`-Feld
+"Raddurchmesser" erwarten denselben Wert - einfach überall denselben
+Durchmesser eintragen, wie er üblicherweise auf der Verpackung des Laufrads
+steht. `sensor.hamsterrad_geschwindigkeit` (Echtzeit-Geschwindigkeit) lässt
+sich optional ebenfalls in `hamster_fitness` einbinden, siehe Abschnitt 3.
 
 ## 2. Integration installieren
 
@@ -82,7 +82,8 @@ deiner Home-Assistant-Konfiguration kopieren und Home Assistant neu starten.
 
 Einstellungen → Geräte & Dienste → Integration hinzufügen → "Hamster Fitness".
 
-**Schritt 1 (Basisdaten):** Name des Hamsters, Einzugsdatum, Radumfang (cm).
+**Schritt 1 (Basisdaten):** Name des Hamsters, Einzugsdatum, Raddurchmesser (cm) -
+wie auf der Verpackung des Laufrads angegeben.
 
 **Schritt 2 (Quell-Sensoren):**
 
