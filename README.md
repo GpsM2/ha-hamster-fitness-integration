@@ -62,6 +62,11 @@ optional ebenfalls in `hamster_fitness` einbinden, siehe Schritt 2 unten.
 
 ## 2. Integration installieren
 
+Benötigt **Home Assistant 2026.3 oder neuer** (wegen der
+[Brands-Proxy-API](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api/),
+über die das Integrations-Icon direkt aus
+`custom_components/hamster_fitness/brand/` geladen wird).
+
 ### Über HACS (empfohlen, sobald das Repo als HACS-Repository hinzugefügt ist)
 
 1. HACS → Integrationen → Menü (⋮) → Benutzerdefinierte Repositories.

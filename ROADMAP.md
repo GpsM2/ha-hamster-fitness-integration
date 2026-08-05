@@ -39,8 +39,12 @@ bleibt.
 - Gewichts-Tracking (`number.<hamster>_weight`, Gramm, manuell einzutragen)
 - Beschreibung des Radumfang-Felds klargestellt (Umfang, nicht Durchmesser),
   um Verwechslungen mit ESPHome-seitigen Durchmesser-Feldern zu vermeiden
-- Integrations-Icon entworfen, freigestellt und zugeschnitten
-  (`brands/hamster_fitness/`) - Quelle: GpsM2
+- Integrations-Icon entworfen, freigestellt, zugeschnitten und **aktiv**
+  (`custom_components/hamster_fitness/brand/`, Quelle: GpsM2) - dank der
+  neuen [Brands-Proxy-API](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api/)
+  (ab HA 2026.3) liegt das Icon direkt in der Integration selbst, keine
+  externe PR bei `home-assistant/brands` mehr nötig. Dafür `manifest.json`
+  jetzt mit `"homeassistant": "2026.3.0"` als Mindestversion.
 - Alle relevanten Daten laufen jetzt über die Integration selbst, keine
   separate ESP-Entity nötig für ein vollständiges Dashboard:
   - `binary_sensor.<hamster>_door` (Käfigtür-Status, spiegelt den
@@ -55,14 +59,6 @@ bleibt.
     Echtzeit-Geschwindigkeits-Gauge entsprechend erweitert
 
 ## 🚧 Geplant
-
-### Icon bei home-assistant/brands einreichen
-
-Das fertige Icon liegt bereit (`brands/hamster_fitness/`), muss aber noch
-per Pull Request bei [home-assistant/brands](https://github.com/home-assistant/brands)
-eingereicht werden, damit es tatsächlich in der Home-Assistant-Oberfläche
-erscheint (HA lädt Integrations-Icons zentral von dort, nicht aus diesem
-Repo) - wartet noch auf grünes Licht.
 
 ### Fertige Lovelace-Karte/-Strategy
 
