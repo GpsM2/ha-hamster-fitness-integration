@@ -1,5 +1,11 @@
 # Hamster Fitness
 
+[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R8O124JOD1)
+
 Hamster Fitness is a free add-on for Home Assistant. It watches your
 hamster's running wheel, cage temperature, and cage door, and turns that
 data into one simple health score. It can also send you alerts, show
@@ -168,3 +174,9 @@ can always tell where it came from — for example,
 
 ¹ Only shows up if you picked a speed sensor.
 ² Only shows up if you picked a humidity sensor.
+
+## Support this project
+
+Hamster Fitness is free and always will be. If it's useful to you and you
+want to say thanks, you can [buy me a coffee on Ko-fi](https://ko-fi.com/R8O124JOD1).
+Not required — just appreciated.
