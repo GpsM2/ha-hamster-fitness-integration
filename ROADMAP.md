@@ -37,16 +37,32 @@ bleibt.
   Rad-Sensors, überlebt Geräte-Reboots und bleibt nach dem Auszug als
   Vergleichswert erhalten
 - Gewichts-Tracking (`number.<hamster>_weight`, Gramm, manuell einzutragen)
+- Beschreibung des Radumfang-Felds klargestellt (Umfang, nicht Durchmesser),
+  um Verwechslungen mit ESPHome-seitigen Durchmesser-Feldern zu vermeiden
+- Integrations-Icon entworfen, freigestellt und zugeschnitten
+  (`brands/hamster_fitness/`) - Quelle: GpsM2
+- Alle relevanten Daten laufen jetzt über die Integration selbst, keine
+  separate ESP-Entity nötig für ein vollständiges Dashboard:
+  - `binary_sensor.<hamster>_door` (Käfigtür-Status, spiegelt den
+    konfigurierten Tür-/Deckelsensor, inkl. "seit wie vielen Stunden
+    geschlossen" als Attribut)
+  - `sensor.<hamster>_humidity` (optional, falls ein Feuchtigkeitssensor
+    ausgewählt wurde)
+  - `sensor.<hamster>_night_distance` (Strecke seit dem Nachtfenster-Start)
+  - `sensor.<hamster>_current_speed` und `sensor.<hamster>_max_speed_tonight`
+    (optional, falls ein Echtzeit-Geschwindigkeitssensor ausgewählt wurde)
+  - Beispiel-Dashboard (`examples/dashboard_simple.yaml`) inkl.
+    Echtzeit-Geschwindigkeits-Gauge entsprechend erweitert
 
 ## 🚧 Geplant
 
-### Integrations-Icon
+### Icon bei home-assistant/brands einreichen
 
-Ein erster Entwurf wurde verworfen und muss neu gestaltet werden. Für die
-Anzeige in der Home-Assistant-Oberfläche muss das fertige Icon zusätzlich
+Das fertige Icon liegt bereit (`brands/hamster_fitness/`), muss aber noch
 per Pull Request bei [home-assistant/brands](https://github.com/home-assistant/brands)
-eingereicht werden (HA lädt Integrations-Icons zentral von dort, nicht aus
-diesem Repo).
+eingereicht werden, damit es tatsächlich in der Home-Assistant-Oberfläche
+erscheint (HA lädt Integrations-Icons zentral von dort, nicht aus diesem
+Repo) - wartet noch auf grünes Licht.
 
 ### Fertige Lovelace-Karte/-Strategy
 
@@ -65,3 +81,14 @@ Vergleichs-/Ranking-Karte über mehrere Hamster-Geräte hinweg (z. B. "wer
 ist insgesamt am meisten gelaufen?") gibt es aber noch nicht. Aktuell
 lässt sich das manuell per `entities`-Karte mit den `lifetime_distance`-
 Sensoren aller Hamster nachbauen.
+
+## 🔍 Zu prüfen
+
+### Distanzberechnung wirkt hoch im Vergleich zur ESP-eigenen Berechnung
+
+Wahrscheinlichste Ursache: `wheel_circumference` in `hamster_fitness`
+erwartet den **Umfang**, das ESPHome-Feld "Rad Durchmesser" dagegen den
+**Durchmesser** (wird dort intern × π gerechnet) - beide Felder hatten
+zufällig denselben Default-Wert (28.0), was die Verwechslung begünstigt
+(die Feldbeschreibung wurde inzwischen klargestellt, siehe oben). Noch
+nicht abschließend anhand echter Werte verifiziert.

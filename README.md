@@ -53,6 +53,13 @@ Die Firmware legt u. a. folgende Entities an:
 km umgerechneten Strecken-Sensoren. Die Integration multipliziert den
 Sensorwert selbst mit dem konfigurierten Radumfang.
 
+**Achtung, Verwechslungsgefahr:** Das ESPHome-Feld "Rad Durchmesser" erwartet
+den **Durchmesser** (rechnet intern × π), das `hamster_fitness`-Feld
+"Radumfang" weiter unten dagegen den fertigen **Umfang** direkt. Trag hier
+nicht denselben Zahlenwert ein wie dort, sondern: Umfang = Durchmesser × π.
+`sensor.hamsterrad_geschwindigkeit` (Echtzeit-Geschwindigkeit) lässt sich
+optional ebenfalls in `hamster_fitness` einbinden, siehe Schritt 2 unten.
+
 ## 2. Integration installieren
 
 ### Über HACS (empfohlen, sobald das Repo als HACS-Repository hinzugefügt ist)
@@ -78,6 +85,11 @@ Einstellungen → Geräte & Dienste → Integration hinzufügen → "Hamster Fit
 - Temperatursensor → dein Temperatursensor am Käfig (`device_class: temperature`)
 - Deckel-/Käfigöffnungssensor → dein Tür-/Öffnungskontakt (`device_class: door`
   oder `opening`)
+- Luftfeuchtigkeitssensor (optional) → nur nötig, falls vorhanden; ohne
+  Auswahl wird einfach keine Feuchtigkeits-Entity angelegt
+- Echtzeit-Geschwindigkeitssensor (optional) → z. B.
+  `sensor.hamsterrad_geschwindigkeit`; ohne Auswahl werden keine
+  Geschwindigkeits-Entities angelegt
 - Benachrichtigungsziele (optional) → `notify.*`-Entitäten für Warnungen und
   Tageszusammenfassung
 
@@ -103,10 +115,18 @@ unterstützen, z. B. die mobile App).
 |---|---|
 | `sensor.<hamster>_health_score` | Gesundheits-Score (0–100 %) |
 | `sensor.<hamster>_daily_distance` | Laufstrecke seit dem letzten Reset um 9 Uhr morgens (km) |
+| `sensor.<hamster>_night_distance` | Laufstrecke seit dem letzten Nachtfenster-Start (km) |
 | `sensor.<hamster>_lifetime_distance` | Laufstrecke seit dem Einrichten des Rad-Sensors, läuft auch nach dem Auszug weiter (km) |
+| `sensor.<hamster>_current_speed`¹ | Aktuelle Echtzeit-Geschwindigkeit (km/h) |
+| `sensor.<hamster>_max_speed_tonight`¹ | Höchste Geschwindigkeit seit dem letzten Nachtfenster-Start (km/h) |
+| `sensor.<hamster>_humidity`² | Luftfeuchtigkeit am Käfig (%) |
 | `binary_sensor.<hamster>_warning` | Warnung bei niedrigem Score, Extremtemperatur, vernachlässigtem Käfig oder zu wenig Bewegung |
+| `binary_sensor.<hamster>_door` | Käfigtür offen/geschlossen, inkl. Attribut "seit wie vielen Stunden geschlossen" |
 | `date.<hamster>_departure_date` | Auszugs-/Sterbedatum - editierbar, standardmäßig leer |
 | `number.<hamster>_weight` | Gewicht in Gramm - manuell eintragen, z. B. von der Küchenwaage |
+
+¹ Nur vorhanden, wenn ein Geschwindigkeitssensor konfiguriert wurde.
+² Nur vorhanden, wenn ein Luftfeuchtigkeitssensor konfiguriert wurde.
 
 Der Tages-Reset liegt bewusst auf 9 Uhr morgens statt Mitternacht, damit
 eine durchgehende nächtliche Laufphase nicht künstlich mitten in der Nacht

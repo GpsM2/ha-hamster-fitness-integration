@@ -32,7 +32,9 @@ from .const import (
     CONF_ACQUISITION_DATE,
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
+    CONF_HUMIDITY_SENSOR,
     CONF_NOTIFY_SERVICES,
+    CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_CIRCUMFERENCE,
     CONF_WHEEL_SENSOR,
@@ -101,6 +103,21 @@ def _sensors_schema() -> vol.Schema:
                     device_class=["door", "opening"],
                     multiple=False,
                 )
+            ),
+            # Optional: ohne diese beiden bleiben die Feuchtigkeits- bzw.
+            # Geschwindigkeits-Entities einfach weg (siehe sensor.py).
+            vol.Optional(CONF_HUMIDITY_SENSOR): EntitySelector(
+                EntitySelectorConfig(
+                    domain=Platform.SENSOR,
+                    device_class="humidity",
+                    multiple=False,
+                )
+            ),
+            # Kein device_class-Filter, aus demselben Grund wie beim
+            # Rad-Umdrehungssensor oben - z. B. ESPHome-Template-Sensoren für
+            # die Momentangeschwindigkeit haben meist keine device_class.
+            vol.Optional(CONF_SPEED_SENSOR): EntitySelector(
+                EntitySelectorConfig(domain=Platform.SENSOR, multiple=False)
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die

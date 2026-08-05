@@ -36,6 +36,8 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
+    CONF_HUMIDITY_SENSOR,
+    CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_CIRCUMFERENCE,
     CONF_WHEEL_SENSOR,
@@ -86,6 +88,13 @@ class HamsterFitnessData:
     # zwischen (auch bereits ausgezogenen) Hamstern.
     lifetime_distance_km: float = 0.0
     temperature: float | None = None
+    humidity: float | None = None
+    current_speed_kmh: float | None = None
+    # Höchste seit dem letzten Nachtfenster-Start (NIGHT_WINDOW_START_HOUR)
+    # gesehene Geschwindigkeit. Nur in-memory nachgeführt (siehe
+    # _async_handle_night_window_reset) - überlebt anders als die
+    # Distanz-Baselines KEINEN Neustart von Home Assistant.
+    max_speed_tonight_kmh: float | None = None
     door_open: bool = False
     hours_door_closed: float | None = None
     distance_penalty: float = 0.0
@@ -115,6 +124,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._wheel_sensor: str = entry.data[CONF_WHEEL_SENSOR]
         self._temperature_sensor: str = entry.data[CONF_TEMPERATURE_SENSOR]
         self._door_sensor: str = entry.data[CONF_DOOR_SENSOR]
+        # Optional - None, wenn beim Einrichten nicht ausgewählt.
+        self._humidity_sensor: str | None = entry.data.get(CONF_HUMIDITY_SENSOR)
+        self._speed_sensor: str | None = entry.data.get(CONF_SPEED_SENSOR)
 
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}_{entry.entry_id}_baseline"
@@ -126,6 +138,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         self._night_baseline_count: float = 0.0
         self._night_window_start: datetime | None = None
+        self._max_speed_tonight_kmh: float | None = None
 
         # Rotationen, die vor dem aktuellen Zähler-Stand "gebankt" wurden
         # (siehe _calculate()'s Reset-Erkennung) - macht lifetime_distance_km
@@ -149,10 +162,15 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         await self._async_restore_state()
 
         entry = self.config_entry
+        tracked_entities = [self._wheel_sensor, self._temperature_sensor, self._door_sensor]
+        if self._humidity_sensor:
+            tracked_entities.append(self._humidity_sensor)
+        if self._speed_sensor:
+            tracked_entities.append(self._speed_sensor)
         entry.async_on_unload(
             async_track_state_change_event(
                 self.hass,
-                [self._wheel_sensor, self._temperature_sensor, self._door_sensor],
+                tracked_entities,
                 self._async_handle_source_event,
             )
         )
@@ -310,6 +328,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_window_start = _compute_window_start(
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
+        self._max_speed_tonight_kmh = None
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
 
@@ -402,6 +421,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         temp_state = self.hass.states.get(self._temperature_sensor)
         temperature = _as_float(temp_state.state) if temp_state else None
 
+        humidity: float | None = None
+        if self._humidity_sensor:
+            humidity_state = self.hass.states.get(self._humidity_sensor)
+            humidity = _as_float(humidity_state.state) if humidity_state else None
+
+        current_speed_kmh: float | None = None
+        if self._speed_sensor:
+            speed_state = self.hass.states.get(self._speed_sensor)
+            current_speed_kmh = _as_float(speed_state.state) if speed_state else None
+            if current_speed_kmh is not None:
+                self._max_speed_tonight_kmh = max(
+                    current_speed_kmh, self._max_speed_tonight_kmh or 0.0
+                )
+
         door_state = self.hass.states.get(self._door_sensor)
         door_open = bool(door_state and door_state.state == "on")
         hours_door_closed: float | None = None
@@ -458,6 +491,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             night_distance_km=round(night_distance_km, 3),
             lifetime_distance_km=round(lifetime_distance_km, 3),
             temperature=temperature,
+            humidity=humidity,
+            current_speed_kmh=current_speed_kmh,
+            max_speed_tonight_kmh=(
+                round(self._max_speed_tonight_kmh, 1)
+                if self._max_speed_tonight_kmh is not None
+                else None
+            ),
             door_open=door_open,
             hours_door_closed=(
                 round(hours_door_closed, 1) if hours_door_closed is not None else None

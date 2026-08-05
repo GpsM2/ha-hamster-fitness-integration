@@ -12,7 +12,7 @@
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
-          "wheel_circumference": "Umfang des Laufrads, wird zur Berechnung der Laufstrecke aus den Umdrehungen benötigt."
+          "wheel_circumference": "Der volle Umfang (Strecke pro Umdrehung), NICHT der Durchmesser - falls du nur den Durchmesser kennst: Umfang = Durchmesser × 3,14159. Das ist unabhängig von einer evtl. anderswo eingetragenen Radgröße (z. B. auf einem ESPHome-Gerät), die dort oft den Durchmesser statt des Umfangs erwartet."
         }
       },
       "sensors": {
@@ -22,12 +22,16 @@
           "wheel_sensor": "Rad-Umdrehungssensor",
           "temperature_sensor": "Temperatursensor",
           "door_sensor": "Deckel-/Käfigöffnungssensor",
+          "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
+          "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
           "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor).",
           "temperature_sensor": "Ein Temperatursensor (device_class: temperature) in der Nähe des Käfigs.",
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
+          "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
+          "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (z. B. ein ESPHome-Template-Sensor in km/h). Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       },
@@ -52,12 +56,16 @@
           "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::wheel_sensor%]",
           "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::temperature_sensor%]",
           "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::door_sensor%]",
+          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::humidity_sensor%]",
+          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::speed_sensor%]",
           "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data::notify_services%]"
         },
         "data_description": {
           "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::wheel_sensor%]",
           "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::temperature_sensor%]",
           "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::door_sensor%]",
+          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::humidity_sensor%]",
+          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::speed_sensor%]",
           "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data_description::notify_services%]"
         }
       }
@@ -109,6 +117,18 @@
       },
       "lifetime_distance": {
         "name": "Gesamtdistanz"
+      },
+      "night_distance": {
+        "name": "Nachtdistanz"
+      },
+      "humidity": {
+        "name": "Luftfeuchtigkeit"
+      },
+      "current_speed": {
+        "name": "Aktuelle Geschwindigkeit"
+      },
+      "max_speed_tonight": {
+        "name": "Höchstgeschwindigkeit heute Nacht"
       }
     },
     "binary_sensor": {
@@ -117,6 +137,14 @@
         "state_attributes": {
           "warning_reason": {
             "name": "Warngrund"
+          }
+        }
+      },
+      "door": {
+        "name": "Käfigtür",
+        "state_attributes": {
+          "hours_closed": {
+            "name": "Stunden geschlossen"
           }
         }
       }

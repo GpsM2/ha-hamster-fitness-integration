@@ -12,7 +12,7 @@
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
-          "wheel_circumference": "Circumference of the running wheel, used to calculate distance from rotations."
+          "wheel_circumference": "Full circumference (distance travelled per rotation), NOT the diameter - if you only know the diameter, multiply it by 3.14159. This is independent of any wheel-size value you may have entered elsewhere, e.g. on an ESPHome device, which may expect the diameter instead."
         }
       },
       "sensors": {
@@ -22,12 +22,16 @@
           "wheel_sensor": "Wheel rotation sensor",
           "temperature_sensor": "Temperature sensor",
           "door_sensor": "Cage/lid opening sensor",
+          "humidity_sensor": "Humidity sensor (optional)",
+          "speed_sensor": "Current-speed sensor (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
           "wheel_sensor": "A sensor whose numeric state represents wheel rotations (e.g. a counter or pulse sensor).",
           "temperature_sensor": "A temperature sensor (device_class: temperature) placed near the cage.",
           "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
+          "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
+          "speed_sensor": "A sensor reporting the current, real-time wheel speed (e.g. an ESPHome template sensor in km/h). Leave empty if you don't have one - no speed entities will be created.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       },
@@ -52,12 +56,16 @@
           "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::wheel_sensor%]",
           "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::temperature_sensor%]",
           "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::door_sensor%]",
+          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::humidity_sensor%]",
+          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::speed_sensor%]",
           "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data::notify_services%]"
         },
         "data_description": {
           "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::wheel_sensor%]",
           "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::temperature_sensor%]",
           "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::door_sensor%]",
+          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::humidity_sensor%]",
+          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::speed_sensor%]",
           "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data_description::notify_services%]"
         }
       }
@@ -109,6 +117,18 @@
       },
       "lifetime_distance": {
         "name": "Lifetime distance"
+      },
+      "night_distance": {
+        "name": "Night distance"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "current_speed": {
+        "name": "Current speed"
+      },
+      "max_speed_tonight": {
+        "name": "Top speed tonight"
       }
     },
     "binary_sensor": {
@@ -117,6 +137,14 @@
         "state_attributes": {
           "warning_reason": {
             "name": "Warning reason"
+          }
+        }
+      },
+      "door": {
+        "name": "Cage door",
+        "state_attributes": {
+          "hours_closed": {
+            "name": "Hours closed"
           }
         }
       }

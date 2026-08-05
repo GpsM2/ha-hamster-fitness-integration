@@ -7,12 +7,17 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfLength
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import IDEAL_DISTANCE_MAX_KM, IDEAL_DISTANCE_MIN_KM
+from .const import (
+    CONF_HUMIDITY_SENSOR,
+    CONF_SPEED_SENSOR,
+    IDEAL_DISTANCE_MAX_KM,
+    IDEAL_DISTANCE_MIN_KM,
+)
 from .coordinator import (
     HamsterFitnessConfigEntry,
     HamsterFitnessCoordinator,
@@ -27,13 +32,21 @@ async def async_setup_entry(
 ) -> None:
     """Set up Hamster Fitness sensors from a config entry."""
     coordinator = entry.runtime_data
-    async_add_entities(
-        [
-            HamsterHealthScoreSensor(coordinator, entry),
-            HamsterDailyDistanceSensor(coordinator, entry),
-            HamsterLifetimeDistanceSensor(coordinator, entry),
-        ]
-    )
+    entities: list[HamsterFitnessSensorBase] = [
+        HamsterHealthScoreSensor(coordinator, entry),
+        HamsterDailyDistanceSensor(coordinator, entry),
+        HamsterNightDistanceSensor(coordinator, entry),
+        HamsterLifetimeDistanceSensor(coordinator, entry),
+    ]
+    # Nur anlegen, wenn beim Einrichten ein entsprechender Quell-Sensor
+    # ausgewählt wurde - siehe CONF_HUMIDITY_SENSOR/CONF_SPEED_SENSOR in
+    # const.py.
+    if entry.data.get(CONF_HUMIDITY_SENSOR):
+        entities.append(HamsterHumiditySensor(coordinator, entry))
+    if entry.data.get(CONF_SPEED_SENSOR):
+        entities.append(HamsterCurrentSpeedSensor(coordinator, entry))
+        entities.append(HamsterMaxSpeedTonightSensor(coordinator, entry))
+    async_add_entities(entities)
 
 
 class HamsterFitnessSensorBase(
@@ -122,6 +135,109 @@ class HamsterDailyDistanceSensor(HamsterFitnessSensorBase):
             "ideal_distance_min_km": IDEAL_DISTANCE_MIN_KM,
             "ideal_distance_max_km": IDEAL_DISTANCE_MAX_KM,
         }
+
+
+class HamsterNightDistanceSensor(HamsterFitnessSensorBase):
+    """Distance run on the wheel since the last NIGHT_WINDOW_START_HOUR.
+
+    Covers the actual nightly activity phase (default: since 20:00),
+    independent of the DAILY_RESET_HOUR-based daily_distance sensor - see
+    coordinator.py for why the two windows differ.
+    """
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:weather-night"
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the night-distance sensor."""
+        super().__init__(coordinator, entry, "night_distance")
+
+    @property
+    def native_value(self) -> float:
+        """Return tonight's distance in km."""
+        return self.coordinator.data.night_distance_km
+
+
+class HamsterHumiditySensor(HamsterFitnessSensorBase):
+    """Cage humidity, mirrored from the configured humidity sensor.
+
+    Only created if CONF_HUMIDITY_SENSOR was set during setup - purely a
+    convenience passthrough so a dashboard only needs this device's own
+    entities instead of also referencing the raw source sensor.
+    """
+
+    _attr_device_class = SensorDeviceClass.HUMIDITY
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:water-percent"
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the humidity sensor."""
+        super().__init__(coordinator, entry, "humidity")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current cage humidity (%)."""
+        return self.coordinator.data.humidity
+
+
+class HamsterCurrentSpeedSensor(HamsterFitnessSensorBase):
+    """Real-time wheel speed, mirrored from the configured speed sensor.
+
+    Only created if CONF_SPEED_SENSOR was set during setup - same
+    passthrough rationale as HamsterHumiditySensor. Suited for a gauge
+    card.
+    """
+
+    _attr_device_class = SensorDeviceClass.SPEED
+    _attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:speedometer"
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the current-speed sensor."""
+        super().__init__(coordinator, entry, "current_speed")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the current wheel speed (km/h)."""
+        return self.coordinator.data.current_speed_kmh
+
+
+class HamsterMaxSpeedTonightSensor(HamsterFitnessSensorBase):
+    """Highest wheel speed seen since the last NIGHT_WINDOW_START_HOUR.
+
+    Only created if CONF_SPEED_SENSOR was set during setup. Tracked
+    in-memory only (see coordinator.py) - a Home Assistant restart resets
+    this to unknown for the remainder of that night.
+    """
+
+    _attr_device_class = SensorDeviceClass.SPEED
+    _attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:speedometer-medium"
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the max-speed-tonight sensor."""
+        super().__init__(coordinator, entry, "max_speed_tonight")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return tonight's top wheel speed (km/h)."""
+        return self.coordinator.data.max_speed_tonight_kmh
 
 
 class HamsterLifetimeDistanceSensor(HamsterFitnessSensorBase):

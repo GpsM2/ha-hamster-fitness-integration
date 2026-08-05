@@ -17,6 +17,11 @@ CONF_WHEEL_CIRCUMFERENCE: Final = "wheel_circumference"
 CONF_WHEEL_SENSOR: Final = "wheel_sensor"
 CONF_TEMPERATURE_SENSOR: Final = "temperature_sensor"
 CONF_DOOR_SENSOR: Final = "door_sensor"
+# Optional - ohne diese beiden werden die entsprechenden Entities
+# (Feuchtigkeit / aktuelle & maximale Geschwindigkeit) einfach nicht
+# angelegt, siehe sensor.py.
+CONF_HUMIDITY_SENSOR: Final = "humidity_sensor"
+CONF_SPEED_SENSOR: Final = "speed_sensor"
 CONF_NOTIFY_SERVICES: Final = "notify_services"
 
 # --- Defaults / Grenzwerte ---
