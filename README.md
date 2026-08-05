@@ -11,8 +11,6 @@ Dieses Repository enthält beide Teile des Projekts:
   die Home-Assistant-Integration.
 - [`esphome/`](esphome) — die ESPHome-Firmware-Konfiguration für den
   optischen Laufrad-Sensor (D1 Mini + Reflex-Lichtschranke).
-- [`examples/dashboard_taco.yaml`](examples/dashboard_taco.yaml) — ein
-  Beispiel-Lovelace-Dashboard im "Samsung Health"-Stil.
 
 ## Lizenz
 
@@ -234,18 +232,3 @@ Teil der Rangliste (🪦-Symbol). Optional ein Titel:
 type: custom:hamster-fitness-ranking-card
 title: Hamster-Ranking   # optional
 ```
-
-## Beispiel-Dashboards
-
-Falls dir Standard-Lovelace-Karten lieber sind als die eingebaute Karte:
-
-- [`examples/dashboard_simple.yaml`](examples/dashboard_simple.yaml) —
-  nur Standard-Lovelace-Karten (`glance`, `gauge`, `statistics-graph`,
-  `entities`), keine HACS-Zusatzkarten nötig. Der einfachste Einstieg.
-- [`examples/dashboard_taco.yaml`](examples/dashboard_taco.yaml) — eine
-  aufwendigere Ansicht im "Samsung Health"-Stil, benötigt die
-  HACS-Frontend-Karten [Mushroom](https://github.com/piitaya/lovelace-mushroom)
-  und [ApexCharts Card](https://github.com/RomRider/apexcharts-card).
-
-Entity-IDs in beiden Beispielen gehen von einem Hamster namens "Taco" aus
-und müssen an den tatsächlichen Gerätenamen angepasst werden.

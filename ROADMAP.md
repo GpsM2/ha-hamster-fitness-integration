@@ -102,6 +102,9 @@ bleibt.
   `sensor.hamster_<name>_lifetime_distance` und listet sie sortiert nach
   Lebenszeit-Distanz - keine Konfiguration nötig, bereits ausgezogene
   Hamster bleiben mit eingefrorenem Endstand Teil der Rangliste
+- `examples/dashboard_simple.yaml` und `examples/dashboard_taco.yaml`
+  entfernt - die eingebauten Karten (`hamster-fitness-card`,
+  `hamster-fitness-ranking-card`) ersetzen sie vollständig
 
 ## 🚧 Geplant
 
