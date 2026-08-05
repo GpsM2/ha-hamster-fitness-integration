@@ -22,6 +22,9 @@ CONF_DOOR_SENSOR: Final = "door_sensor"
 # angelegt, siehe sensor.py.
 CONF_HUMIDITY_SENSOR: Final = "humidity_sensor"
 CONF_SPEED_SENSOR: Final = "speed_sensor"
+# Optional - ohne diese Entity bleibt die Käfigbeleuchtungs-Automatik
+# einfach inaktiv, siehe door_light.py.
+CONF_LIGHT_ENTITY: Final = "light_entity"
 CONF_NOTIFY_SERVICES: Final = "notify_services"
 
 # --- Defaults / Grenzwerte ---
@@ -46,6 +49,11 @@ OPTION_MIN_DISTANCE_KM: Final = "min_distance_km"
 OPTION_WARNINGS_ENABLED: Final = "warnings_enabled"
 OPTION_DAILY_SUMMARY_ENABLED: Final = "daily_summary_enabled"
 OPTION_NOTIFICATION_TIME: Final = "notification_time"
+# Nur wirksam, wenn CONF_LIGHT_ENTITY gesetzt ist, siehe door_light.py.
+OPTION_LIGHT_BRIGHTNESS_PCT: Final = "light_brightness_pct"
+OPTION_LIGHT_TRANSITION_S: Final = "light_transition_s"
+OPTION_LIGHT_TURN_OFF_ENABLED: Final = "light_turn_off_enabled"
+OPTION_LIGHT_TURN_OFF_DELAY_S: Final = "light_turn_off_delay_s"
 
 # --- Options: Defaults ---
 DEFAULT_IDEAL_TEMP_MIN: Final[float] = 20.0
@@ -54,6 +62,10 @@ DEFAULT_MIN_DISTANCE_KM: Final[float] = 2.0
 DEFAULT_WARNINGS_ENABLED: Final = True
 DEFAULT_DAILY_SUMMARY_ENABLED: Final = True
 DEFAULT_NOTIFICATION_TIME: Final = "08:00:00"
+DEFAULT_LIGHT_BRIGHTNESS_PCT: Final[int] = 100
+DEFAULT_LIGHT_TRANSITION_S: Final[float] = 0.0
+DEFAULT_LIGHT_TURN_OFF_ENABLED: Final = True
+DEFAULT_LIGHT_TURN_OFF_DELAY_S: Final[float] = 0.0
 
 # --- Health-Score-Parameter (fest, nicht über Options konfigurierbar) ---
 # Ab dieser Tagesstrecke gibt es keinen Strecken-Punktabzug mehr.
@@ -114,6 +126,6 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "1",
+        "version": "2",
     }
 ]

@@ -24,6 +24,7 @@
           "door_sensor": "Cage/lid opening sensor",
           "humidity_sensor": "Humidity sensor (optional)",
           "speed_sensor": "Current-speed sensor (optional)",
+          "light_entity": "Cage light (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
+          "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       },
@@ -58,6 +60,7 @@
           "door_sensor": "Cage/lid opening sensor",
           "humidity_sensor": "Humidity sensor (optional)",
           "speed_sensor": "Current-speed sensor (optional)",
+          "light_entity": "Cage light (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -66,6 +69,7 @@
           "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
+          "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       }
@@ -91,7 +95,11 @@
           "min_distance_km": "Minimum daily distance",
           "warnings_enabled": "Send warning notifications",
           "daily_summary_enabled": "Send daily summary",
-          "notification_time": "Daily summary time"
+          "notification_time": "Daily summary time",
+          "light_brightness_pct": "Cage light brightness",
+          "light_transition_s": "Cage light transition time",
+          "light_turn_off_enabled": "Turn cage light off automatically",
+          "light_turn_off_delay_s": "Cage light turn-off delay"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
@@ -99,7 +107,11 @@
           "min_distance_km": "Below this daily distance, the health score drops sharply.",
           "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
-          "notification_time": "Local time at which the daily summary is sent."
+          "notification_time": "Local time at which the daily summary is sent.",
+          "light_brightness_pct": "Only relevant if a cage light was selected in the sensors step. Brightness the light is set to when the cage opens.",
+          "light_transition_s": "Only relevant if a cage light was selected. Fade duration for both turning on and off, in seconds. 0 switches instantly.",
+          "light_turn_off_enabled": "Only relevant if a cage light was selected. Turn off automatically when the cage closes. Turn off if something else (e.g. an automation) should control when the light goes off.",
+          "light_turn_off_delay_s": "Only relevant if a cage light was selected and automatic turn-off is enabled. Wait this many seconds after the cage closes before turning the light off. 0 turns it off immediately."
         }
       }
     },

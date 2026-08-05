@@ -24,6 +24,7 @@
           "door_sensor": "Deckel-/Käfigöffnungssensor",
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
+          "light_entity": "Käfigbeleuchtung (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
+          "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       },
@@ -58,6 +60,7 @@
           "door_sensor": "Deckel-/Käfigöffnungssensor",
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
+          "light_entity": "Käfigbeleuchtung (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -66,6 +69,7 @@
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
+          "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       }
@@ -91,7 +95,11 @@
           "min_distance_km": "Mindeststrecke pro Tag",
           "warnings_enabled": "Warnungen senden",
           "daily_summary_enabled": "Tageszusammenfassung senden",
-          "notification_time": "Uhrzeit der Tageszusammenfassung"
+          "notification_time": "Uhrzeit der Tageszusammenfassung",
+          "light_brightness_pct": "Helligkeit der Käfigbeleuchtung",
+          "light_transition_s": "Übergangszeit der Käfigbeleuchtung",
+          "light_turn_off_enabled": "Käfigbeleuchtung automatisch ausschalten",
+          "light_turn_off_delay_s": "Ausschalt-Verzögerung der Käfigbeleuchtung"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
@@ -99,7 +107,11 @@
           "min_distance_km": "Unterhalb dieser Tagesstrecke sinkt der Health-Score deutlich.",
           "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
           "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
-          "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird."
+          "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
+          "light_brightness_pct": "Nur relevant, wenn im Schritt 'Quell-Sensoren' eine Käfigbeleuchtung ausgewählt wurde. Helligkeit, auf die das Licht beim Öffnen des Käfigs gesetzt wird.",
+          "light_transition_s": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Überblendzeit beim Ein- und Ausschalten, in Sekunden. 0 schaltet sofort.",
+          "light_turn_off_enabled": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Beim Schließen des Käfigs automatisch ausschalten. Deaktivieren, wenn etwas anderes (z. B. eine Automatisierung) das Ausschalten übernehmen soll.",
+          "light_turn_off_delay_s": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt und das automatische Ausschalten aktiviert ist. So viele Sekunden nach dem Schließen warten, bevor das Licht ausgeht. 0 schaltet sofort aus."
         }
       }
     },

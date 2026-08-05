@@ -110,6 +110,9 @@ wie auf der Verpackung des Laufrads angegeben.
 - Echtzeit-Geschwindigkeitssensor (optional) → z. B.
   `sensor.hamster_wheel_speed`; ohne Auswahl werden keine
   Geschwindigkeits-Entities angelegt
+- Käfigbeleuchtung (optional) → ein Leuchtmittel, das automatisch mit dem
+  Deckel angeht/ausgeht, siehe [Käfigbeleuchtung](#käfigbeleuchtung) unten;
+  ohne Auswahl bleibt die Licht-Automatik einfach inaktiv
 - Benachrichtigungsziele (optional) → `notify.*`-Entitäten für Warnungen und
   Tageszusammenfassung
 
@@ -124,10 +127,23 @@ erneut anpassen, ohne die Integration neu einrichten zu müssen.
   zu wenig Bewegung)
 - Tageszusammenfassung an/aus
 - Uhrzeit der täglichen Zusammenfassung
+- Helligkeit, Übergangszeit, automatisches Ausschalten und Ausschalt-
+  Verzögerung der Käfigbeleuchtung (nur wirksam, wenn eine ausgewählt wurde)
 
 Jede Benachrichtigung wird mit dem Namen des Hamsters als Titel und dem
 eigentlichen Text als Nachricht verschickt (auf Zielen, die das
 unterstützen, z. B. die mobile App).
+
+### Käfigbeleuchtung
+
+Wurde im Schritt "Quell-Sensoren" ein Leuchtmittel ausgewählt, geht es
+automatisch an, sobald der Deckel-/Käfigsensor öffnet (mit der im
+Expertenmenü eingestellten Helligkeit und optionalem Überblend-Übergang),
+und - falls "Käfigbeleuchtung automatisch ausschalten" aktiviert ist -
+wieder aus, sobald der Deckel schließt (optional erst nach einer
+einstellbaren Verzögerung, z. B. damit noch kurz Licht bleibt, während du
+den Deckel schließt). Reagiert auf denselben Türstatus wie
+`binary_sensor.hamster_<name>_door`.
 
 ## Angelegte Entities
 
@@ -204,6 +220,20 @@ Nutzt du ein YAML-verwaltetes Dashboard (Modus "yaml"), muss die Ressource
 einmalig manuell ergänzt werden: Einstellungen → Dashboards → Menü (⋮) →
 Ressourcen → Ressource hinzufügen → URL
 `/hamster_fitness-frontend/hamster-fitness-card.js`, Typ "JavaScript-Modul".
+
+### Ranking-Karte
+
+Im selben Karten-Bundle enthalten: **"Hamster Fitness Ranking Card"**
+(`type: custom:hamster-fitness-ranking-card`) vergleicht automatisch alle
+Hamster in diesem Home Assistant nach Lebenszeit-Distanz - keine
+Konfiguration nötig, sie findet jede `sensor.hamster_<name>_lifetime_distance`
+selbst. Bereits ausgezogene Hamster bleiben mit ihrem eingefrorenen Endstand
+Teil der Rangliste (🪦-Symbol). Optional ein Titel:
+
+```yaml
+type: custom:hamster-fitness-ranking-card
+title: Hamster-Ranking   # optional
+```
 
 ## Beispiel-Dashboards
 

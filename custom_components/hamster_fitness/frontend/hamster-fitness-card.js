@@ -567,3 +567,213 @@ class HamsterFitnessCardEditor extends HTMLElement {
 }
 
 customElements.define("hamster-fitness-card-editor", HamsterFitnessCardEditor);
+
+/**
+ * Hamster Fitness Ranking Card
+ *
+ * Compares all hamster_fitness hamsters found in this Home Assistant by
+ * lifetime distance - no config needed, entities are auto-discovered by
+ * matching sensor.hamster_<name>_lifetime_distance. Since a departed
+ * hamster's lifetime_distance stays frozen (see coordinator.py), retired
+ * hamsters remain part of the ranking automatically.
+ *
+ * Config:
+ *   type: custom:hamster-fitness-ranking-card
+ *   title: Hamster-Ranking   # optional
+ */
+
+const LIFETIME_DISTANCE_PATTERN = /^sensor\.hamster_(.+)_lifetime_distance$/;
+
+class HamsterFitnessRankingCard extends HTMLElement {
+  setConfig(config) {
+    this._config = config || {};
+    if (!this.content) {
+      this.innerHTML = `
+        <ha-card>
+          <div class="hfc-root"></div>
+        </ha-card>
+        <style>${HamsterFitnessCard.styles}</style>
+      `;
+      this.content = this.querySelector(".hfc-root");
+      const openMoreInfo = (target) => {
+        this.dispatchEvent(
+          new CustomEvent("hass-more-info", {
+            detail: { entityId: target.dataset.entity },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      };
+      this.content.addEventListener("click", (ev) => {
+        const target = ev.target.closest("[data-entity]");
+        if (target) openMoreInfo(target);
+      });
+      this.content.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const target = ev.target.closest("[data-entity]");
+        if (!target) return;
+        ev.preventDefault();
+        openMoreInfo(target);
+      });
+    }
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  getCardSize() {
+    return 3;
+  }
+
+  static getConfigElement() {
+    return document.createElement("hamster-fitness-ranking-card-editor");
+  }
+
+  static getStubConfig() {
+    return { title: "Hamster-Ranking" };
+  }
+
+  _capitalize(text) {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  _render() {
+    if (!this._hass || !this.content) return;
+
+    const rows = Object.keys(this._hass.states)
+      .map((id) => ({ id, match: id.match(LIFETIME_DISTANCE_PATTERN) }))
+      .filter(({ match }) => match)
+      .map(({ id, match }) => {
+        const state = this._hass.states[id];
+        const distance = Number(state.state);
+        const departureId = id.replace("_lifetime_distance", "_departure_date");
+        const departure = this._hass.states[departureId];
+        const isDeparted = departure && departure.state && departure.state !== "unknown";
+        return {
+          entityId: id,
+          slug: match[1],
+          name: this._capitalize(match[1]),
+          distance,
+          isDeparted,
+        };
+      })
+      .filter((row) => !Number.isNaN(row.distance))
+      .sort((a, b) => b.distance - a.distance);
+
+    if (rows.length === 0) {
+      this.content.innerHTML = `
+        <div class="hfc-error">
+          Keine Hamster-Fitness-Hamster gefunden (kein
+          sensor.hamster_&lt;name&gt;_lifetime_distance in diesem Home Assistant).
+        </div>
+      `;
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉"];
+
+    this.content.innerHTML = `
+      <div class="hfc-header">
+        <span class="hfc-title">🏆 ${this._config.title || "Hamster-Ranking"}</span>
+      </div>
+      <div class="hfc-ranking">
+        ${rows
+          .map(
+            (row, index) => `
+              <div class="hfc-rank-row hfc-clickable" data-entity="${row.entityId}" tabindex="0" role="button">
+                <span class="hfc-rank-medal">${medals[index] || `#${index + 1}`}</span>
+                <span class="hfc-rank-name">${row.name}${row.isDeparted ? " 🪦" : ""}</span>
+                <span class="hfc-rank-value">${row.distance.toFixed(1).replace(".", ",")} km</span>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+}
+
+HamsterFitnessRankingCard.styles = `
+  .hfc-ranking {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hfc-rank-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 6px;
+  }
+  .hfc-rank-medal {
+    font-size: 1.2em;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .hfc-rank-name {
+    flex: 1;
+    color: var(--primary-text-color);
+  }
+  .hfc-rank-value {
+    font-weight: 600;
+    color: var(--primary-text-color);
+  }
+`;
+
+customElements.define("hamster-fitness-ranking-card", HamsterFitnessRankingCard);
+
+window.customCards.push({
+  type: "hamster-fitness-ranking-card",
+  name: "Hamster Fitness Ranking Card",
+  description:
+    "Vergleicht alle Hamster in diesem Home Assistant nach Lebenszeit-Distanz - erkennt sie automatisch, keine Konfiguration nötig.",
+});
+
+const RANKING_EDITOR_SCHEMA = [{ name: "title", selector: { text: {} } }];
+const RANKING_EDITOR_LABELS = { title: "Titel (optional)" };
+
+class HamsterFitnessRankingCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    this._renderForm();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._renderForm();
+  }
+
+  _renderForm() {
+    if (!this._hass || !this._config) return;
+
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (schema) => RANKING_EDITOR_LABELS[schema.name] || schema.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        this._config = ev.detail.value;
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config: this._config },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this.appendChild(this._form);
+    }
+
+    this._form.hass = this._hass;
+    this._form.schema = RANKING_EDITOR_SCHEMA;
+    this._form.data = this._config;
+  }
+}
+
+customElements.define(
+  "hamster-fitness-ranking-card-editor",
+  HamsterFitnessRankingCardEditor
+);

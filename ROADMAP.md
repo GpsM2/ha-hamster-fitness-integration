@@ -92,27 +92,20 @@ bleibt.
   eine immer sichtbare Score-Aufschlüsselung (Bewegung/Temperatur/Pflege
   mit Punktabzug), damit auch ohne aktive Warnung klar ist, wie sich der
   Score zusammensetzt
+- Käfigbeleuchtung (`door_light.py`, optionales `light_entity`-Feld): geht
+  automatisch an, sobald der Deckel-/Käfigsensor öffnet, und (falls
+  aktiviert) wieder aus, sobald er schließt. Konfigurierbar im
+  Expertenmenü: Helligkeit, optionaler zeitlicher Übergang (Transition),
+  automatisches Ausschalten an/aus, optionale Ausschalt-Verzögerung
+- Ranking-Karte (`hamster-fitness-ranking-card`, im selben Karten-Bundle):
+  findet automatisch alle Hamster in diesem Home Assistant über
+  `sensor.hamster_<name>_lifetime_distance` und listet sie sortiert nach
+  Lebenszeit-Distanz - keine Konfiguration nötig, bereits ausgezogene
+  Hamster bleiben mit eingefrorenem Endstand Teil der Rangliste
 
 ## 🚧 Geplant
 
-### Käfigbeleuchtung bei geöffnetem Deckel
-
-Ein Leuchtmittel (`light`-Entity) angeben, das automatisch angeht, sobald
-der Deckel-/Käfigsensor öffnet, und wieder ausgeht, sobald er schließt.
-Geplant konfigurierbar:
-
-- Helligkeit beim Einschalten
-- Optionaler zeitlicher Übergang (Transition) beim Ein-/Ausschalten
-- Optionale Verzögerung (Delay) beim Ausschalten nach dem Schließen
-
-### Ranking-Card für mehrere Hamster
-
-Die Rohdaten dafür stehen bereits (`sensor.<hamster>_lifetime_distance`
-je Hamster, auch nach dem Auszug eingefroren erhalten), eine fertige
-Vergleichs-/Ranking-Karte über mehrere Hamster-Geräte hinweg (z. B. "wer
-ist insgesamt am meisten gelaufen?") gibt es aber noch nicht. Aktuell
-lässt sich das manuell per `entities`-Karte mit den `lifetime_distance`-
-Sensoren aller Hamster nachbauen.
+_Aktuell keine offenen Punkte - neue Wünsche werden hier ergänzt._
 
 ## 🔍 Zu prüfen
 

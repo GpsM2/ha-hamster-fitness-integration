@@ -10,6 +10,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import PLATFORMS
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
+from .door_light import HamsterFitnessDoorLight
 from .frontend import JSModuleRegistration
 from .notify import HamsterFitnessNotifier
 
@@ -52,6 +53,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntr
     # OPTION_WARNINGS_ENABLED, see notify.py). Both are torn down
     # automatically on unload/reload via entry.async_on_unload().
     await HamsterFitnessNotifier(hass, entry, coordinator).async_setup()
+
+    # Turns CONF_LIGHT_ENTITY on/off with the cage door, if configured -
+    # a no-op otherwise, see door_light.py.
+    await HamsterFitnessDoorLight(hass, entry, coordinator).async_setup()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

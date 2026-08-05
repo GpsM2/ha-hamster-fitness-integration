@@ -33,6 +33,7 @@ from .const import (
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
     CONF_HUMIDITY_SENSOR,
+    CONF_LIGHT_ENTITY,
     CONF_NOTIFY_SERVICES,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
@@ -41,6 +42,10 @@ from .const import (
     DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
+    DEFAULT_LIGHT_BRIGHTNESS_PCT,
+    DEFAULT_LIGHT_TRANSITION_S,
+    DEFAULT_LIGHT_TURN_OFF_DELAY_S,
+    DEFAULT_LIGHT_TURN_OFF_ENABLED,
     DEFAULT_MIN_DISTANCE_KM,
     DEFAULT_NOTIFICATION_TIME,
     DEFAULT_WARNINGS_ENABLED,
@@ -52,6 +57,10 @@ from .const import (
     OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
+    OPTION_LIGHT_BRIGHTNESS_PCT,
+    OPTION_LIGHT_TRANSITION_S,
+    OPTION_LIGHT_TURN_OFF_DELAY_S,
+    OPTION_LIGHT_TURN_OFF_ENABLED,
     OPTION_MIN_DISTANCE_KM,
     OPTION_NOTIFICATION_TIME,
     OPTION_WARNINGS_ENABLED,
@@ -129,6 +138,12 @@ def _sensors_schema() -> vol.Schema:
                     device_class="speed",
                     multiple=False,
                 )
+            ),
+            # Optional: ohne diese Entity bleibt die Käfigbeleuchtungs-
+            # Automatik einfach inaktiv (siehe door_light.py). Helligkeit/
+            # Übergang/Ausschalt-Verhalten stehen im Expertenmenü.
+            vol.Optional(CONF_LIGHT_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=Platform.LIGHT, multiple=False)
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die
@@ -344,6 +359,57 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                     OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
                 ),
             ): TimeSelector(),
+            # Ab hier nur wirksam, wenn CONF_LIGHT_ENTITY konfiguriert ist -
+            # siehe door_light.py. Werden trotzdem immer angezeigt, wie die
+            # übrigen Options auch unabhängig von den Quell-Sensoren.
+            vol.Required(
+                OPTION_LIGHT_BRIGHTNESS_PCT,
+                default=current.get(
+                    OPTION_LIGHT_BRIGHTNESS_PCT, DEFAULT_LIGHT_BRIGHTNESS_PCT
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1,
+                    max=100,
+                    step=1,
+                    unit_of_measurement="%",
+                    mode=NumberSelectorMode.SLIDER,
+                )
+            ),
+            vol.Required(
+                OPTION_LIGHT_TRANSITION_S,
+                default=current.get(
+                    OPTION_LIGHT_TRANSITION_S, DEFAULT_LIGHT_TRANSITION_S
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=60,
+                    step=0.5,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
+                OPTION_LIGHT_TURN_OFF_ENABLED,
+                default=current.get(
+                    OPTION_LIGHT_TURN_OFF_ENABLED, DEFAULT_LIGHT_TURN_OFF_ENABLED
+                ),
+            ): BooleanSelector(),
+            vol.Required(
+                OPTION_LIGHT_TURN_OFF_DELAY_S,
+                default=current.get(
+                    OPTION_LIGHT_TURN_OFF_DELAY_S, DEFAULT_LIGHT_TURN_OFF_DELAY_S
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=3600,
+                    step=1,
+                    unit_of_measurement="s",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
         }
     )
 
