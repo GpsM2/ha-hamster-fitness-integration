@@ -82,6 +82,16 @@ Benötigt **Home Assistant 2026.3 oder neuer** (wegen der
 `custom_components/hamster_fitness/` in das `custom_components`-Verzeichnis
 deiner Home-Assistant-Konfiguration kopieren und Home Assistant neu starten.
 
+### Nach einem Update
+
+Home Assistant cacht Übersetzungen (`strings.json`/`translations/*.json`)
+und die Frontend-Ressourcen pro Sitzung. Nach dem Kopieren einer neuen
+Version reicht ein einfaches "Integration neu laden" oft nicht - **einmal
+Home Assistant komplett neu starten** (Einstellungen → System → Neu
+starten), und im Browser bei Bedarf per <kbd>Strg</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>
+neu laden. Zeigt der Config Flow sonst rohe Feldnamen wie `wheel_diameter`
+statt einer übersetzten Beschriftung an, ist das fast immer die Ursache.
+
 ## 3. Einrichtung
 
 Einstellungen → Geräte & Dienste → Integration hinzufügen → "Hamster Fitness".
@@ -169,17 +179,25 @@ Die Integration bringt ihre eigene Lovelace-Karte mit
 (`custom_components/hamster_fitness/frontend/hamster-fitness-card.js`) -
 kein HACS-Frontend-Paket nötig, genau wie z. B. bei
 [home-assistant-flightradar24](https://github.com/AlexandrErohin/home-assistant-flightradar24).
-Sie zeigt Health-Score-Ring, Distanzen, Klima, Geschwindigkeit und
-Käfigtür-Status eines Hamsters in einer einzigen Karte.
+Sie zeigt Health-Score und Live-Geschwindigkeit als zwei Ringe im selben
+Design nebeneinander, darunter eine Aufschlüsselung, wie sich der Score
+zusammensetzt (Bewegung/Temperatur/Pflege), sowie Distanzen, Klima,
+Gewicht und Käfigtür-Status. Alle Werte sind antippbar und öffnen den
+Mehr-Info-Dialog der jeweiligen Entity (z. B. für den Temperaturverlauf).
+Für Mobile-Dashboards gibt es einen eigenen, schmaleren Kartenzuschnitt.
 
 Bei UI-verwalteten Dashboards (Standard-Modus "storage") wird die
 Ressource automatisch registriert - direkt nach der Installation im
 Dashboard-Editor "Karte hinzufügen" suchen: **"Hamster Fitness Card"**.
-Per YAML sieht die Einbindung so aus:
+Über den visuellen Editor (Zahnrad-Symbol beim Bearbeiten der Karte) lässt
+sich der Hamster bequem per Entity-Auswahl einstellen, kein manuelles
+YAML nötig. Wer YAML bevorzugt:
 
 ```yaml
 type: custom:hamster-fitness-card
-hamster: taco   # der Hamster-Slug, wie er in den Entity-IDs steht
+entity: sensor.hamster_taco_health_score   # der Health-Score-Sensor des Hamsters
+title: Taco                                 # optional
+max_speed: 5                                # optional, km/h - Skala des Geschwindigkeits-Rings
 ```
 
 Nutzt du ein YAML-verwaltetes Dashboard (Modus "yaml"), muss die Ressource

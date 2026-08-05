@@ -3,29 +3,47 @@
  *
  * Bundled with the Hamster Fitness integration, auto-registered as a
  * Lovelace resource (see frontend/__init__.py) - no HACS frontend install
- * needed. Shows one hamster's health score, distances, climate and status
- * in a single card, reading entities by their predictable
- * `<domain>.hamster_<hamster>_<suffix>` naming (see coordinator.py's
- * hamster_device_info()).
+ * needed. Shows one hamster's health score and live speed as two matching
+ * ring gauges, plus distances/climate/status below.
  *
  * Config:
  *   type: custom:hamster-fitness-card
- *   hamster: taco        # required - the hamster's slug, as in the entity_ids
- *   title: Taco           # optional - defaults to the hamster slug, capitalized
+ *   entity: sensor.hamster_taco_health_score   # required - the hamster's Health Score sensor
+ *   title: Taco                                 # optional - defaults to the hamster slug, capitalized
+ *   max_speed: 5                                # optional - km/h, scale of the speed ring (default 5)
+ *
+ * The other entities (daily_distance, night_distance, lifetime_distance,
+ * current_speed, max_speed_tonight, humidity, warning, door, weight,
+ * departure_date) are derived from `entity` by swapping its `_health_score`
+ * suffix - see coordinator.py's hamster_device_info() for the naming
+ * convention this relies on.
  */
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
+const DEFAULT_MAX_SPEED = 5;
+const HEALTH_SCORE_SUFFIX = "_health_score";
+const ENTITY_PATTERN = /^sensor\.hamster_(.+)_health_score$/;
+
+const RING_COLOR_NEUTRAL = "#00b8a9";
 
 class HamsterFitnessCard extends HTMLElement {
   setConfig(config) {
-    if (!config.hamster) {
+    if (!config.entity) {
       throw new Error(
-        "hamster-fitness-card: 'hamster' fehlt in der Card-Konfiguration, z. B. hamster: taco"
+        "hamster-fitness-card: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (sensor.hamster_<name>_health_score)."
+      );
+    }
+    const match = config.entity.match(ENTITY_PATTERN);
+    if (!match) {
+      throw new Error(
+        "hamster-fitness-card: 'entity' muss der Health-Score-Sensor eines Hamsters sein (sensor.hamster_<name>_health_score)."
       );
     }
     this._config = config;
-    this._hamster = config.hamster;
+    this._hamster = match[1];
+    this._maxSpeed = Number(config.max_speed) > 0 ? Number(config.max_speed) : DEFAULT_MAX_SPEED;
+
     if (!this.content) {
       this.innerHTML = `
         <ha-card>
@@ -34,7 +52,31 @@ class HamsterFitnessCard extends HTMLElement {
         <style>${HamsterFitnessCard.styles}</style>
       `;
       this.content = this.querySelector(".hfc-root");
+      // Event delegation: every clickable element carries a data-entity
+      // attribute (see _ring()/_render()) rather than one listener each,
+      // since the whole subtree is replaced on every _render().
+      const openMoreInfo = (target) => {
+        this.dispatchEvent(
+          new CustomEvent("hass-more-info", {
+            detail: { entityId: target.dataset.entity },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      };
+      this.content.addEventListener("click", (ev) => {
+        const target = ev.target.closest("[data-entity]");
+        if (target) openMoreInfo(target);
+      });
+      this.content.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const target = ev.target.closest("[data-entity]");
+        if (!target) return;
+        ev.preventDefault();
+        openMoreInfo(target);
+      });
     }
+    this._render();
   }
 
   set hass(hass) {
@@ -46,13 +88,22 @@ class HamsterFitnessCard extends HTMLElement {
     return 5;
   }
 
-  static getStubConfig() {
-    return { hamster: "taco" };
+  static getConfigElement() {
+    return document.createElement("hamster-fitness-card-editor");
   }
 
-  _entity(domain, suffix) {
-    const id = `${domain}.hamster_${this._hamster}_${suffix}`;
-    return this._hass && this._hass.states[id];
+  static getStubConfig(hass, entities) {
+    const match = (entities || []).find((id) => ENTITY_PATTERN.test(id));
+    return { entity: match || "sensor.hamster_taco_health_score" };
+  }
+
+  _entityId(suffix) {
+    return this._config.entity.replace(HEALTH_SCORE_SUFFIX, suffix);
+  }
+
+  _entity(suffix) {
+    if (!this._hass) return undefined;
+    return this._hass.states[this._entityId(suffix)];
   }
 
   _fmt(value, decimals, unit) {
@@ -63,6 +114,19 @@ class HamsterFitnessCard extends HTMLElement {
     return unit ? `${num} ${unit}` : num;
   }
 
+  _breakdownItem(icon, label, penalty) {
+    const num = Number(penalty);
+    const valid = !Number.isNaN(num);
+    const active = valid && num > 0.05;
+    const display = valid ? `-${this._fmt(num, 0, "")}` : "–";
+    return `
+      <span class="hfc-breakdown-item${active ? " hfc-breakdown-active" : ""}">
+        <span class="hfc-breakdown-icon">${icon}</span>
+        <span class="hfc-breakdown-text">${label} <strong>${display}</strong></span>
+      </span>
+    `;
+  }
+
   _scoreColor(score) {
     if (score === null) return "var(--secondary-text-color)";
     if (score < WARNING_SCORE_THRESHOLD) return "#e45c5c";
@@ -70,27 +134,55 @@ class HamsterFitnessCard extends HTMLElement {
     return "#4caf50";
   }
 
-  _render() {
-    if (!this._hass || !this.content) return;
+  _ring({ value, max, color, decimals, unit, label, entityId }) {
+    const circumference = 2 * Math.PI * 42;
+    const valid = value !== undefined && value !== null && !Number.isNaN(Number(value));
+    const pct = valid ? Math.min(Math.max(Number(value), 0), max) / max : 0;
+    const offset = circumference * (1 - pct);
+    const displayValue = valid ? this._fmt(value, decimals, "") : "–";
+    const clickable = entityId ? `data-entity="${entityId}" tabindex="0" role="button"` : "";
 
-    const healthScore = this._entity("sensor", "health_score");
-    const dailyDistance = this._entity("sensor", "daily_distance");
-    const nightDistance = this._entity("sensor", "night_distance");
-    const lifetimeDistance = this._entity("sensor", "lifetime_distance");
-    const currentSpeed = this._entity("sensor", "current_speed");
-    const maxSpeedTonight = this._entity("sensor", "max_speed_tonight");
-    const humidity = this._entity("sensor", "humidity");
-    const warning = this._entity("binary_sensor", "warning");
-    const door = this._entity("binary_sensor", "door");
-    const weight = this._entity("number", "weight");
-    const departureDate = this._entity("date", "departure_date");
+    return `
+      <div class="hfc-ring${entityId ? " hfc-clickable" : ""}" ${clickable}>
+        <svg viewBox="0 0 100 100">
+          <circle class="hfc-ring-bg" cx="50" cy="50" r="42"></circle>
+          <circle
+            class="hfc-ring-fg"
+            cx="50" cy="50" r="42"
+            stroke="${valid ? color : "var(--disabled-color, #888)"}"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"
+          ></circle>
+        </svg>
+        <div class="hfc-ring-label">
+          <span class="hfc-ring-value" style="color:${valid ? color : "var(--secondary-text-color)"}">${displayValue}</span>
+          <span class="hfc-ring-unit">${unit}</span>
+        </div>
+        <div class="hfc-ring-caption">${label}</div>
+      </div>
+    `;
+  }
+
+  _render() {
+    if (!this._hass || !this.content || !this._config) return;
+
+    const healthScore = this._entity("_health_score");
+    const dailyDistance = this._entity("_daily_distance");
+    const nightDistance = this._entity("_night_distance");
+    const lifetimeDistance = this._entity("_lifetime_distance");
+    const currentSpeed = this._entity("_current_speed");
+    const maxSpeedTonight = this._entity("_max_speed_tonight");
+    const humidity = this._entity("_humidity");
+    const warning = this._entity("_warning");
+    const door = this._entity("_door");
+    const weight = this._entity("_weight");
+    const departureDate = this._entity("_departure_date");
 
     if (!healthScore) {
       this.content.innerHTML = `
         <div class="hfc-error">
-          Keine Entities für Hamster "<strong>${this._hamster}</strong>" gefunden.
-          Prüfe die Schreibweise (siehe sensor.hamster_${this._hamster}_health_score
-          im Entwicklertools-Bereich "Zustände").
+          Entity "<strong>${this._config.entity}</strong>" nicht gefunden.
+          Prüfe die Karten-Konfiguration.
         </div>
       `;
       return;
@@ -99,16 +191,31 @@ class HamsterFitnessCard extends HTMLElement {
     const score = Number(healthScore.state);
     const scoreValid = !Number.isNaN(score);
     const scoreColor = this._scoreColor(scoreValid ? score : null);
-    const ringCircumference = 2 * Math.PI * 42;
-    const ringOffset = scoreValid
-      ? ringCircumference * (1 - Math.min(Math.max(score, 0), 100) / 100)
-      : 0;
-
     const temperature = healthScore.attributes.temperature;
     const title = this._config.title || this._capitalize(this._hamster);
     const isDeparted = departureDate && departureDate.state && departureDate.state !== "unknown";
     const warningOn = warning && warning.state === "on";
     const doorOpen = door && door.state === "on";
+
+    const healthRing = this._ring({
+      value: scoreValid ? score : null,
+      max: 100,
+      color: scoreColor,
+      decimals: 0,
+      unit: "%",
+      label: "Health Score",
+      entityId: this._entityId("_health_score"),
+    });
+
+    const speedRing = this._ring({
+      value: currentSpeed ? currentSpeed.state : null,
+      max: this._maxSpeed,
+      color: RING_COLOR_NEUTRAL,
+      decimals: 1,
+      unit: "km/h",
+      label: "Geschwindigkeit",
+      entityId: currentSpeed ? this._entityId("_current_speed") : null,
+    });
 
     this.content.innerHTML = `
       <div class="hfc-header">
@@ -122,81 +229,63 @@ class HamsterFitnessCard extends HTMLElement {
           : ""
       }
 
-      <div class="hfc-body">
-        <div class="hfc-ring">
-          <svg viewBox="0 0 100 100">
-            <circle class="hfc-ring-bg" cx="50" cy="50" r="42"></circle>
-            <circle
-              class="hfc-ring-fg"
-              cx="50" cy="50" r="42"
-              stroke="${scoreColor}"
-              stroke-dasharray="${ringCircumference}"
-              stroke-dashoffset="${ringOffset}"
-            ></circle>
-          </svg>
-          <div class="hfc-ring-label">
-            <span class="hfc-ring-value" style="color:${scoreColor}">${
-      scoreValid ? Math.round(score) : "–"
-    }</span>
-            <span class="hfc-ring-unit">%</span>
-          </div>
-        </div>
+      <div class="hfc-rings">
+        ${healthRing}
+        ${speedRing}
+      </div>
 
-        <div class="hfc-stats">
-          <div class="hfc-stat">
-            <span class="hfc-stat-label">Heute</span>
-            <span class="hfc-stat-value">${this._fmt(dailyDistance && dailyDistance.state, 2, "km")}</span>
-          </div>
-          <div class="hfc-stat">
-            <span class="hfc-stat-label">Heute Nacht</span>
-            <span class="hfc-stat-value">${this._fmt(nightDistance && nightDistance.state, 2, "km")}</span>
-          </div>
-          <div class="hfc-stat">
-            <span class="hfc-stat-label">Insgesamt</span>
-            <span class="hfc-stat-value">${this._fmt(lifetimeDistance && lifetimeDistance.state, 1, "km")}</span>
-          </div>
-          ${
-            currentSpeed
-              ? `<div class="hfc-stat">
-                   <span class="hfc-stat-label">Geschwindigkeit</span>
-                   <span class="hfc-stat-value">${this._fmt(currentSpeed.state, 1, "km/h")}</span>
-                 </div>`
-              : ""
-          }
-          ${
-            maxSpeedTonight
-              ? `<div class="hfc-stat">
-                   <span class="hfc-stat-label">Max. heute Nacht</span>
-                   <span class="hfc-stat-value">${this._fmt(maxSpeedTonight.state, 1, "km/h")}</span>
-                 </div>`
-              : ""
-          }
-          <div class="hfc-stat">
-            <span class="hfc-stat-label">Temperatur</span>
-            <span class="hfc-stat-value">${this._fmt(temperature, 1, "°C")}</span>
-          </div>
-          ${
-            humidity
-              ? `<div class="hfc-stat">
-                   <span class="hfc-stat-label">Luftfeuchtigkeit</span>
-                   <span class="hfc-stat-value">${this._fmt(humidity.state, 0, "%")}</span>
-                 </div>`
-              : ""
-          }
-          ${
-            weight && weight.state && weight.state !== "unknown"
-              ? `<div class="hfc-stat">
-                   <span class="hfc-stat-label">Gewicht</span>
-                   <span class="hfc-stat-value">${this._fmt(weight.state, 0, "g")}</span>
-                 </div>`
-              : ""
-          }
+      <div class="hfc-breakdown hfc-clickable" data-entity="${this._entityId("_health_score")}" tabindex="0" role="button">
+        ${this._breakdownItem("🏃", "Bewegung", healthScore.attributes.distance_penalty)}
+        ${this._breakdownItem("🌡️", "Temperatur", healthScore.attributes.temperature_penalty)}
+        ${this._breakdownItem("🧹", "Pflege", healthScore.attributes.care_penalty)}
+      </div>
+
+      <div class="hfc-stats">
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_daily_distance")}" tabindex="0" role="button">
+          <span class="hfc-stat-label">Heute</span>
+          <span class="hfc-stat-value">${this._fmt(dailyDistance && dailyDistance.state, 2, "km")}</span>
         </div>
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_night_distance")}" tabindex="0" role="button">
+          <span class="hfc-stat-label">Heute Nacht</span>
+          <span class="hfc-stat-value">${this._fmt(nightDistance && nightDistance.state, 2, "km")}</span>
+        </div>
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_lifetime_distance")}" tabindex="0" role="button">
+          <span class="hfc-stat-label">Insgesamt</span>
+          <span class="hfc-stat-value">${this._fmt(lifetimeDistance && lifetimeDistance.state, 1, "km")}</span>
+        </div>
+        ${
+          maxSpeedTonight
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_max_speed_tonight")}" tabindex="0" role="button">
+                 <span class="hfc-stat-label">Max. heute Nacht</span>
+                 <span class="hfc-stat-value">${this._fmt(maxSpeedTonight.state, 1, "km/h")}</span>
+               </div>`
+            : ""
+        }
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_health_score")}" tabindex="0" role="button">
+          <span class="hfc-stat-label">Temperatur</span>
+          <span class="hfc-stat-value">${this._fmt(temperature, 1, "°C")}</span>
+        </div>
+        ${
+          humidity
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_humidity")}" tabindex="0" role="button">
+                 <span class="hfc-stat-label">Luftfeuchtigkeit</span>
+                 <span class="hfc-stat-value">${this._fmt(humidity.state, 0, "%")}</span>
+               </div>`
+            : ""
+        }
+        ${
+          weight && weight.state && weight.state !== "unknown"
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_weight")}" tabindex="0" role="button">
+                 <span class="hfc-stat-label">Gewicht</span>
+                 <span class="hfc-stat-value">${this._fmt(weight.state, 0, "g")}</span>
+               </div>`
+            : ""
+        }
       </div>
 
       ${
         door
-          ? `<div class="hfc-footer">
+          ? `<div class="hfc-footer hfc-clickable" data-entity="${this._entityId("_door")}" tabindex="0" role="button">
                <span class="hfc-door ${doorOpen ? "hfc-door-open" : "hfc-door-closed"}">
                  ${doorOpen ? "🚪 Käfig offen" : "🚪 Käfig geschlossen"}
                </span>
@@ -241,21 +330,24 @@ HamsterFitnessCard.styles = `
     margin-bottom: 12px;
     font-size: 0.9em;
   }
-  .hfc-body {
+  .hfc-rings {
     display: flex;
-    align-items: center;
-    gap: 20px;
+    align-items: flex-start;
+    justify-content: space-evenly;
+    gap: 12px;
     flex-wrap: wrap;
+    margin-bottom: 16px;
   }
   .hfc-ring {
     position: relative;
-    width: 100px;
-    height: 100px;
-    flex-shrink: 0;
+    width: 110px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .hfc-ring svg {
-    width: 100%;
-    height: 100%;
+    width: 100px;
+    height: 100px;
     transform: rotate(-90deg);
   }
   .hfc-ring-bg {
@@ -272,27 +364,56 @@ HamsterFitnessCard.styles = `
   }
   .hfc-ring-label {
     position: absolute;
-    inset: 0;
+    top: 0;
+    width: 100px;
+    height: 100px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
   }
   .hfc-ring-value {
-    font-size: 1.5em;
+    font-size: 1.4em;
     font-weight: 700;
     line-height: 1;
   }
   .hfc-ring-unit {
-    font-size: 0.75em;
+    font-size: 0.7em;
     color: var(--secondary-text-color);
   }
+  .hfc-ring-caption {
+    margin-top: 4px;
+    font-size: 0.8em;
+    color: var(--secondary-text-color);
+    text-align: center;
+  }
+  .hfc-breakdown {
+    display: flex;
+    justify-content: space-evenly;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .hfc-breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8em;
+    color: var(--secondary-text-color);
+  }
+  .hfc-breakdown-icon {
+    font-size: 1em;
+  }
+  .hfc-breakdown-item strong {
+    color: var(--primary-text-color);
+  }
+  .hfc-breakdown-active strong {
+    color: #e45c5c;
+  }
   .hfc-stats {
-    flex: 1;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 10px;
-    min-width: 180px;
   }
   .hfc-stat {
     display: flex;
@@ -325,6 +446,54 @@ HamsterFitnessCard.styles = `
     color: var(--secondary-text-color);
     font-size: 0.9em;
   }
+  .hfc-clickable {
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s ease;
+  }
+  .hfc-clickable:hover,
+  .hfc-clickable:focus-visible {
+    background-color: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
+    outline: none;
+  }
+  .hfc-stat.hfc-clickable {
+    padding: 4px 6px;
+    margin: -4px -6px;
+  }
+  .hfc-footer.hfc-clickable {
+    padding: 4px 8px;
+    margin: 4px -8px -4px;
+  }
+
+  /* Mobile: schmalere Karten (typ. Handy-Dashboard) - Ringe und Schrift
+     etwas verkleinern, damit beide Ringe nebeneinander passen, statt
+     unschön umzubrechen. */
+  @media (max-width: 380px) {
+    ha-card {
+      padding: 12px;
+    }
+    .hfc-rings {
+      gap: 4px;
+    }
+    .hfc-ring {
+      width: 92px;
+    }
+    .hfc-ring svg {
+      width: 84px;
+      height: 84px;
+    }
+    .hfc-ring-label {
+      width: 84px;
+      height: 84px;
+    }
+    .hfc-ring-value {
+      font-size: 1.15em;
+    }
+    .hfc-stats {
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 6px;
+    }
+  }
 `;
 
 customElements.define("hamster-fitness-card", HamsterFitnessCard);
@@ -334,5 +503,67 @@ window.customCards.push({
   type: "hamster-fitness-card",
   name: "Hamster Fitness Card",
   description:
-    "Zeigt Health Score, Laufstrecken, Klima und Status eines Hamsters aus der Hamster-Fitness-Integration.",
+    "Zeigt Health Score und Live-Geschwindigkeit als Ringe, plus Distanzen, Klima und Status eines Hamsters aus der Hamster-Fitness-Integration.",
 });
+
+/**
+ * Visual editor ("Configure card" dialog), backed by HA's own <ha-form>
+ * so it looks/behaves exactly like the built-in cards' editors.
+ */
+const EDITOR_SCHEMA = [
+  {
+    name: "entity",
+    required: true,
+    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
+  },
+  { name: "title", selector: { text: {} } },
+  {
+    name: "max_speed",
+    selector: { number: { min: 1, max: 50, step: 0.5, mode: "box", unit_of_measurement: "km/h" } },
+  },
+];
+
+const EDITOR_LABELS = {
+  entity: "Health-Score-Sensor des Hamsters",
+  title: "Titel (optional)",
+  max_speed: "Skala des Geschwindigkeits-Rings (optional, km/h)",
+};
+
+class HamsterFitnessCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    this._renderForm();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._renderForm();
+  }
+
+  _renderForm() {
+    if (!this._hass || !this._config) return;
+
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (schema) => EDITOR_LABELS[schema.name] || schema.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        this._config = ev.detail.value;
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config: this._config },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this.appendChild(this._form);
+    }
+
+    this._form.hass = this._hass;
+    this._form.schema = EDITOR_SCHEMA;
+    this._form.data = this._config;
+  }
+}
+
+customElements.define("hamster-fitness-card-editor", HamsterFitnessCardEditor);

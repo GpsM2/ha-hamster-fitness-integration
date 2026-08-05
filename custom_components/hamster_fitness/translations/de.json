@@ -27,11 +27,11 @@
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
-          "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor).",
+          "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor) - ein roher, nur steigender Zählerstand, keine bereits in km umgerechnete Distanz. Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Total Rotations' auswählen - 'Hamster Wheel' eintippen, um die Liste einzugrenzen.",
           "temperature_sensor": "Ein Temperatursensor (device_class: temperature) in der Nähe des Käfigs.",
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
-          "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (z. B. ein ESPHome-Template-Sensor in km/h). Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
+          "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       },
@@ -61,11 +61,11 @@
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
-          "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor).",
+          "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor) - ein roher, nur steigender Zählerstand, keine bereits in km umgerechnete Distanz. Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Total Rotations' auswählen - 'Hamster Wheel' eintippen, um die Liste einzugrenzen.",
           "temperature_sensor": "Ein Temperatursensor (device_class: temperature) in der Nähe des Käfigs.",
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
-          "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (z. B. ein ESPHome-Template-Sensor in km/h). Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
+          "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       }

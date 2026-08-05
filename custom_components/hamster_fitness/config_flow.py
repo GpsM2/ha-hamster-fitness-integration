@@ -85,8 +85,15 @@ def _sensors_schema() -> vol.Schema:
     return vol.Schema(
         {
             # Es gibt keinen passenden device_class-Wert für "Umdrehungszähler",
-            # daher wird hier nur auf die Domain gefiltert. Die eigentliche
-            # "ist eine Zahl"-Prüfung übernimmt _is_numeric_state() zur Laufzeit.
+            # daher wird hier nur auf die Domain gefiltert (bewusst KEIN
+            # unit_of_measurement-Filter: das Auswahlfeld würde dann jeden
+            # Umdrehungszähler mit einer anderen Einheit als "rot." komplett
+            # ausblenden - inklusive einer bereits gewählten Entity beim
+            # Reconfigure, falls sich die Einheit zwischenzeitlich geändert
+            # hat). Die eigentliche "ist eine Zahl"-Prüfung übernimmt
+            # _is_numeric_state() zur Laufzeit. Bei der mitgelieferten
+            # ESPHome-Firmware "Hamster Wheel Total Rotations" eintippen, um
+            # die Liste per Freitextsuche einzugrenzen.
             vol.Required(CONF_WHEEL_SENSOR): EntitySelector(
                 EntitySelectorConfig(domain=Platform.SENSOR, multiple=False)
             ),
@@ -113,11 +120,15 @@ def _sensors_schema() -> vol.Schema:
                     multiple=False,
                 )
             ),
-            # Kein device_class-Filter, aus demselben Grund wie beim
-            # Rad-Umdrehungssensor oben - z. B. ESPHome-Template-Sensoren für
-            # die Momentangeschwindigkeit haben meist keine device_class.
+            # device_class "speed" ist ein normierter HA-Wert (im Gegensatz zum
+            # Umdrehungszähler oben) - die mitgelieferte ESPHome-Firmware setzt
+            # ihn auf sensor_speed, engt die Auswahl also sinnvoll ein.
             vol.Optional(CONF_SPEED_SENSOR): EntitySelector(
-                EntitySelectorConfig(domain=Platform.SENSOR, multiple=False)
+                EntitySelectorConfig(
+                    domain=Platform.SENSOR,
+                    device_class="speed",
+                    multiple=False,
+                )
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die

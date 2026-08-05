@@ -78,8 +78,32 @@ bleibt.
   nach demselben Muster wie z. B.
   [home-assistant-flightradar24](https://github.com/AlexandrErohin/home-assistant-flightradar24).
   Kein HACS-Frontend-Paket mehr nötig für eine ansprechende Einzelkarte
+- Wheel-Sensor/Geschwindigkeitssensor-Auswahl im Config Flow enger
+  eingegrenzt (`device_class: speed` für den Geschwindigkeitssensor, dafür
+  in der ESPHome-Firmware ergänzt) - bewusst kein harter Filter auf den
+  Umdrehungssensor, da das eine bereits gewählte Entity beim Reconfigure
+  unsichtbar machen könnte, falls sie eine andere Einheit als "rot." nutzt
+- Karte: visueller Editor (über `ha-form`, wie bei den eingebauten Karten),
+  Konfiguration jetzt über einen Entity-Picker (Health-Score-Sensor) statt
+  Freitext-Hamstername, zwei Ringe nebeneinander (Health Score + Live-
+  Geschwindigkeit im selben Design), Mobile-Optimierung (eigene
+  Breakpoint-Anpassung für schmale Karten), anklickbare Werte öffnen den
+  Mehr-Info-Dialog der jeweiligen Entity (z. B. Temperaturverlauf), sowie
+  eine immer sichtbare Score-Aufschlüsselung (Bewegung/Temperatur/Pflege
+  mit Punktabzug), damit auch ohne aktive Warnung klar ist, wie sich der
+  Score zusammensetzt
 
 ## 🚧 Geplant
+
+### Käfigbeleuchtung bei geöffnetem Deckel
+
+Ein Leuchtmittel (`light`-Entity) angeben, das automatisch angeht, sobald
+der Deckel-/Käfigsensor öffnet, und wieder ausgeht, sobald er schließt.
+Geplant konfigurierbar:
+
+- Helligkeit beim Einschalten
+- Optionaler zeitlicher Übergang (Transition) beim Ein-/Ausschalten
+- Optionale Verzögerung (Delay) beim Ausschalten nach dem Schließen
 
 ### Ranking-Card für mehrere Hamster
 

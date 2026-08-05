@@ -178,6 +178,8 @@ sensor:
     name: "Hamster Wheel Speed"
     id: sensor_speed
     unit_of_measurement: "km/h"
+    device_class: speed
+    state_class: measurement
     icon: "mdi:speedometer"
     accuracy_decimals: 2
 
@@ -185,6 +187,8 @@ sensor:
     name: "Hamster Wheel Max Speed Today"
     id: sensor_max_speed_today
     unit_of_measurement: "km/h"
+    device_class: speed
+    state_class: measurement
     icon: "mdi:speedometer-maximal"
     accuracy_decimals: 2
 
@@ -192,6 +196,8 @@ sensor:
     name: "Hamster Wheel Total Distance"
     id: sensor_distance_total
     unit_of_measurement: "km"
+    device_class: distance
+    state_class: total_increasing
     icon: "mdi:map-marker-distance"
     accuracy_decimals: 3
 
@@ -199,6 +205,8 @@ sensor:
     name: "Hamster Wheel Distance Today"
     id: sensor_distance_today
     unit_of_measurement: "km"
+    device_class: distance
+    state_class: total_increasing
     icon: "mdi:walk"
     accuracy_decimals: 3
 
