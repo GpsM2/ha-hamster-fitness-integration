@@ -28,8 +28,8 @@ CONF_NOTIFY_SERVICES: Final = "notify_services"
 # Hamsterräder werden im Handel immer über den Durchmesser angegeben, nicht
 # den Umfang - daher fragt auch der Config Flow direkt danach (der Umfang
 # wird intern via _wheel_circumference_cm = diameter * pi hergeleitet, siehe
-# coordinator.py). Grenzen/Default sind bewusst identisch zum "Rad
-# Durchmesser"-Feld der ESPHome-Firmware (esphome/esphome-web-d018de.yaml),
+# coordinator.py). Grenzen/Default sind bewusst identisch zum "Hamster Wheel
+# Diameter"-Feld der ESPHome-Firmware (esphome/hamster-wheel-sensor.yaml),
 # damit hier derselbe Zahlenwert eingetragen werden kann.
 DEFAULT_WHEEL_DIAMETER_CM: Final[float] = 28.0
 MIN_WHEEL_DIAMETER_CM: Final[float] = 10.0
@@ -104,3 +104,16 @@ PLATFORMS: Final[list[Platform]] = [
 # --- Gewicht ---
 MIN_WEIGHT_G: Final[float] = 0.0
 MAX_WEIGHT_G: Final[float] = 2000.0
+
+# --- Frontend (bundled hamster-fitness-card, siehe frontend/__init__.py) ---
+URL_BASE: Final = f"/{DOMAIN}-frontend"
+# "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
+# jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
+# Browser ggf. die alte, gecachte Version weiter aus.
+JS_MODULES: Final[list[dict[str, str]]] = [
+    {
+        "name": "Hamster Fitness Card",
+        "filename": "hamster-fitness-card.js",
+        "version": "1",
+    }
+]

@@ -61,17 +61,25 @@ bleibt.
     (optional, falls ein Echtzeit-Geschwindigkeitssensor ausgewählt wurde)
   - Beispiel-Dashboard (`examples/dashboard_simple.yaml`) inkl.
     Echtzeit-Geschwindigkeits-Gauge entsprechend erweitert
+- Bugfix: `[%key:...%]`-Verweise in `strings.json`/`translations/de.json`
+  wurden bei Reconfigure als Rohtext angezeigt statt aufgelöst - dieser
+  Mechanismus funktioniert nur beim Build von Home Assistant Core
+  (hassfest), nicht zur Laufzeit bei Custom Integrations. Alle Verweise
+  durch ausgeschriebenen Text ersetzt
+- Geräte-/Entity-Namen tragen jetzt ein `hamster_`-Präfix vor dem
+  Hamsternamen (z. B. `sensor.hamster_taco_health_score`), damit auf einen
+  Blick klar ist, dass eine Entity von dieser Integration stammt
+- ESPHome-Firmware: Entity-Namen und Gerätename von Deutsch auf Englisch
+  umgestellt, Datei/Gerätename von kryptisch (`esphome-web-d018de`) auf
+  sprechend (`hamster-wheel-sensor`) umbenannt
+- Eigene, mit der Integration ausgelieferte Lovelace-Karte
+  (`hamster-fitness-card`, siehe `custom_components/hamster_fitness/frontend/`) -
+  wird bei UI-verwalteten Dashboards automatisch als Ressource registriert,
+  nach demselben Muster wie z. B.
+  [home-assistant-flightradar24](https://github.com/AlexandrErohin/home-assistant-flightradar24).
+  Kein HACS-Frontend-Paket mehr nötig für eine ansprechende Einzelkarte
 
 ## 🚧 Geplant
-
-### Fertige Lovelace-Karte/-Strategy
-
-Eine eigene, mit der Integration ausgelieferte Lovelace-Karte oder
--Strategy, die pro Hamster automatisch eine passende Ansicht generiert -
-als Alternative zu den beiden manuell einzurichtenden Beispiel-Dashboards.
-Deutlich größerer Aufwand (eigenes Frontend-Paket, Registrierung als
-Lovelace-Resource) - nur sinnvoll, wenn das Projekt über den privaten
-Gebrauch hinauswächst.
 
 ### Ranking-Card für mehrere Hamster
 

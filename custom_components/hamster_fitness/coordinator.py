@@ -515,10 +515,19 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
 
 def hamster_device_info(entry: HamsterFitnessConfigEntry) -> DeviceInfo:
-    """Build the DeviceInfo shared by all entities of this config entry."""
+    """Build the DeviceInfo shared by all entities of this config entry.
+
+    The "Hamster " prefix on the device name is deliberate: since entities
+    use has_entity_name (see sensor.py etc.), Home Assistant derives their
+    entity_id from <device name>_<entity name> - without the prefix, a
+    hamster named e.g. "Speed" could collide/read confusingly next to
+    unrelated devices. With it, entity_ids consistently look like
+    sensor.hamster_<name>_<description> (e.g. sensor.hamster_taco_health_score),
+    making it obvious at a glance which integration they belong to.
+    """
     return DeviceInfo(
         identifiers={(DOMAIN, entry.entry_id)},
-        name=entry.data[CONF_HAMSTER_NAME],
+        name=f"Hamster {entry.data[CONF_HAMSTER_NAME]}",
         manufacturer="Hamster Fitness",
         model="Aggregator",
     )

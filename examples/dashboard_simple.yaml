@@ -17,7 +17,7 @@
 # beispielhaft "Taco").
 #
 # Die statistics-graph-Karte braucht Long-Term-Statistics für
-# sensor.taco_daily_distance - die zeichnet der Home-Assistant-Recorder für
+# sensor.hamster_taco_daily_distance - die zeichnet der Home-Assistant-Recorder für
 # jeden Sensor mit state_class total_increasing automatisch mit, ganz ohne
 # Zusatzeinrichtung.
 # ============================================================================
@@ -30,17 +30,17 @@ views:
       - type: glance
         title: Taco
         entities:
-          - entity: sensor.taco_health_score
+          - entity: sensor.hamster_taco_health_score
             name: Health Score
-          - entity: binary_sensor.taco_warning
+          - entity: binary_sensor.hamster_taco_warning
             name: Warnung
-          - entity: binary_sensor.taco_door
+          - entity: binary_sensor.hamster_taco_door
             name: Käfigtür
-          - entity: sensor.taco_daily_distance
+          - entity: sensor.hamster_taco_daily_distance
             name: Heute gelaufen
 
       - type: gauge
-        entity: sensor.taco_health_score
+        entity: sensor.hamster_taco_health_score
         name: Health Score
         min: 0
         max: 100
@@ -52,7 +52,7 @@ views:
       # Nur sinnvoll, wenn beim Einrichten ein Geschwindigkeitssensor
       # ausgewählt wurde - sonst diese Karte einfach entfernen.
       - type: gauge
-        entity: sensor.taco_current_speed
+        entity: sensor.hamster_taco_current_speed
         name: Geschwindigkeit
         min: 0
         max: 5
@@ -69,30 +69,30 @@ views:
         stat_types:
           - change
         entities:
-          - sensor.taco_daily_distance
+          - sensor.hamster_taco_daily_distance
 
       - type: entities
         title: Laufen
         entities:
-          - entity: sensor.taco_daily_distance
-          - entity: sensor.taco_night_distance
-          - entity: sensor.taco_lifetime_distance
-          - entity: sensor.taco_max_speed_tonight
+          - entity: sensor.hamster_taco_daily_distance
+          - entity: sensor.hamster_taco_night_distance
+          - entity: sensor.hamster_taco_lifetime_distance
+          - entity: sensor.hamster_taco_max_speed_tonight
 
       - type: entities
         title: Käfig & Gesundheit
         entities:
-          - entity: binary_sensor.taco_door
+          - entity: binary_sensor.hamster_taco_door
           - type: attribute
-            entity: binary_sensor.taco_door
+            entity: binary_sensor.hamster_taco_door
             attribute: hours_closed
             name: Seit (Stunden geschlossen)
           - type: attribute
-            entity: sensor.taco_health_score
+            entity: sensor.hamster_taco_health_score
             attribute: temperature
             name: Temperatur
             suffix: " °C"
-          - entity: sensor.taco_humidity
-          - entity: number.taco_weight
-          - entity: date.taco_departure_date
-          - entity: binary_sensor.taco_warning
+          - entity: sensor.hamster_taco_humidity
+          - entity: number.hamster_taco_weight
+          - entity: date.hamster_taco_departure_date
+          - entity: binary_sensor.hamster_taco_warning

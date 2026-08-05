@@ -6,8 +6,8 @@
 #   - HACS-Frontend-Element "ApexCharts Card" (RomRider/apexcharts-card)
 #
 # Alle Entity-IDs unten gehen von einem Hamster namens "Taco" aus
-# (sensor.taco_health_score, sensor.taco_daily_distance,
-# binary_sensor.taco_warning - so, wie sie die hamster_fitness-Integration
+# (sensor.hamster_taco_health_score, sensor.hamster_taco_daily_distance,
+# binary_sensor.hamster_taco_warning - so, wie sie die hamster_fitness-Integration
 # automatisch anlegt). Falls dein Hamster anders heißt oder du eine andere
 # Schreibweise hast, unter Einstellungen -> Geräte & Dienste -> Hamster
 # Fitness -> dein Hamster-Gerät nachschauen und die IDs unten anpassen.
@@ -42,7 +42,7 @@ views:
               - type: template
                 icon: mdi:thermometer
                 icon_color: |-
-                  {% set t = state_attr('sensor.taco_health_score', 'temperature') %}
+                  {% set t = state_attr('sensor.hamster_taco_health_score', 'temperature') %}
                   {% if t is none %}
                   grey
                   {% elif t < 18 or t > 26 %}
@@ -53,35 +53,34 @@ views:
                   green
                   {% endif %}
                 content: >-
-                  {{ state_attr('sensor.taco_health_score', 'temperature') }} °C
+                  {{ state_attr('sensor.hamster_taco_health_score', 'temperature') }} °C
 
               # Warn-Chip - grün/Häkchen wenn alles ok, rot/Ausrufezeichen
               # plus Klartext-Grund, sobald binary_sensor...warning "on" ist.
               - type: template
                 icon: |-
-                  {% if is_state('binary_sensor.taco_warning', 'on') %}
+                  {% if is_state('binary_sensor.hamster_taco_warning', 'on') %}
                   mdi:alert-circle
                   {% else %}
                   mdi:check-circle
                   {% endif %}
                 icon_color: |-
-                  {% if is_state('binary_sensor.taco_warning', 'on') %}
+                  {% if is_state('binary_sensor.hamster_taco_warning', 'on') %}
                   red
                   {% else %}
                   green
                   {% endif %}
                 content: >-
-                  {{ state_attr('binary_sensor.taco_warning', 'warning_reason')
-                     if is_state('binary_sensor.taco_warning', 'on') else 'Alles gut' }}
+                  {{ state_attr('binary_sensor.hamster_taco_warning', 'warning_reason')
+                     if is_state('binary_sensor.hamster_taco_warning', 'on') else 'Alles gut' }}
                 tap_action:
                   action: more-info
-                  entity: binary_sensor.taco_warning
+                  entity: binary_sensor.hamster_taco_warning
 
-              # Optionaler Bonus-Chip: Käfig-/Deckel-Status. Trage hier deine
-              # ECHTE Deckel-Sensor-Entity-ID ein (die, die du im Config Flow
-              # als "Deckel-/Käfigöffnungssensor" ausgewählt hast).
+              # Käfig-/Deckel-Status - spiegelt den im Config Flow gewählten
+              # Deckel-/Käfigöffnungssensor, keine externe Entity-ID nötig.
               - type: entity
-                entity: binary_sensor.hamsterkaefig_deckel
+                entity: binary_sensor.hamster_taco_door
                 icon: mdi:door
                 name: Deckel
 
@@ -100,7 +99,7 @@ views:
               show_states: true
               colorize_states: true
             series:
-              - entity: sensor.taco_health_score
+              - entity: sensor.hamster_taco_health_score
                 name: Health Score
                 # Farbverlauf passend zur Warnschwelle aus der Integration
                 # (WARNING_SCORE_THRESHOLD = 50): rot bis 50, orange bis 75,
@@ -137,7 +136,7 @@ views:
               show_states: true
               colorize_states: true
             series:
-              - entity: sensor.taco_daily_distance
+              - entity: sensor.hamster_taco_daily_distance
                 name: km
                 type: column
                 color: "#7c4dff"

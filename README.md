@@ -27,38 +27,42 @@ auch kommerziell nutzen oder lizenzieren.
 Benötigt wird ein ESP8266/D1-Mini-Board mit einer optischen Lichtschranke am
 GPIO4 (D2), die bei jeder Rad-Umdrehung einmal auslöst.
 
-1. `esphome/esphome-web-d018de.yaml` in dein ESPHome-Setup übernehmen
+1. `esphome/hamster-wheel-sensor.yaml` in dein ESPHome-Setup übernehmen
    (Dateiname/`esphome.name` ggf. anpassen).
 2. In `secrets.yaml` die referenzierten Secrets ergänzen:
    `wifi_ssid`, `wifi_password`, `esphome_web_d027a9__encryption_key`,
-   `esphome_web_d018de__ota_password`.
+   `esphome_web_d018de__ota_password` (die Secret-Namen selbst stammen noch
+   vom ursprünglichen Auto-Namen des Geräts - das ist rein kosmetisch ohne
+   Funktionsunterschied, wurde bewusst nicht mit umbenannt).
 3. Flashen (per USB beim Ersteinrichten, danach OTA).
 4. Nach dem Ersteinrichten in Home Assistant automatisch über die ESPHome-
    Integration verfügbar. Der reale Raddurchmesser lässt sich über die
-   Number-Entity **"Rad Durchmesser"** direkt in Home Assistant einstellen.
+   Number-Entity **"Hamster Wheel Diameter"** direkt in Home Assistant
+   einstellen.
 
 Die Firmware legt u. a. folgende Entities an:
 
 | Entity | Bedeutung |
 |---|---|
-| `sensor.hamsterrad_geschwindigkeit` | Aktuelle Geschwindigkeit (km/h) |
-| `sensor.hamsterrad_maximalgeschwindigkeit_heute` | Tages-Maximalgeschwindigkeit |
-| `sensor.hamsterrad_strecke_gesamt` | Kumulierte Strecke seit Inbetriebnahme (km) |
-| `sensor.hamsterrad_strecke_heute` | Strecke seit dem letzten Reset um 08:00 Uhr (km) |
-| `sensor.hamsterrad_umdrehungen_gesamt` | Roher, nie zurückgesetzter Umdrehungszähler |
+| `sensor.hamster_wheel_speed` | Aktuelle Geschwindigkeit (km/h) |
+| `sensor.hamster_wheel_max_speed_today` | Tages-Maximalgeschwindigkeit |
+| `sensor.hamster_wheel_total_distance` | Kumulierte Strecke seit Inbetriebnahme (km) |
+| `sensor.hamster_wheel_distance_today` | Strecke seit dem letzten Reset um 08:00 Uhr (km) |
+| `sensor.hamster_wheel_total_rotations` | Roher, nie zurückgesetzter Umdrehungszähler |
 
 **Wichtig:** Für die `hamster_fitness`-Integration unten muss
-`sensor.hamsterrad_umdrehungen_gesamt` (der rohe Umdrehungszähler) als
+`sensor.hamster_wheel_total_rotations` (der rohe Umdrehungszähler) als
 "Rad-Umdrehungssensor" ausgewählt werden — nicht einer der bereits fertig in
 km umgerechneten Strecken-Sensoren. Die Integration multipliziert den
 Sensorwert selbst mit dem konfigurierten Raddurchmesser (siehe Abschnitt 3
 "Einrichtung" unten).
 
-Sowohl das ESPHome-Feld "Rad Durchmesser" als auch das `hamster_fitness`-Feld
-"Raddurchmesser" erwarten denselben Wert - einfach überall denselben
-Durchmesser eintragen, wie er üblicherweise auf der Verpackung des Laufrads
-steht. `sensor.hamsterrad_geschwindigkeit` (Echtzeit-Geschwindigkeit) lässt
-sich optional ebenfalls in `hamster_fitness` einbinden, siehe Abschnitt 3.
+Sowohl das ESPHome-Feld "Hamster Wheel Diameter" als auch das
+`hamster_fitness`-Feld "Raddurchmesser" erwarten denselben Wert - einfach
+überall denselben Durchmesser eintragen, wie er üblicherweise auf der
+Verpackung des Laufrads steht. `sensor.hamster_wheel_speed`
+(Echtzeit-Geschwindigkeit) lässt sich optional ebenfalls in
+`hamster_fitness` einbinden, siehe Abschnitt 3.
 
 ## 2. Integration installieren
 
@@ -87,14 +91,14 @@ wie auf der Verpackung des Laufrads angegeben.
 
 **Schritt 2 (Quell-Sensoren):**
 
-- Rad-Umdrehungssensor → `sensor.hamsterrad_umdrehungen_gesamt`
+- Rad-Umdrehungssensor → `sensor.hamster_wheel_total_rotations`
 - Temperatursensor → dein Temperatursensor am Käfig (`device_class: temperature`)
 - Deckel-/Käfigöffnungssensor → dein Tür-/Öffnungskontakt (`device_class: door`
   oder `opening`)
 - Luftfeuchtigkeitssensor (optional) → nur nötig, falls vorhanden; ohne
   Auswahl wird einfach keine Feuchtigkeits-Entity angelegt
 - Echtzeit-Geschwindigkeitssensor (optional) → z. B.
-  `sensor.hamsterrad_geschwindigkeit`; ohne Auswahl werden keine
+  `sensor.hamster_wheel_speed`; ohne Auswahl werden keine
   Geschwindigkeits-Entities angelegt
 - Benachrichtigungsziele (optional) → `notify.*`-Entitäten für Warnungen und
   Tageszusammenfassung
@@ -117,22 +121,31 @@ unterstützen, z. B. die mobile App).
 
 ## Angelegte Entities
 
+Jede Entity-ID trägt zur Einordnung ein `hamster_`-Präfix vor dem
+Hamsternamen (z. B. `sensor.hamster_taco_health_score` für einen Hamster
+namens "Taco") - so ist auf einen Blick klar, dass die Entity von dieser
+Integration stammt.
+
 | Entity | Beschreibung |
 |---|---|
-| `sensor.<hamster>_health_score` | Gesundheits-Score (0–100 %) |
-| `sensor.<hamster>_daily_distance` | Laufstrecke seit dem letzten Reset um 9 Uhr morgens (km) |
-| `sensor.<hamster>_night_distance` | Laufstrecke seit dem letzten Nachtfenster-Start (km) |
-| `sensor.<hamster>_lifetime_distance` | Laufstrecke seit dem Einrichten des Rad-Sensors, läuft auch nach dem Auszug weiter (km) |
-| `sensor.<hamster>_current_speed`¹ | Aktuelle Echtzeit-Geschwindigkeit (km/h) |
-| `sensor.<hamster>_max_speed_tonight`¹ | Höchste Geschwindigkeit seit dem letzten Nachtfenster-Start (km/h) |
-| `sensor.<hamster>_humidity`² | Luftfeuchtigkeit am Käfig (%) |
-| `binary_sensor.<hamster>_warning` | Warnung bei niedrigem Score, Extremtemperatur, vernachlässigtem Käfig oder zu wenig Bewegung |
-| `binary_sensor.<hamster>_door` | Käfigtür offen/geschlossen, inkl. Attribut "seit wie vielen Stunden geschlossen" |
-| `date.<hamster>_departure_date` | Auszugs-/Sterbedatum - editierbar, standardmäßig leer |
-| `number.<hamster>_weight` | Gewicht in Gramm - manuell eintragen, z. B. von der Küchenwaage |
+| `sensor.hamster_<name>_health_score` | Gesundheits-Score (0–100 %) |
+| `sensor.hamster_<name>_daily_distance` | Laufstrecke seit dem letzten Reset um 9 Uhr morgens (km) |
+| `sensor.hamster_<name>_night_distance` | Laufstrecke seit dem letzten Nachtfenster-Start (km) |
+| `sensor.hamster_<name>_lifetime_distance` | Laufstrecke seit dem Einrichten des Rad-Sensors, läuft auch nach dem Auszug weiter (km) |
+| `sensor.hamster_<name>_current_speed`¹ | Aktuelle Echtzeit-Geschwindigkeit (km/h) |
+| `sensor.hamster_<name>_max_speed_tonight`¹ | Höchste Geschwindigkeit seit dem letzten Nachtfenster-Start (km/h) |
+| `sensor.hamster_<name>_humidity`² | Luftfeuchtigkeit am Käfig (%) |
+| `binary_sensor.hamster_<name>_warning` | Warnung bei niedrigem Score, Extremtemperatur, vernachlässigtem Käfig oder zu wenig Bewegung |
+| `binary_sensor.hamster_<name>_door` | Käfigtür offen/geschlossen, inkl. Attribut "seit wie vielen Stunden geschlossen" |
+| `date.hamster_<name>_departure_date` | Auszugs-/Sterbedatum - editierbar, standardmäßig leer |
+| `number.hamster_<name>_weight` | Gewicht in Gramm - manuell eintragen, z. B. von der Küchenwaage |
 
 ¹ Nur vorhanden, wenn ein Geschwindigkeitssensor konfiguriert wurde.
 ² Nur vorhanden, wenn ein Luftfeuchtigkeitssensor konfiguriert wurde.
+
+Alle Entity-IDs sind unabhängig von der in Home Assistant eingestellten
+Sprache immer englisch (`health_score`, nicht `gesundheits_score`) - nur
+die angezeigten Namen in der Oberfläche folgen der Sprachsprache.
 
 Der Tages-Reset liegt bewusst auf 9 Uhr morgens statt Mitternacht, damit
 eine durchgehende nächtliche Laufphase nicht künstlich mitten in der Nacht
@@ -140,7 +153,7 @@ auf zwei Kalendertage aufgeteilt wird.
 
 ### Auszug/Tod eines Hamsters
 
-Sobald `date.<hamster>_departure_date` auf ein Datum (heute oder in der
+Sobald `date.hamster_<name>_departure_date` auf ein Datum (heute oder in der
 Vergangenheit) gesetzt wird, friert die Integration den letzten Stand
 (Health Score, Distanzen, ...) endgültig ein - Warnungen werden dabei
 gelöscht, es werden ab dann auch keine weiteren Benachrichtigungen mehr
@@ -150,7 +163,33 @@ nicht mehr darauf, seine `lifetime_distance` bleibt als Vergleichswert
 erhalten. Ein neuer Hamster wird einfach als weitere Integrations-Instanz
 angelegt (Einstellungen → Geräte & Dienste → Hamster Fitness hinzufügen).
 
+## Eingebaute Karte
+
+Die Integration bringt ihre eigene Lovelace-Karte mit
+(`custom_components/hamster_fitness/frontend/hamster-fitness-card.js`) -
+kein HACS-Frontend-Paket nötig, genau wie z. B. bei
+[home-assistant-flightradar24](https://github.com/AlexandrErohin/home-assistant-flightradar24).
+Sie zeigt Health-Score-Ring, Distanzen, Klima, Geschwindigkeit und
+Käfigtür-Status eines Hamsters in einer einzigen Karte.
+
+Bei UI-verwalteten Dashboards (Standard-Modus "storage") wird die
+Ressource automatisch registriert - direkt nach der Installation im
+Dashboard-Editor "Karte hinzufügen" suchen: **"Hamster Fitness Card"**.
+Per YAML sieht die Einbindung so aus:
+
+```yaml
+type: custom:hamster-fitness-card
+hamster: taco   # der Hamster-Slug, wie er in den Entity-IDs steht
+```
+
+Nutzt du ein YAML-verwaltetes Dashboard (Modus "yaml"), muss die Ressource
+einmalig manuell ergänzt werden: Einstellungen → Dashboards → Menü (⋮) →
+Ressourcen → Ressource hinzufügen → URL
+`/hamster_fitness-frontend/hamster-fitness-card.js`, Typ "JavaScript-Modul".
+
 ## Beispiel-Dashboards
+
+Falls dir Standard-Lovelace-Karten lieber sind als die eingebaute Karte:
 
 - [`examples/dashboard_simple.yaml`](examples/dashboard_simple.yaml) —
   nur Standard-Lovelace-Karten (`glance`, `gauge`, `statistics-graph`,

@@ -39,34 +39,34 @@
         "title": "Update hamster settings",
         "description": "Update the basic information about your hamster.",
         "data": {
-          "hamster_name": "[%key:component::hamster_fitness::config::step::user::data::hamster_name%]",
-          "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data::acquisition_date%]",
-          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data::wheel_diameter%]"
+          "hamster_name": "Name",
+          "acquisition_date": "Acquisition date",
+          "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
-          "hamster_name": "[%key:component::hamster_fitness::config::step::user::data_description::hamster_name%]",
-          "acquisition_date": "[%key:component::hamster_fitness::config::step::user::data_description::acquisition_date%]",
-          "wheel_diameter": "[%key:component::hamster_fitness::config::step::user::data_description::wheel_diameter%]"
+          "hamster_name": "The name of your hamster. Used as the device name.",
+          "acquisition_date": "The date your hamster moved in with you.",
+          "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
       "reconfigure_sensors": {
-        "title": "[%key:component::hamster_fitness::config::step::sensors::title%]",
-        "description": "[%key:component::hamster_fitness::config::step::sensors::description%]",
+        "title": "Select source sensors",
+        "description": "Choose the existing sensors and notification targets that should feed this hamster's device.",
         "data": {
-          "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::wheel_sensor%]",
-          "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::temperature_sensor%]",
-          "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::door_sensor%]",
-          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::humidity_sensor%]",
-          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data::speed_sensor%]",
-          "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data::notify_services%]"
+          "wheel_sensor": "Wheel rotation sensor",
+          "temperature_sensor": "Temperature sensor",
+          "door_sensor": "Cage/lid opening sensor",
+          "humidity_sensor": "Humidity sensor (optional)",
+          "speed_sensor": "Current-speed sensor (optional)",
+          "notify_services": "Notification targets"
         },
         "data_description": {
-          "wheel_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::wheel_sensor%]",
-          "temperature_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::temperature_sensor%]",
-          "door_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::door_sensor%]",
-          "humidity_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::humidity_sensor%]",
-          "speed_sensor": "[%key:component::hamster_fitness::config::step::sensors::data_description::speed_sensor%]",
-          "notify_services": "[%key:component::hamster_fitness::config::step::sensors::data_description::notify_services%]"
+          "wheel_sensor": "A sensor whose numeric state represents wheel rotations (e.g. a counter or pulse sensor).",
+          "temperature_sensor": "A temperature sensor (device_class: temperature) placed near the cage.",
+          "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
+          "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
+          "speed_sensor": "A sensor reporting the current, real-time wheel speed (e.g. an ESPHome template sensor in km/h). Leave empty if you don't have one - no speed entities will be created.",
+          "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       }
     },
@@ -77,7 +77,7 @@
     },
     "abort": {
       "already_configured": "A hamster with this name has already been configured.",
-      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+      "reconfigure_successful": "Reconfiguration was successful"
     }
   },
   "options": {

@@ -1,6 +1,6 @@
 esphome:
-  name: esphome-web-d018de
-  friendly_name: Hamsterrad
+  name: hamster-wheel-sensor
+  friendly_name: Hamster Wheel Sensor
   name_add_mac_suffix: false
 
 esp8266:
@@ -80,7 +80,7 @@ globals:
 # -----------------------------------------------------------
 number:
   - platform: template
-    name: "Rad Durchmesser"
+    name: "Hamster Wheel Diameter"
     id: wheel_diameter
     icon: "mdi:diameter"
     min_value: 10.0
@@ -120,8 +120,8 @@ interval:
 # -----------------------------------------------------------
 binary_sensor:
   - platform: gpio
-    pin: 
-      # D2 auf deinem AZDelivery D1 Mini entspricht GPIO4. 
+    pin:
+      # D2 auf deinem AZDelivery D1 Mini entspricht GPIO4.
       # Sehr sicherer Pin für solche Sensoren!
       number: GPIO4
       mode:
@@ -134,13 +134,13 @@ binary_sensor:
       # Das Signal muss mindestens 5ms lang stabil sein.
       - delayed_on: 5ms
       - delayed_off: 5ms
-      
+
     on_press:
       then:
         - lambda: |-
             uint32_t now = millis();
             uint32_t diff = now - id(last_pulse_time);
-            
+
             // --------------------------------------------------------
             // DER COOLDOWN (Verhindert Zählen beim schnellen Pendeln)
             // Alles unter 250 Millisekunden wird konsequent ignoriert.
@@ -148,20 +148,20 @@ binary_sensor:
             // --------------------------------------------------------
             if (diff > 250) {
               id(last_pulse_time) = now;
-              
+
               // 1. Zähler erhöhen
               id(pulses_today) += 1;
               id(pulses_total) += 1;
-              
+
               // 2. Geschwindigkeit berechnen
-              float rpm = 60000.0 / diff; 
-              
+              float rpm = 60000.0 / diff;
+
               if (rpm > id(max_rpm_today)) {
                 id(max_rpm_today) = rpm;
               }
-              
+
               float d = id(wheel_diameter).state;
-              
+
               // Werte an Home Assistant senden
               id(sensor_speed).publish_state(rpm * d * 3.14159265 * 0.0006);
               id(sensor_max_speed_today).publish_state(id(max_rpm_today) * d * 3.14159265 * 0.0006);
@@ -175,37 +175,37 @@ binary_sensor:
 # -----------------------------------------------------------
 sensor:
   - platform: template
-    name: "Hamsterrad Geschwindigkeit"
+    name: "Hamster Wheel Speed"
     id: sensor_speed
     unit_of_measurement: "km/h"
     icon: "mdi:speedometer"
     accuracy_decimals: 2
 
   - platform: template
-    name: "Hamsterrad Maximalgeschwindigkeit Heute"
+    name: "Hamster Wheel Max Speed Today"
     id: sensor_max_speed_today
     unit_of_measurement: "km/h"
     icon: "mdi:speedometer-maximal"
     accuracy_decimals: 2
 
   - platform: template
-    name: "Hamsterrad Strecke Gesamt"
+    name: "Hamster Wheel Total Distance"
     id: sensor_distance_total
     unit_of_measurement: "km"
     icon: "mdi:map-marker-distance"
     accuracy_decimals: 3
 
   - platform: template
-    name: "Hamsterrad Strecke Heute"
+    name: "Hamster Wheel Distance Today"
     id: sensor_distance_today
     unit_of_measurement: "km"
     icon: "mdi:walk"
     accuracy_decimals: 3
 
   - platform: template
-    name: "Hamsterrad Umdrehungen Gesamt"
+    name: "Hamster Wheel Total Rotations"
     id: sensor_pulses_total
     icon: "mdi:counter"
-    unit_of_measurement: "Umdr."
+    unit_of_measurement: "rot."
     accuracy_decimals: 0
     state_class: total_increasing
