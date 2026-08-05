@@ -103,17 +103,36 @@ unterstützen, z. B. die mobile App).
 |---|---|
 | `sensor.<hamster>_health_score` | Gesundheits-Score (0–100 %) |
 | `sensor.<hamster>_daily_distance` | Laufstrecke seit dem letzten Reset um 9 Uhr morgens (km) |
+| `sensor.<hamster>_lifetime_distance` | Laufstrecke seit dem Einrichten des Rad-Sensors, läuft auch nach dem Auszug weiter (km) |
 | `binary_sensor.<hamster>_warning` | Warnung bei niedrigem Score, Extremtemperatur, vernachlässigtem Käfig oder zu wenig Bewegung |
+| `date.<hamster>_departure_date` | Auszugs-/Sterbedatum - editierbar, standardmäßig leer |
+| `number.<hamster>_weight` | Gewicht in Gramm - manuell eintragen, z. B. von der Küchenwaage |
 
 Der Tages-Reset liegt bewusst auf 9 Uhr morgens statt Mitternacht, damit
 eine durchgehende nächtliche Laufphase nicht künstlich mitten in der Nacht
 auf zwei Kalendertage aufgeteilt wird.
 
-## Beispiel-Dashboard
+### Auszug/Tod eines Hamsters
 
-[`examples/dashboard_taco.yaml`](examples/dashboard_taco.yaml) zeigt eine
-Beispielansicht im "Samsung Health"-Stil. Benötigt die HACS-Frontend-Karten
-[Mushroom](https://github.com/piitaya/lovelace-mushroom) und
-[ApexCharts Card](https://github.com/RomRider/apexcharts-card). Entity-IDs im
-Beispiel gehen von einem Hamster namens "Taco" aus und müssen an den
-tatsächlichen Gerätenamen angepasst werden.
+Sobald `date.<hamster>_departure_date` auf ein Datum (heute oder in der
+Vergangenheit) gesetzt wird, friert die Integration den letzten Stand
+(Health Score, Distanzen, ...) endgültig ein - Warnungen werden dabei
+gelöscht, es werden ab dann auch keine weiteren Benachrichtigungen mehr
+verschickt. Die Quell-Sensoren (Rad/Temperatur/Tür) können danach gefahrlos
+einem neuen Hamster zugewiesen werden: Der archivierte Hamster reagiert
+nicht mehr darauf, seine `lifetime_distance` bleibt als Vergleichswert
+erhalten. Ein neuer Hamster wird einfach als weitere Integrations-Instanz
+angelegt (Einstellungen → Geräte & Dienste → Hamster Fitness hinzufügen).
+
+## Beispiel-Dashboards
+
+- [`examples/dashboard_simple.yaml`](examples/dashboard_simple.yaml) —
+  nur Standard-Lovelace-Karten (`glance`, `gauge`, `statistics-graph`,
+  `entities`), keine HACS-Zusatzkarten nötig. Der einfachste Einstieg.
+- [`examples/dashboard_taco.yaml`](examples/dashboard_taco.yaml) — eine
+  aufwendigere Ansicht im "Samsung Health"-Stil, benötigt die
+  HACS-Frontend-Karten [Mushroom](https://github.com/piitaya/lovelace-mushroom)
+  und [ApexCharts Card](https://github.com/RomRider/apexcharts-card).
+
+Entity-IDs in beiden Beispielen gehen von einem Hamster namens "Taco" aus
+und müssen an den tatsächlichen Gerätenamen angepasst werden.

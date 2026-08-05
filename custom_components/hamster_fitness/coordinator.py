@@ -6,13 +6,20 @@ instantly whenever one of the tracked source entities changes state
 DAILY_RESET_HOUR (resets the daily-distance baseline) and at
 NIGHT_WINDOW_START_HOUR (resets the "night window" baseline used for the
 nightly-activity comparison, see `_calculate`).
+
+Once `departure_date` is set (today or in the past - see
+`async_set_departure_date`), the hamster counts as "departed"/archived:
+`_calculate` stops recomputing anything and simply keeps returning the
+frozen final snapshot, even if the underlying source sensors keep firing
+events (e.g. because a new hamster has since been assigned to the same
+physical wheel/cage).
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import asdict, dataclass, field, replace
+from datetime import date, datetime, timedelta
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
@@ -73,6 +80,11 @@ class HamsterFitnessData:
     # DAILY_RESET_HOUR gekappt, sondern deckt die tatsächliche nächtliche
     # Aktivitätsphase ab.
     night_distance_km: float = 0.0
+    # Strecke seit dem allerersten Einrichten dieses Rad-Sensors, überlebt
+    # Geräte-Reboots (siehe _lifetime_offset_count) - wird nur beim Wechsel
+    # des Rad-Sensors selbst zurückgesetzt. Grundlage für einen Vergleich
+    # zwischen (auch bereits ausgezogenen) Hamstern.
+    lifetime_distance_km: float = 0.0
     temperature: float | None = None
     door_open: bool = False
     hours_door_closed: float | None = None
@@ -115,7 +127,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_baseline_count: float = 0.0
         self._night_window_start: datetime | None = None
 
+        # Rotationen, die vor dem aktuellen Zähler-Stand "gebankt" wurden
+        # (siehe _calculate()'s Reset-Erkennung) - macht lifetime_distance_km
+        # robust gegenüber Geräte-Reboots des Rad-Sensors.
+        self._lifetime_offset_count: float = 0.0
+        self._departure_date: date | None = None
+
         self.data = HamsterFitnessData()
+
+    @property
+    def departure_date(self) -> date | None:
+        """Return the hamster's departure date, if one has been set."""
+        return self._departure_date
 
     # ------------------------------------------------------------------
     # Setup (wird von async_config_entry_first_refresh() aufgerufen)
@@ -168,6 +191,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "previous_day_distance_km", 0.0
             )
 
+        departure_raw = stored.get("departure_date") if stored else None
+        self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
+
+        if self._is_departed():
+            # Bereits archivierter Hamster: den zuletzt eingefrorenen Stand
+            # wiederherstellen und NICHT neu baseline - alle Baselines/
+            # Zählerstände sind für einen archivierten Hamster irrelevant,
+            # da _calculate() ab jetzt ohnehin nur noch self.data
+            # unverändert zurückgibt.
+            snapshot = stored.get("frozen_snapshot") if stored else None
+            if snapshot:
+                self.data = HamsterFitnessData(**snapshot)
+            return
+
         needs_save = False
 
         # Wenn der Rad-Sensor seit dem letzten Speichern gewechselt wurde
@@ -213,6 +250,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._night_window_start = expected_night_start
             needs_save = True
 
+        # Ein Sensor-Wechsel invalidiert auch den Lifetime-Offset - siehe
+        # Kommentar oben, dieselbe Skalen-Inkompatibilität gilt hier genauso.
+        if sensor_changed or not stored:
+            self._lifetime_offset_count = 0.0
+        else:
+            self._lifetime_offset_count = stored.get("lifetime_offset_count", 0.0)
+
         if needs_save:
             await self._async_save_state()
 
@@ -233,6 +277,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     if self._night_window_start
                     else None
                 ),
+                "lifetime_offset_count": self._lifetime_offset_count,
+                "departure_date": (
+                    self._departure_date.isoformat() if self._departure_date else None
+                ),
+                "frozen_snapshot": asdict(self.data),
             }
         )
 
@@ -265,6 +314,31 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self.async_set_updated_data(self._calculate())
 
     # ------------------------------------------------------------------
+    # Archivierung (Auszugs-/Sterbedatum, siehe date.py)
+    # ------------------------------------------------------------------
+
+    async def async_set_departure_date(self, value: date) -> None:
+        """Record the hamster's departure date.
+
+        If `value` is today or in the past, this immediately freezes the
+        current snapshot (clearing any active warning, since a departed
+        hamster shouldn't keep alerting) and, from then on, `_calculate`
+        ignores further source-sensor events entirely - see
+        `_is_departed`. A future date is stored but has no effect yet; the
+        freeze only takes place once that date actually arrives (checked
+        on the next recalculation, e.g. the next daily reset).
+        """
+        self._departure_date = value
+        if self._is_departed():
+            frozen = replace(self.data, warning_on=False, warning_reasons={})
+            self.async_set_updated_data(frozen)
+        await self._async_save_state()
+
+    def _is_departed(self) -> bool:
+        """Return True if the hamster's departure date has arrived."""
+        return self._departure_date is not None and self._departure_date <= dt_util.now().date()
+
+    # ------------------------------------------------------------------
     # Event-Handling
     # ------------------------------------------------------------------
 
@@ -286,6 +360,12 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     @callback
     def _calculate(self) -> HamsterFitnessData:
         """Recompute distance, health score and warning state."""
+        if self._is_departed():
+            # Archivierter Hamster: eingefrorenen Endstand unverändert
+            # zurückgeben, auch wenn die Quell-Sensoren (z. B. nach
+            # Zuweisung an einen neuen Hamster) weiter Events feuern.
+            return self.data
+
         current_count = self._current_wheel_count()
         if current_count is not None:
             if (
@@ -293,8 +373,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 and current_count < self._last_known_count
             ):
                 # Quell-Zähler wurde zurückgesetzt (z. B. Geräte-Reboot):
-                # beide Baselines neu bei 0 beginnen, statt eine negative
-                # Strecke zu zählen.
+                # der bisherige Stand wird in den Lifetime-Offset gebankt,
+                # damit lifetime_distance_km trotzdem weiterwächst, und
+                # beide Tages-/Nacht-Baselines beginnen neu bei 0, statt
+                # eine negative Strecke zu zählen.
+                self._lifetime_offset_count += self._last_known_count
                 self._baseline_count = 0.0
                 self._night_baseline_count = 0.0
                 self.hass.async_create_task(self._async_save_state())
@@ -307,9 +390,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             night_distance_km = (
                 rotations_tonight * self._wheel_circumference_cm
             ) / CM_PER_KM
+            lifetime_distance_km = (
+                (self._lifetime_offset_count + current_count)
+                * self._wheel_circumference_cm
+            ) / CM_PER_KM
         else:
             distance_km = self.data.daily_distance_km if self.data else 0.0
             night_distance_km = self.data.night_distance_km if self.data else 0.0
+            lifetime_distance_km = self.data.lifetime_distance_km if self.data else 0.0
 
         temp_state = self.hass.states.get(self._temperature_sensor)
         temperature = _as_float(temp_state.state) if temp_state else None
@@ -368,6 +456,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             daily_distance_km=round(distance_km, 3),
             previous_day_distance_km=self._previous_day_distance_km,
             night_distance_km=round(night_distance_km, 3),
+            lifetime_distance_km=round(lifetime_distance_km, 3),
             temperature=temperature,
             door_open=door_open,
             hours_door_closed=(

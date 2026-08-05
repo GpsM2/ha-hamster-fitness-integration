@@ -25,6 +25,18 @@ bleibt.
 - Deutsche Übersetzung korrekt unter `translations/de.json` eingebunden
 - `LICENSE` (PolyForm Noncommercial 1.0.0), `README.md`, `hacs.json`,
   GitHub-Repository
+- Bugfix: Distanzberechnung lief nach wenigen echten Umdrehungen auf 9,42 km
+  auf, weil beim Sensor-Wechsel per Reconfigure die alte Baseline gegen den
+  neuen Sensor weitergerechnet wurde
+- Einfaches Beispiel-Dashboard (`examples/dashboard_simple.yaml`) nur mit
+  Standard-Lovelace-Karten, keine HACS-Zusatzkarten nötig
+- Auszugsdatum (`date.<hamster>_departure_date`) pro Hamster: sobald
+  gesetzt, friert die Integration den letzten Stand ein und reagiert nicht
+  mehr auf die (ggf. neu zugewiesenen) Quell-Sensoren
+- `sensor.<hamster>_lifetime_distance`: Strecke seit dem Einrichten des
+  Rad-Sensors, überlebt Geräte-Reboots und bleibt nach dem Auszug als
+  Vergleichswert erhalten
+- Gewichts-Tracking (`number.<hamster>_weight`, Gramm, manuell einzutragen)
 
 ## 🚧 Geplant
 
@@ -36,41 +48,20 @@ per Pull Request bei [home-assistant/brands](https://github.com/home-assistant/b
 eingereicht werden (HA lädt Integrations-Icons zentral von dort, nicht aus
 diesem Repo).
 
-### Einfachere Dashboard-Cards
+### Fertige Lovelace-Karte/-Strategy
 
-Das aktuelle Beispiel-Dashboard (`examples/dashboard_taco.yaml`) braucht
-zwei zusätzliche HACS-Frontend-Karten (Mushroom, ApexCharts) - das ist eine
-Einstiegshürde für weniger technische Nutzer.
+Eine eigene, mit der Integration ausgelieferte Lovelace-Karte oder
+-Strategy, die pro Hamster automatisch eine passende Ansicht generiert -
+als Alternative zu den beiden manuell einzurichtenden Beispiel-Dashboards.
+Deutlich größerer Aufwand (eigenes Frontend-Paket, Registrierung als
+Lovelace-Resource) - nur sinnvoll, wenn das Projekt über den privaten
+Gebrauch hinauswächst.
 
-Konzept:
+### Ranking-Card für mehrere Hamster
 
-- **Kurzfristig:** ein zweites Beispiel-Dashboard nur mit
-  Standard-Lovelace-Karten (`entities`, `gauge`, `statistics-graph`,
-  `glance`), ohne jede HACS-Abhängigkeit - funktioniert sofort nach der
-  Installation, ohne dass zusätzliche Frontend-Karten eingerichtet werden
-  müssen.
-- **Mittelfristig:** eine eigene, mit der Integration ausgelieferte
-  Lovelace-Karte oder -Strategy, die pro Hamster automatisch eine passende
-  Ansicht generiert. Deutlich größerer Aufwand (eigenes Frontend-Paket,
-  Registrierung als Lovelace-Resource) - nur sinnvoll, wenn das Projekt
-  über den privaten Gebrauch hinauswächst.
-
-### Lebenszyklus mehrerer Hamster
-
-Hamster ziehen alle 2-3 Jahre ein und aus. Geplant:
-
-- Auszugsdatum ("Sterbedatum") pro Hamster-Gerät, analog zum bereits
-  vorhandenen Einzugsdatum
-- Automatische Archivierung ausgezogener Hamster (kein aktiver
-  Health-Score/keine Warnungen mehr, Historie bleibt erhalten)
-- Vergleich/Ranking zwischen Hamstern, auch über den eigenen Auszug hinaus
-  (z. B. Lifetime-Distanz-Ranking: "wer ist am meisten gelaufen?")
-
-Mehrere Hamster gleichzeitig sind technisch schon heute möglich (jede
-Integrations-Instanz ist ein eigenes Gerät mit eigenen Entities) - offen ist
-nur die Lebenszyklus- und Vergleichs-Ebene obendrauf.
-
-### Gewichts-Tracking
-
-Editierbare Gewichts-Entity (Gramm) pro Hamster, um den Gewichtsverlauf über
-die Zeit zu beobachten.
+Die Rohdaten dafür stehen bereits (`sensor.<hamster>_lifetime_distance`
+je Hamster, auch nach dem Auszug eingefroren erhalten), eine fertige
+Vergleichs-/Ranking-Karte über mehrere Hamster-Geräte hinweg (z. B. "wer
+ist insgesamt am meisten gelaufen?") gibt es aber noch nicht. Aktuell
+lässt sich das manuell per `entities`-Karte mit den `lifetime_distance`-
+Sensoren aller Hamster nachbauen.

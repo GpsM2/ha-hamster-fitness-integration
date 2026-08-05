@@ -1,0 +1,72 @@
+# ============================================================================
+# Hamster Fitness - einfaches Dashboard nur mit Standard-Lovelace-Karten
+# ============================================================================
+# Im Gegensatz zu dashboard_taco.yaml werden hier AUSSCHLIESSLICH in Home
+# Assistant eingebaute Karten verwendet (entities/glance/gauge/
+# statistics-graph) - keine HACS-Zusatzkarten (Mushroom, ApexCharts) nötig.
+# Einfach in ein neues Dashboard/eine neue Ansicht einfügen und die
+# Entity-IDs unten an deinen tatsächlichen Hamster-Namen anpassen (hier
+# beispielhaft "Taco").
+#
+# Die statistics-graph-Karte braucht Long-Term-Statistics für
+# sensor.taco_daily_distance - die zeichnet der Home-Assistant-Recorder für
+# jeden Sensor mit state_class total_increasing automatisch mit, ganz ohne
+# Zusatzeinrichtung.
+# ============================================================================
+
+views:
+  - title: Taco
+    path: taco-einfach
+    icon: mdi:rodent
+    cards:
+      - type: glance
+        title: Taco
+        entities:
+          - entity: sensor.taco_health_score
+            name: Health Score
+          - entity: binary_sensor.taco_warning
+            name: Warnung
+          - entity: sensor.taco_daily_distance
+            name: Heute gelaufen
+
+      - type: gauge
+        entity: sensor.taco_health_score
+        name: Health Score
+        min: 0
+        max: 100
+        severity:
+          red: 0
+          yellow: 50
+          green: 75
+
+      - type: statistics-graph
+        title: Laufstrecke (letzte 7 Tage)
+        chart_type: bar
+        period: day
+        days_to_show: 7
+        stat_types:
+          - change
+        entities:
+          - sensor.taco_daily_distance
+
+      - type: entities
+        title: Details
+        entities:
+          - entity: sensor.taco_daily_distance
+          - entity: sensor.taco_lifetime_distance
+          - entity: number.taco_weight
+          - entity: date.taco_departure_date
+          - type: attribute
+            entity: sensor.taco_health_score
+            attribute: temperature
+            name: Temperatur
+            suffix: " °C"
+          - entity: binary_sensor.taco_warning
+
+      # Optionaler Bonus: echte Deckel-Sensor-Entity-ID eintragen (die, die
+      # du im Config Flow als "Deckel-/Käfigöffnungssensor" ausgewählt hast).
+      - type: entities
+        title: Käfig
+        entities:
+          - entity: binary_sensor.hamsterkaefig_deckel
+            name: Deckel

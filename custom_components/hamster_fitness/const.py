@@ -83,4 +83,13 @@ NOTIFY_SERVICE_SEND_MESSAGE: Final = "send_message"
 WARNING_NOTIFICATION_COOLDOWN_HOURS: Final[float] = 4.0
 
 # --- Plattformen ---
-PLATFORMS: Final[list[Platform]] = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS: Final[list[Platform]] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.DATE,
+    Platform.NUMBER,
+]
+
+# --- Gewicht ---
+MIN_WEIGHT_G: Final[float] = 0.0
+MAX_WEIGHT_G: Final[float] = 2000.0

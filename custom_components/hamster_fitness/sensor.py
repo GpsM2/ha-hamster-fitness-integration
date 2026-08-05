@@ -31,6 +31,7 @@ async def async_setup_entry(
         [
             HamsterHealthScoreSensor(coordinator, entry),
             HamsterDailyDistanceSensor(coordinator, entry),
+            HamsterLifetimeDistanceSensor(coordinator, entry),
         ]
     )
 
@@ -121,3 +122,32 @@ class HamsterDailyDistanceSensor(HamsterFitnessSensorBase):
             "ideal_distance_min_km": IDEAL_DISTANCE_MIN_KM,
             "ideal_distance_max_km": IDEAL_DISTANCE_MAX_KM,
         }
+
+
+class HamsterLifetimeDistanceSensor(HamsterFitnessSensorBase):
+    """Cumulative distance run since the wheel sensor was first configured.
+
+    Unlike daily_distance, this never resets on a schedule - only a
+    counter reboot (banked into the offset, see coordinator.py) or
+    swapping the configured wheel sensor resets it. Comparing this sensor
+    across multiple hamsters (including ones with a departure_date set,
+    since their snapshot stays frozen) is the basis for a simple
+    lifetime-distance ranking.
+    """
+
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:map-marker-distance"
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the lifetime-distance sensor."""
+        super().__init__(coordinator, entry, "lifetime_distance")
+
+    @property
+    def native_value(self) -> float:
+        """Return the lifetime distance in km."""
+        return self.coordinator.data.lifetime_distance_km
