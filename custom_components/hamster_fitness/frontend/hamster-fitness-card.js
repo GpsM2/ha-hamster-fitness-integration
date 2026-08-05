@@ -17,13 +17,21 @@
  * departure_date) are derived from `entity` by swapping its `_health_score`
  * suffix - see coordinator.py's hamster_device_info() for the naming
  * convention this relies on.
+ *
+ * The entity_id itself only needs to END in "_health_score" - it does NOT
+ * have to start with "hamster_". New hamsters get that prefix (see
+ * hamster_device_info()), but entities created before that naming change
+ * keep their original entity_id (e.g. sensor.taco_health_score) unless
+ * manually renamed - Home Assistant never renames entity_ids on its own.
+ * A leading "hamster_" is only stripped for the card's display title.
  */
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
 const DEFAULT_MAX_SPEED = 5;
 const HEALTH_SCORE_SUFFIX = "_health_score";
-const ENTITY_PATTERN = /^sensor\.hamster_(.+)_health_score$/;
+const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
+const HAMSTER_PREFIX = /^hamster_/;
 
 const RING_COLOR_NEUTRAL = "#00b8a9";
 
@@ -31,17 +39,17 @@ class HamsterFitnessCard extends HTMLElement {
   setConfig(config) {
     if (!config.entity) {
       throw new Error(
-        "hamster-fitness-card: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (sensor.hamster_<name>_health_score)."
+        "hamster-fitness-card: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (endet auf _health_score)."
       );
     }
     const match = config.entity.match(ENTITY_PATTERN);
     if (!match) {
       throw new Error(
-        "hamster-fitness-card: 'entity' muss der Health-Score-Sensor eines Hamsters sein (sensor.hamster_<name>_health_score)."
+        "hamster-fitness-card: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score)."
       );
     }
     this._config = config;
-    this._hamster = match[1];
+    this._hamster = match[1].replace(HAMSTER_PREFIX, "");
     this._maxSpeed = Number(config.max_speed) > 0 ? Number(config.max_speed) : DEFAULT_MAX_SPEED;
 
     if (!this.content) {
@@ -573,16 +581,18 @@ customElements.define("hamster-fitness-card-editor", HamsterFitnessCardEditor);
  *
  * Compares all hamster_fitness hamsters found in this Home Assistant by
  * lifetime distance - no config needed, entities are auto-discovered by
- * matching sensor.hamster_<name>_lifetime_distance. Since a departed
- * hamster's lifetime_distance stays frozen (see coordinator.py), retired
- * hamsters remain part of the ranking automatically.
+ * matching any sensor.<name>_lifetime_distance (the entity_id only needs
+ * to END in that suffix, a leading "hamster_" is optional - see the note
+ * on ENTITY_PATTERN above). Since a departed hamster's lifetime_distance
+ * stays frozen (see coordinator.py), retired hamsters remain part of the
+ * ranking automatically.
  *
  * Config:
  *   type: custom:hamster-fitness-ranking-card
  *   title: Hamster-Ranking   # optional
  */
 
-const LIFETIME_DISTANCE_PATTERN = /^sensor\.hamster_(.+)_lifetime_distance$/;
+const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
 class HamsterFitnessRankingCard extends HTMLElement {
   setConfig(config) {
@@ -652,10 +662,11 @@ class HamsterFitnessRankingCard extends HTMLElement {
         const departureId = id.replace("_lifetime_distance", "_departure_date");
         const departure = this._hass.states[departureId];
         const isDeparted = departure && departure.state && departure.state !== "unknown";
+        const slug = match[1].replace(HAMSTER_PREFIX, "");
         return {
           entityId: id,
-          slug: match[1],
-          name: this._capitalize(match[1]),
+          slug,
+          name: this._capitalize(slug),
           distance,
           isDeparted,
         };
