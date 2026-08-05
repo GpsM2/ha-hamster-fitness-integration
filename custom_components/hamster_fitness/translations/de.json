@@ -20,6 +20,7 @@
         "description": "Wähle die vorhandenen Sensoren und Benachrichtigungsziele aus, die dieses Hamster-Gerät speisen sollen.",
         "data": {
           "wheel_sensor": "Rad-Umdrehungssensor",
+          "wheel_diameter_sync_entity": "Raddurchmesser-Synchronisationsziel (optional)",
           "temperature_sensor": "Temperatursensor",
           "door_sensor": "Deckel-/Käfigöffnungssensor",
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
@@ -29,6 +30,7 @@
         },
         "data_description": {
           "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor) - ein roher, nur steigender Zählerstand, keine bereits in km umgerechnete Distanz. Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Total Rotations' auswählen - 'Hamster Wheel' eintippen, um die Liste einzugrenzen.",
+          "wheel_diameter_sync_entity": "Eine number-Entity, die immer denselben Wert haben soll wie der oben eingetragene Raddurchmesser - typischerweise die Entity 'Hamster Wheel Diameter' auf einem ESPHome-Gerät. Sobald der Durchmesser hier gesetzt wird (jetzt oder später per Reconfigure), wird er automatisch auch an diese Entity übertragen, du musst also nicht beide von Hand synchron halten. Leer lassen, um beide Werte komplett unabhängig voneinander zu lassen.",
           "temperature_sensor": "Ein Temperatursensor (device_class: temperature) in der Nähe des Käfigs.",
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
@@ -56,6 +58,7 @@
         "description": "Wähle die vorhandenen Sensoren und Benachrichtigungsziele aus, die dieses Hamster-Gerät speisen sollen.",
         "data": {
           "wheel_sensor": "Rad-Umdrehungssensor",
+          "wheel_diameter_sync_entity": "Raddurchmesser-Synchronisationsziel (optional)",
           "temperature_sensor": "Temperatursensor",
           "door_sensor": "Deckel-/Käfigöffnungssensor",
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
@@ -65,6 +68,7 @@
         },
         "data_description": {
           "wheel_sensor": "Ein Sensor, dessen numerischer Zustand die Rad-Umdrehungen abbildet (z. B. ein Zähler- oder Impulssensor) - ein roher, nur steigender Zählerstand, keine bereits in km umgerechnete Distanz. Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Total Rotations' auswählen - 'Hamster Wheel' eintippen, um die Liste einzugrenzen.",
+          "wheel_diameter_sync_entity": "Eine number-Entity, die immer denselben Wert haben soll wie der oben eingetragene Raddurchmesser - typischerweise die Entity 'Hamster Wheel Diameter' auf einem ESPHome-Gerät. Sobald der Durchmesser hier gesetzt wird (jetzt oder später per Reconfigure), wird er automatisch auch an diese Entity übertragen, du musst also nicht beide von Hand synchron halten. Leer lassen, um beide Werte komplett unabhängig voneinander zu lassen.",
           "temperature_sensor": "Ein Temperatursensor (device_class: temperature) in der Nähe des Käfigs.",
           "door_sensor": "Ein binärer Sensor (device_class: door oder opening), der das Öffnen von Deckel oder Käfig erkennt.",
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",

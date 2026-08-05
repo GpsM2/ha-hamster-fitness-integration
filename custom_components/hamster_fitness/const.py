@@ -25,6 +25,12 @@ CONF_SPEED_SENSOR: Final = "speed_sensor"
 # Optional - ohne diese Entity bleibt die Käfigbeleuchtungs-Automatik
 # einfach inaktiv, siehe door_light.py.
 CONF_LIGHT_ENTITY: Final = "light_entity"
+# Optional - eine number-Entity (typischerweise auf einem ESPHome-Gerät),
+# an die CONF_WHEEL_DIAMETER bei jedem Setup/Reconfigure automatisch
+# übertragen wird, siehe __init__.py's _async_sync_wheel_diameter(). Ohne
+# diese Auswahl bleiben beide Werte komplett unabhängig voneinander -
+# genauso, wie es vor Einführung dieses Felds für alle Hamster der Fall war.
+CONF_WHEEL_DIAMETER_SYNC_ENTITY: Final = "wheel_diameter_sync_entity"
 CONF_NOTIFY_SERVICES: Final = "notify_services"
 
 # --- Defaults / Grenzwerte ---

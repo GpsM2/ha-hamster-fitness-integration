@@ -48,6 +48,10 @@ license the project commercially.
     status.
   - A ranking card that automatically lists and compares every hamster
     you've set up, sorted by lifetime distance.
+- **Keeps the wheel diameter in sync**: if your sensor device (like the
+  ESPHome one in this repo) has its own wheel diameter setting, this
+  integration can update it automatically whenever you change the
+  diameter here — no need to enter the same number twice.
 
 ## What you need
 
@@ -105,6 +109,11 @@ Skip this step if you already have a working rotation sensor.
    - **Wheel rotation sensor** (required) — pick
      `sensor.hamster_wheel_total_rotations` if you used the sensor from
      this repo.
+   - **Wheel diameter sync target** (optional) — pick the ESPHome
+     device's "Hamster Wheel Diameter" entity here, and the wheel
+     diameter you entered in step 2 gets sent to it automatically. No
+     need to type the same number into two places and keep them in sync
+     by hand.
    - **Temperature sensor** (required).
    - **Cage/lid sensor** (required).
    - Humidity sensor, speed sensor, cage light, and notification targets

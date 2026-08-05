@@ -113,6 +113,13 @@ items stay listed so the history stays traceable.
   affects the displayed name, not whether the entity is found
 - README.md and ROADMAP.md rewritten in English, README simplified into a
   clear feature overview plus a step-by-step install guide
+- Wheel diameter sync: optional `wheel_diameter_sync_entity` field (a
+  `number` entity, typically the ESPHome device's own "Hamster Wheel
+  Diameter"). Whenever the diameter is set here - now or later via
+  Reconfigure - it's pushed to that entity automatically via
+  `number.set_value`, so the two values don't have to be kept in sync by
+  hand. Previously they were completely independent, with no way to link
+  them
 
 ## 🚧 Planned
 

@@ -38,6 +38,7 @@ from .const import (
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_DIAMETER,
+    CONF_WHEEL_DIAMETER_SYNC_ENTITY,
     CONF_WHEEL_SENSOR,
     DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_IDEAL_TEMP_MAX,
@@ -105,6 +106,14 @@ def _sensors_schema() -> vol.Schema:
             # die Liste per Freitextsuche einzugrenzen.
             vol.Required(CONF_WHEEL_SENSOR): EntitySelector(
                 EntitySelectorConfig(domain=Platform.SENSOR, multiple=False)
+            ),
+            # Optional: eine number-Entity (z. B. "Hamster Wheel Diameter"
+            # auf dem ESPHome-Gerät), an die der oben eingegebene
+            # CONF_WHEEL_DIAMETER automatisch übertragen wird - sonst
+            # bleiben beide Werte unabhängig voneinander und müssen manuell
+            # synchron gehalten werden. Siehe __init__.py.
+            vol.Optional(CONF_WHEEL_DIAMETER_SYNC_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=Platform.NUMBER, multiple=False)
             ),
             vol.Required(CONF_TEMPERATURE_SENSOR): EntitySelector(
                 EntitySelectorConfig(

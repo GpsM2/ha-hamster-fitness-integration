@@ -20,6 +20,7 @@
         "description": "Choose the existing sensors and notification targets that should feed this hamster's device.",
         "data": {
           "wheel_sensor": "Wheel rotation sensor",
+          "wheel_diameter_sync_entity": "Wheel diameter sync target (optional)",
           "temperature_sensor": "Temperature sensor",
           "door_sensor": "Cage/lid opening sensor",
           "humidity_sensor": "Humidity sensor (optional)",
@@ -29,6 +30,7 @@
         },
         "data_description": {
           "wheel_sensor": "A sensor whose numeric state represents wheel rotations (e.g. a counter or pulse sensor) - a raw count that only ever increases, never a distance already converted to km. Using the bundled ESPHome firmware? Pick 'Hamster Wheel Total Rotations' - type 'Hamster Wheel' to narrow the list.",
+          "wheel_diameter_sync_entity": "A number entity that should always match the wheel diameter entered above - typically the 'Hamster Wheel Diameter' entity on an ESPHome device. Whenever the diameter is set here (now or later, via Reconfigure), it's automatically pushed to this entity too, so you don't have to update both by hand. Leave empty to keep them fully independent.",
           "temperature_sensor": "A temperature sensor (device_class: temperature) placed near the cage.",
           "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
@@ -56,6 +58,7 @@
         "description": "Choose the existing sensors and notification targets that should feed this hamster's device.",
         "data": {
           "wheel_sensor": "Wheel rotation sensor",
+          "wheel_diameter_sync_entity": "Wheel diameter sync target (optional)",
           "temperature_sensor": "Temperature sensor",
           "door_sensor": "Cage/lid opening sensor",
           "humidity_sensor": "Humidity sensor (optional)",
@@ -65,6 +68,7 @@
         },
         "data_description": {
           "wheel_sensor": "A sensor whose numeric state represents wheel rotations (e.g. a counter or pulse sensor) - a raw count that only ever increases, never a distance already converted to km. Using the bundled ESPHome firmware? Pick 'Hamster Wheel Total Rotations' - type 'Hamster Wheel' to narrow the list.",
+          "wheel_diameter_sync_entity": "A number entity that should always match the wheel diameter entered above - typically the 'Hamster Wheel Diameter' entity on an ESPHome device. Whenever the diameter is set here (now or later, via Reconfigure), it's automatically pushed to this entity too, so you don't have to update both by hand. Leave empty to keep them fully independent.",
           "temperature_sensor": "A temperature sensor (device_class: temperature) placed near the cage.",
           "door_sensor": "A binary sensor (device_class: door or opening) that detects when the cage or lid is opened.",
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",

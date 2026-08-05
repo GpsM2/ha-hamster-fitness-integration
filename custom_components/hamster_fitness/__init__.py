@@ -8,13 +8,21 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
-from .const import PLATFORMS
+from .const import (
+    CONF_HAMSTER_NAME,
+    CONF_WHEEL_DIAMETER,
+    CONF_WHEEL_DIAMETER_SYNC_ENTITY,
+    PLATFORMS,
+)
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
 from .door_light import HamsterFitnessDoorLight
 from .frontend import JSModuleRegistration
 from .notify import HamsterFitnessNotifier
 
 _LOGGER = logging.getLogger(__name__)
+
+NUMBER_DOMAIN = "number"
+NUMBER_SERVICE_SET_VALUE = "set_value"
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -58,6 +66,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntr
     # a no-op otherwise, see door_light.py.
     await HamsterFitnessDoorLight(hass, entry, coordinator).async_setup()
 
+    # Pushes CONF_WHEEL_DIAMETER to CONF_WHEEL_DIAMETER_SYNC_ENTITY, if
+    # configured - a no-op otherwise, see _async_sync_wheel_diameter().
+    await _async_sync_wheel_diameter(hass, entry)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
@@ -66,3 +78,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntr
 async def async_unload_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def _async_sync_wheel_diameter(
+    hass: HomeAssistant, entry: HamsterFitnessConfigEntry
+) -> None:
+    """Push CONF_WHEEL_DIAMETER to CONF_WHEEL_DIAMETER_SYNC_ENTITY, if set.
+
+    A one-way, one-shot push - runs once per entry setup, which also
+    covers every Reconfigure (that fully reloads the entry). The typical
+    target is the "Hamster Wheel Diameter" number entity on an ESPHome
+    device (see esphome/hamster-wheel-sensor.yaml), which would otherwise
+    have to be kept in sync with this value by hand. The sync entity
+    might not be available yet right after a Home Assistant restart (its
+    own integration may still be connecting) - that's logged, not raised,
+    since it shouldn't block this entry from setting up.
+    """
+    sync_entity = entry.data.get(CONF_WHEEL_DIAMETER_SYNC_ENTITY)
+    if not sync_entity:
+        return
+    try:
+        await hass.services.async_call(
+            NUMBER_DOMAIN,
+            NUMBER_SERVICE_SET_VALUE,
+            {"entity_id": sync_entity, "value": entry.data[CONF_WHEEL_DIAMETER]},
+            blocking=True,
+        )
+    except Exception:  # noqa: BLE001 - ein Sync-Fehler darf HA nicht crashen
+        _LOGGER.exception(
+            "Hamster Fitness (%s): Raddurchmesser konnte nicht an %s "
+            "übertragen werden",
+            entry.data[CONF_HAMSTER_NAME],
+            sync_entity,
+        )
