@@ -51,6 +51,7 @@ from .const import (
     WARNING_NOTIFICATION_COOLDOWN_HOURS,
 )
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
+from .runtime_text import format_number, render_message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,13 +178,22 @@ class HamsterFitnessNotifier:
         delta_m = round((tonight_km - self._last_night_km) * 1000)
 
         if delta_m > 0:
-            comparison = f"Das sind {delta_m} m mehr als gestern."
+            comparison = render_message(
+                self._hass, "notify.more_than_yesterday", delta=str(delta_m)
+            )
         elif delta_m < 0:
-            comparison = f"Das sind {abs(delta_m)} m weniger als gestern."
+            comparison = render_message(
+                self._hass, "notify.less_than_yesterday", delta=str(abs(delta_m))
+            )
         else:
-            comparison = "Das ist genauso viel wie gestern."
+            comparison = render_message(self._hass, "notify.same_as_yesterday")
 
-        message = f"Heute Nacht {_fmt_de(tonight_km, 2)} km gelaufen! {comparison}"
+        message = render_message(
+            self._hass,
+            "notify.daily_summary",
+            distance=format_number(self._hass, tonight_km, 2),
+            comparison=comparison,
+        )
         self._hass.async_create_task(self._async_send_summary(message, tonight_km))
 
     # ------------------------------------------------------------------
@@ -256,8 +266,3 @@ class HamsterFitnessNotifier:
                 "Hamster Fitness (%s): Senden der Benachrichtigung fehlgeschlagen",
                 self._hamster_name,
             )
-
-
-def _fmt_de(value: float, decimals: int) -> str:
-    """Format a float with a German-style comma decimal separator."""
-    return f"{value:.{decimals}f}".replace(".", ",")

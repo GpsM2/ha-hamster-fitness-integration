@@ -176,5 +176,20 @@
         "name": "Gewicht"
       }
     }
+  },
+  "messages": {
+    "warning": {
+      "low_score": "Der Health-Score ist auf {score} % gesunken.",
+      "too_little_exercise": "Bisher erst {distance} km gelaufen, deutlich weniger als üblich.",
+      "too_cold": "Im Käfig ist es kalt geworden: {temperature} °C.",
+      "too_hot": "Im Käfig ist es ziemlich warm: {temperature} °C.",
+      "neglected": "Der Käfig wurde seit {hours} Stunden nicht mehr geöffnet."
+    },
+    "notify": {
+      "daily_summary": "Heute Nacht {distance} km gelaufen! {comparison}",
+      "more_than_yesterday": "Das sind {delta} m mehr als gestern.",
+      "less_than_yesterday": "Das sind {delta} m weniger als gestern.",
+      "same_as_yesterday": "Das ist genauso viel wie gestern."
+    }
   }
 }

@@ -28,9 +28,16 @@ bleibt und nicht jede Regel sofort erzwungen wird.
   Home Assistant verwenden, keine Freitext-Einheiten.
 - UI-Texte (Config-Flow, Optionen, Entity-Namen) über `strings.json`
   (englische Quelle) und `translations/*.json` pflegen – keine
-  hartcodierten UI-Strings in `.py`-Dateien. Dynamische Laufzeittexte
-  (Warnmeldungen, Push-Benachrichtigungen) sind davon ausgenommen, siehe
-  Analyse-Notiz dazu in der laufenden Konversation/ROADMAP.
+  hartcodierten UI-Strings in `.py`-Dateien. Gilt auch für dynamisch
+  zusammengesetzte Laufzeittexte (Warnmeldungen, Push-Benachrichtigungen) –
+  siehe `runtime_text.py`, Schlüssel unter der `messages`-Sektion.
+- **Wichtig:** Anders als bei echten Home-Assistant-Core-Integrationen wird
+  `translations/en.json` bei dieser (Custom-)Integration NICHT automatisch
+  aus `strings.json` generiert (das übernimmt nur hassfest beim Core-Build).
+  `strings.json` und `translations/en.json` müssen deshalb händisch
+  identisch gehalten werden – bei jeder Änderung an einem der beiden Werte
+  auch den anderen aktualisieren, sonst fehlt englischsprachigen Nutzern
+  der Text komplett (siehe ROADMAP für den Bugfix-Hintergrund).
 - Tests unter `tests/` (pytest, idealerweise
   `pytest-homeassistant-custom-component`), mindestens für
   `config_flow.py` und die Sensor-Plattform.
