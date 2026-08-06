@@ -3,7 +3,7 @@
   "name": "Hamster Fitness",
   "codeowners": ["@GpsM2"],
   "config_flow": true,
-  "dependencies": ["frontend", "http"],
+  "dependencies": ["frontend", "http", "websocket_api"],
   "documentation": "https://github.com/GpsM2/ha-hamster-fitness-integration",
   "homeassistant": "2026.3.0",
   "integration_type": "device",

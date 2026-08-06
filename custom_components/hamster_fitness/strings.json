@@ -7,11 +7,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Acquisition date",
+          "breed": "Breed",
+          "breed_other": "Breed (if \"Other\")",
+          "coat_color": "Coat colour",
           "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
+          "breed": "Purely descriptive - it shows up on the cards and never affects the health score.",
+          "breed_other": "Only used when the breed above is set to \"Other\" - e.g. a mix or a breed missing from the list.",
+          "coat_color": "Tints the illustrated hamster on the dashboard cards. Pick whichever comes closest.",
           "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
@@ -45,11 +51,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Acquisition date",
+          "breed": "Breed",
+          "breed_other": "Breed (if \"Other\")",
+          "coat_color": "Coat colour",
           "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
+          "breed": "Purely descriptive - it shows up on the cards and never affects the health score.",
+          "breed_other": "Only used when the breed above is set to \"Other\" - e.g. a mix or a breed missing from the list.",
+          "coat_color": "Tints the illustrated hamster on the dashboard cards. Pick whichever comes closest.",
           "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
@@ -82,7 +94,8 @@
       "invalid_name": "Please enter a name for your hamster.",
       "invalid_diameter": "Wheel diameter must be greater than 0.",
       "not_numeric": "The selected wheel sensor's current state is not a number.",
-      "entity_not_found": "This entity could not be found. Please pick it again."
+      "entity_not_found": "This entity could not be found. Please pick it again.",
+      "breed_required": "Please name the breed, or pick one from the list instead of \"Other\"."
     },
     "abort": {
       "already_configured": "A hamster with this name has already been configured.",
@@ -230,6 +243,27 @@
           "name": "Duration",
           "description": "How long the automation stays paused. Calling this again replaces a running pause instead of stacking another one on top."
         }
+      }
+    }
+  },
+  "selector": {
+    "breed": {
+      "options": {
+        "golden": "Syrian / golden hamster",
+        "teddy": "Teddy bear hamster",
+        "winter_white": "Winter white dwarf hamster",
+        "campbell": "Campbell's dwarf hamster",
+        "roborovski": "Roborovski dwarf hamster",
+        "chinese": "Chinese hamster",
+        "other": "Other"
+      }
+    },
+    "coat_color": {
+      "options": {
+        "golden_brown": "Golden brown",
+        "silver_grey": "Silver grey",
+        "cream_sand": "Cream / sand",
+        "black": "Black / dark"
       }
     }
   }

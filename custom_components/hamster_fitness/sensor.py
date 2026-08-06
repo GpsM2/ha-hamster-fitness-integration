@@ -27,6 +27,7 @@ from .coordinator import (
     HamsterFitnessConfigEntry,
     HamsterFitnessCoordinator,
     hamster_device_info,
+    hamster_profile,
 )
 
 
@@ -91,6 +92,9 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
     ) -> None:
         """Initialize the health-score sensor."""
         super().__init__(coordinator, entry, "health_score")
+        # Static config, so reading it once is enough - a Reconfigure
+        # reloads the whole entry and rebuilds this entity anyway.
+        self._profile = hamster_profile(entry)
 
     @property
     def native_value(self) -> int:
@@ -99,13 +103,16 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the score breakdown for transparency/debugging.
+        """Expose the score breakdown and the hamster's profile.
 
-        `score_history` additionally backs the health-score card's 7-day
-        trend chart, so the card doesn't need recorder access for it.
+        `score_history` backs the health-score card's 7-day trend chart
+        and the profile fields (coat colour, acquisition date) let the
+        cards tint the illustration and work out "with you for X months",
+        all without a second entity to look up.
         """
         data = self.coordinator.data
         return {
+            **self._profile,
             "night_distance_km": data.night_distance_km,
             "last_completed_night_km": data.last_completed_night_km,
             "daily_distance_km": data.daily_distance_km,

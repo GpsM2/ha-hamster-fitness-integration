@@ -7,11 +7,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Einzugsdatum",
+          "breed": "Rasse",
+          "breed_other": "Rasse (bei \"Sonstige\")",
+          "coat_color": "Fellfarbe",
           "wheel_diameter": "Raddurchmesser"
         },
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
+          "breed": "Rein beschreibend - taucht auf den Karten auf und hat keinerlei Einfluss auf den Health-Score.",
+          "breed_other": "Wird nur ausgewertet, wenn oben \"Sonstige\" ausgewählt ist - z. B. bei Mischlingen oder einer Rasse, die in der Liste fehlt.",
+          "coat_color": "Färbt den illustrierten Hamster auf den Dashboard-Karten ein. Nimm einfach den Ton, der am ehesten passt.",
           "wheel_diameter": "Durchmesser des Laufrads, wie er üblicherweise auf der Verpackung oder im Produktangebot steht. Falls du für den Rad-Sensor zusätzlich ein ESPHome-Gerät nutzt, trag dort denselben Wert ein."
         }
       },
@@ -45,11 +51,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Einzugsdatum",
+          "breed": "Rasse",
+          "breed_other": "Rasse (bei \"Sonstige\")",
+          "coat_color": "Fellfarbe",
           "wheel_diameter": "Raddurchmesser"
         },
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
+          "breed": "Rein beschreibend - taucht auf den Karten auf und hat keinerlei Einfluss auf den Health-Score.",
+          "breed_other": "Wird nur ausgewertet, wenn oben \"Sonstige\" ausgewählt ist - z. B. bei Mischlingen oder einer Rasse, die in der Liste fehlt.",
+          "coat_color": "Färbt den illustrierten Hamster auf den Dashboard-Karten ein. Nimm einfach den Ton, der am ehesten passt.",
           "wheel_diameter": "Durchmesser des Laufrads, wie er üblicherweise auf der Verpackung oder im Produktangebot steht. Falls du für den Rad-Sensor zusätzlich ein ESPHome-Gerät nutzt, trag dort denselben Wert ein."
         }
       },
@@ -82,7 +94,8 @@
       "invalid_name": "Bitte gib einen Namen für deinen Hamster ein.",
       "invalid_diameter": "Der Raddurchmesser muss größer als 0 sein.",
       "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl.",
-      "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen."
+      "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen.",
+      "breed_required": "Bitte die Rasse benennen - oder oben statt \"Sonstige\" eine aus der Liste wählen."
     },
     "abort": {
       "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert.",
@@ -230,6 +243,27 @@
           "name": "Dauer",
           "description": "Wie lange die Automatik pausiert bleibt. Ein erneuter Aufruf ersetzt eine laufende Pause, statt eine zweite obendrauf zu legen."
         }
+      }
+    }
+  },
+  "selector": {
+    "breed": {
+      "options": {
+        "golden": "Goldhamster (Syrer)",
+        "teddy": "Teddyhamster",
+        "winter_white": "Dsungarischer Zwerghamster",
+        "campbell": "Campbell-Zwerghamster",
+        "roborovski": "Roborowski-Zwerghamster",
+        "chinese": "Chinesischer Zwerghamster",
+        "other": "Sonstige"
+      }
+    },
+    "coat_color": {
+      "options": {
+        "golden_brown": "Goldbraun",
+        "silver_grey": "Silbergrau",
+        "cream_sand": "Creme / Sand",
+        "black": "Schwarz / Dunkel"
       }
     }
   }

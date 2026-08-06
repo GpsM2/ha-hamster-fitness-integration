@@ -1,0 +1,78 @@
+"""Lifetime history archive for departed hamsters.
+
+Every other piece of storage in this integration is scoped to one config
+entry (`hamster_fitness_<entry_id>_baseline` and friends) and disappears
+with it. This one deliberately is not: the whole point of the archive is
+to outlive the entry, so a hamster that has passed away or moved out
+still shows up in the chronicle years later - even once its config entry,
+device and entities are long gone.
+
+Written once, when a departure date takes effect (see
+`HamsterFitnessCoordinator.async_set_departure_date`). Re-archiving the
+same entry overwrites its record rather than adding a second one, so
+correcting a mistyped departure date stays harmless.
+
+Read back by the chronicle card through the `hamster_fitness/history`
+WebSocket command registered in `__init__.py` - a card can only see
+entity states otherwise, and archived hamsters no longer have any.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
+
+from .const import DOMAIN, STORAGE_VERSION
+
+_LOGGER = logging.getLogger(__name__)
+
+# Landet unter config/.storage/ - dieselbe Mechanik wie bei den
+# entry-bezogenen Stores, nur ohne entry_id im Schlüssel, damit sich alle
+# Hamster dieselbe Datei teilen.
+STORAGE_KEY = f"{DOMAIN}_history_lifedata"
+
+DATA_ARCHIVE_STORE = f"{DOMAIN}_archive_store"
+
+
+def _store(hass: HomeAssistant) -> Store[dict[str, Any]]:
+    """Return the shared archive store, creating it once per Home Assistant.
+
+    Cached in `hass.data`: two Store instances pointing at the same file
+    would each keep their own delayed-write buffer and could overwrite
+    one another when two hamsters depart around the same time.
+    """
+    store: Store[dict[str, Any]] | None = hass.data.get(DATA_ARCHIVE_STORE)
+    if store is None:
+        store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+        hass.data[DATA_ARCHIVE_STORE] = store
+    return store
+
+
+async def async_load(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Return every archived hamster, most recently departed first."""
+    stored = await _store(hass).async_load() or {}
+    hamsters: list[dict[str, Any]] = list(stored.get("hamsters", {}).values())
+    hamsters.sort(key=lambda item: item.get("departure_date") or "", reverse=True)
+    return hamsters
+
+
+async def async_record_departure(
+    hass: HomeAssistant, entry_id: str, record: dict[str, Any]
+) -> None:
+    """Add (or refresh) one hamster's final record in the archive.
+
+    Takes a plain dict rather than the coordinator's dataclass on
+    purpose - it keeps this module free of any import back into
+    coordinator.py, which imports this one.
+    """
+    store = _store(hass)
+    stored = await store.async_load() or {}
+    hamsters: dict[str, Any] = stored.get("hamsters", {})
+    hamsters[entry_id] = record
+    await store.async_save({"hamsters": hamsters})
+    _LOGGER.debug(
+        "Hamster Fitness: %s ins Lebenslauf-Archiv übernommen", record.get("name")
+    )

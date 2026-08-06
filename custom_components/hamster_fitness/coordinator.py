@@ -42,7 +42,14 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
+from . import archive
 from .const import (
+    BREED_OTHER,
+    COAT_COLOR_HEX,
+    CONF_ACQUISITION_DATE,
+    CONF_BREED,
+    CONF_BREED_OTHER,
+    CONF_COAT_COLOR,
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
     CONF_HUMIDITY_SENSOR,
@@ -51,6 +58,8 @@ from .const import (
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
     DAILY_RESET_HOUR,
+    DEFAULT_BREED,
+    DEFAULT_COAT_COLOR,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_MIN_DISTANCE_KM,
@@ -131,6 +140,10 @@ class HamsterFitnessData:
     # _async_handle_night_window_reset) - überlebt anders als die
     # Distanz-Baselines KEINEN Neustart von Home Assistant.
     max_speed_tonight_kmh: float | None = None
+    # Schnellster je gemessener Wert - anders als max_speed_tonight_kmh
+    # persistiert und nie zurückgesetzt. Wandert beim Auszug mit ins
+    # Lebenslauf-Archiv (siehe archive.py).
+    lifetime_max_speed_kmh: float | None = None
     # Wanduhrzeit seit Beginn der aktuellen, zusammenhängenden Lauf-Session
     # (Pausen < SESSION_END_GAP unterbrechen sie nicht) - 0, wenn gerade
     # keine Session aktiv ist. Siehe _update_activity_session().
@@ -212,6 +225,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_baseline_count: float = 0.0
         self._night_window_start: datetime | None = None
         self._max_speed_tonight_kmh: float | None = None
+        self._lifetime_max_speed_kmh: float | None = None
         self._last_completed_night_km: float = 0.0
 
         # Störungszähler der laufenden Schlafphase (siehe _sleep_penalty()).
@@ -337,6 +351,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "previous_day_distance_km", 0.0
             )
             self._last_completed_night_km = stored.get("last_completed_night_km", 0.0)
+            self._lifetime_max_speed_kmh = stored.get("lifetime_max_speed_kmh")
             self._sleep_door_openings = stored.get("sleep_door_openings", 0)
             self._sleep_activity_sessions = stored.get("sleep_activity_sessions", 0)
             self._score_history = stored.get("score_history", [])
@@ -451,6 +466,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 ),
                 "previous_day_distance_km": self._previous_day_distance_km,
                 "last_completed_night_km": self._last_completed_night_km,
+                "lifetime_max_speed_kmh": self._lifetime_max_speed_kmh,
                 "sleep_door_openings": self._sleep_door_openings,
                 "sleep_activity_sessions": self._sleep_activity_sessions,
                 "score_history": self._score_history,
@@ -666,7 +682,44 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         if self._is_departed():
             frozen = replace(self.data, warning_on=False, warning_reasons={})
             self.async_set_updated_data(frozen)
+            await self._async_archive_departure(value)
         await self._async_save_state()
+
+    async def _async_archive_departure(self, departure: date) -> None:
+        """Write this hamster's final record to the lifetime archive.
+
+        Deliberately kept outside the per-entry store: this record has to
+        survive the config entry itself being deleted, which is exactly
+        when the chronicle card would otherwise lose the hamster (see
+        archive.py).
+        """
+        entry = self._entry
+        acquisition_raw = entry.data.get(CONF_ACQUISITION_DATE)
+        days_with_you: int | None = None
+        if acquisition_raw:
+            try:
+                days_with_you = (departure - date.fromisoformat(acquisition_raw)).days
+            except ValueError:
+                _LOGGER.debug(
+                    "Hamster Fitness: unlesbares Einzugsdatum %r, "
+                    "Aufenthaltsdauer wird nicht archiviert",
+                    acquisition_raw,
+                )
+
+        await archive.async_record_departure(
+            self.hass,
+            entry.entry_id,
+            {
+                "name": entry.data[CONF_HAMSTER_NAME],
+                "departure_date": departure.isoformat(),
+                "days_with_you": days_with_you,
+                "lifetime_distance_km": self.data.lifetime_distance_km,
+                "lifetime_max_speed_kmh": self.data.lifetime_max_speed_kmh,
+                "final_health_score": self.data.health_score,
+                "archived_at": dt_util.utcnow().isoformat(),
+                **hamster_profile(entry),
+            },
+        )
 
     def _is_departed(self) -> bool:
         """Return True if the hamster's departure date has arrived."""
@@ -784,6 +837,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 self._max_speed_tonight_kmh = max(
                     current_speed_kmh, self._max_speed_tonight_kmh or 0.0
                 )
+                if current_speed_kmh > (self._lifetime_max_speed_kmh or 0.0):
+                    self._lifetime_max_speed_kmh = current_speed_kmh
+                    self.hass.async_create_task(self._async_save_state())
 
         night_active_duration_min = (
             (now - self._session_start_at).total_seconds() / 60
@@ -895,6 +951,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 if self._max_speed_tonight_kmh is not None
                 else None
             ),
+            lifetime_max_speed_kmh=(
+                round(self._lifetime_max_speed_kmh, 1)
+                if self._lifetime_max_speed_kmh is not None
+                else None
+            ),
             night_active_duration_min=round(night_active_duration_min, 1),
             day_rest_duration_min=round(day_rest_duration_min, 1),
             door_open=door_open,
@@ -934,6 +995,35 @@ def hamster_device_info(entry: HamsterFitnessConfigEntry) -> DeviceInfo:
         manufacturer="Hamster Fitness",
         model="Aggregator",
     )
+
+
+def hamster_profile(entry: HamsterFitnessConfigEntry) -> dict[str, str | None]:
+    """Return the static, user-entered profile of this hamster.
+
+    Purely descriptive - none of it feeds the health score. It is surfaced
+    as attributes on the health-score sensor because that is the one
+    entity every dashboard card already resolves, and the cards need it:
+    the coat colour tints the illustrated hamster, the acquisition date
+    drives the "with you for X months" subtitle.
+
+    Every field is read defensively: entries created before 0.3.0 simply
+    do not have these keys, and a Reconfigure is the only thing that adds
+    them.
+    """
+    breed = entry.data.get(CONF_BREED, DEFAULT_BREED)
+    breed_other = str(entry.data.get(CONF_BREED_OTHER, "")).strip()
+    color = entry.data.get(CONF_COAT_COLOR, DEFAULT_COAT_COLOR)
+    return {
+        "breed": breed,
+        # Only meaningful for BREED_OTHER; None keeps the attribute quiet
+        # rather than showing a stale value from a since-changed breed.
+        "breed_other": breed_other if breed == BREED_OTHER and breed_other else None,
+        "coat_color": color,
+        "coat_color_hex": COAT_COLOR_HEX.get(
+            color, COAT_COLOR_HEX[DEFAULT_COAT_COLOR]
+        ),
+        "acquisition_date": entry.data.get(CONF_ACQUISITION_DATE),
+    }
 
 
 def _compute_window_start(now_local: datetime, hour: int) -> datetime:

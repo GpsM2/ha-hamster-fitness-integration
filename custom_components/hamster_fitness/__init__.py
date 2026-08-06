@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
+import voluptuous as vol
+from homeassistant.components import websocket_api
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
-from . import runtime_text
+from . import archive, runtime_text
 from .const import (
     CONF_HAMSTER_NAME,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_DIAMETER_SYNC_ENTITY,
+    DOMAIN,
     PLATFORMS,
 )
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
@@ -44,7 +48,30 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     else:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register_frontend)
 
+    websocket_api.async_register_command(hass, _ws_history)
+
     return True
+
+
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/history"})
+@websocket_api.async_response
+async def _ws_history(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return the lifetime archive of departed hamsters.
+
+    The chronicle card can find currently configured hamsters through the
+    entity registry, the same way the ranking card does - but a hamster
+    whose config entry was deleted has no entities left to find. This is
+    the only way to get at those, so the card asks for them here.
+
+    Registered domain-wide (in async_setup, not per entry), since the
+    archive is shared by all hamsters and has to answer even when no
+    config entry exists at all any more.
+    """
+    connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntry) -> bool:

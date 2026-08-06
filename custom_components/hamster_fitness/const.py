@@ -12,6 +12,50 @@ DOMAIN: Final = "hamster_fitness"
 CONF_HAMSTER_NAME: Final = "hamster_name"
 CONF_ACQUISITION_DATE: Final = "acquisition_date"
 CONF_WHEEL_DIAMETER: Final = "wheel_diameter"
+CONF_BREED: Final = "breed"
+# Freitext, nur ausgewertet wenn CONF_BREED == BREED_OTHER - für Mischlinge
+# und Rassen, die nicht in der Liste stehen.
+CONF_BREED_OTHER: Final = "breed_other"
+CONF_COAT_COLOR: Final = "coat_color"
+
+# --- Hamster-Profil: Rassen ---
+# Symbolische Schlüssel statt Klartext, damit die Anzeige über
+# strings.json/translations/*.json übersetzbar bleibt (Selector-Optionen
+# unter "selector.breed.options.<key>").
+BREED_GOLDEN: Final = "golden"
+BREED_WINTER_WHITE: Final = "winter_white"
+BREED_CAMPBELL: Final = "campbell"
+BREED_ROBOROVSKI: Final = "roborovski"
+BREED_CHINESE: Final = "chinese"
+BREED_TEDDY: Final = "teddy"
+BREED_OTHER: Final = "other"
+BREEDS: Final[list[str]] = [
+    BREED_GOLDEN,
+    BREED_TEDDY,
+    BREED_WINTER_WHITE,
+    BREED_CAMPBELL,
+    BREED_ROBOROVSKI,
+    BREED_CHINESE,
+    BREED_OTHER,
+]
+DEFAULT_BREED: Final = BREED_GOLDEN
+
+# --- Hamster-Profil: Fellfarben ---
+# Ebenfalls symbolische Schlüssel (übersetzbar), der Hex-Wert wird erst
+# beim Rendern der Karten-Illustration aufgelöst - so lässt sich ein
+# Farbton nachjustieren, ohne gespeicherte Config-Entries anzufassen.
+COAT_COLOR_GOLDEN_BROWN: Final = "golden_brown"
+COAT_COLOR_SILVER_GREY: Final = "silver_grey"
+COAT_COLOR_CREAM_SAND: Final = "cream_sand"
+COAT_COLOR_BLACK: Final = "black"
+COAT_COLOR_HEX: Final[dict[str, str]] = {
+    COAT_COLOR_GOLDEN_BROWN: "#D48C46",
+    COAT_COLOR_SILVER_GREY: "#8A929A",
+    COAT_COLOR_CREAM_SAND: "#E8D3A7",
+    COAT_COLOR_BLACK: "#333333",
+}
+COAT_COLORS: Final[list[str]] = list(COAT_COLOR_HEX)
+DEFAULT_COAT_COLOR: Final = COAT_COLOR_GOLDEN_BROWN
 
 # --- Config Flow: Quell-Entitäten (Step "sensors") ---
 CONF_WHEEL_SENSOR: Final = "wheel_sensor"

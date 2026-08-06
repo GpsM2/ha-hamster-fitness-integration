@@ -22,13 +22,22 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TimeSelector,
 )
 from homeassistant.util import slugify
 
 from .const import (
+    BREED_OTHER,
+    BREEDS,
+    COAT_COLORS,
     CONF_ACQUISITION_DATE,
+    CONF_BREED,
+    CONF_BREED_OTHER,
+    CONF_COAT_COLOR,
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
     CONF_HUMIDITY_SENSOR,
@@ -39,6 +48,8 @@ from .const import (
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_DIAMETER_SYNC_ENTITY,
     CONF_WHEEL_SENSOR,
+    DEFAULT_BREED,
+    DEFAULT_COAT_COLOR,
     DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
@@ -80,6 +91,25 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HAMSTER_NAME): TextSelector(),
         vol.Required(CONF_ACQUISITION_DATE): DateSelector(),
+        # Rasse und Fellfarbe sind rein beschreibend: sie landen als
+        # Attribute am Health-Score-Sensor und färben dort die
+        # Karten-Illustration ein (siehe hamster_profile() in
+        # coordinator.py). In die Score-Berechnung fließen sie nicht ein.
+        vol.Required(CONF_BREED, default=DEFAULT_BREED): SelectSelector(
+            SelectSelectorConfig(
+                options=BREEDS,
+                translation_key="breed",
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional(CONF_BREED_OTHER): TextSelector(),
+        vol.Required(CONF_COAT_COLOR, default=DEFAULT_COAT_COLOR): SelectSelector(
+            SelectSelectorConfig(
+                options=COAT_COLORS,
+                translation_key="coat_color",
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
         vol.Required(
             CONF_WHEEL_DIAMETER, default=DEFAULT_WHEEL_DIAMETER_CM
         ): NumberSelector(
@@ -93,6 +123,24 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         ),
     }
 )
+
+
+def _validate_basics(user_input: dict[str, Any]) -> tuple[str, dict[str, str]]:
+    """Validate the shared user/reconfigure step, returning (name, errors)."""
+    name = str(user_input[CONF_HAMSTER_NAME]).strip()
+    errors: dict[str, str] = {}
+
+    if not name:
+        errors[CONF_HAMSTER_NAME] = "invalid_name"
+    if user_input[CONF_WHEEL_DIAMETER] <= 0:
+        errors[CONF_WHEEL_DIAMETER] = "invalid_diameter"
+    # "Sonstige" ohne Angabe wäre eine Rasse, die nichts aussagt.
+    if user_input.get(CONF_BREED) == BREED_OTHER and not str(
+        user_input.get(CONF_BREED_OTHER, "")
+    ).strip():
+        errors[CONF_BREED_OTHER] = "breed_required"
+
+    return name, errors
 
 
 def _sensors_schema() -> vol.Schema:
@@ -185,13 +233,7 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            name = str(user_input[CONF_HAMSTER_NAME]).strip()
-            diameter = user_input[CONF_WHEEL_DIAMETER]
-
-            if not name:
-                errors[CONF_HAMSTER_NAME] = "invalid_name"
-            if diameter <= 0:
-                errors[CONF_WHEEL_DIAMETER] = "invalid_diameter"
+            name, errors = _validate_basics(user_input)
 
             if not errors:
                 await self.async_set_unique_id(slugify(name))
@@ -273,13 +315,7 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         reconfigure_entry = self._get_reconfigure_entry()
 
         if user_input is not None:
-            name = str(user_input[CONF_HAMSTER_NAME]).strip()
-            diameter = user_input[CONF_WHEEL_DIAMETER]
-
-            if not name:
-                errors[CONF_HAMSTER_NAME] = "invalid_name"
-            if diameter <= 0:
-                errors[CONF_WHEEL_DIAMETER] = "invalid_diameter"
+            name, errors = _validate_basics(user_input)
 
             if not errors:
                 # unique_id bleibt bewusst unangetastet: er wurde beim
