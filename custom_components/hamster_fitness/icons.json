@@ -21,6 +21,12 @@
       },
       "max_speed_tonight": {
         "default": "mdi:speedometer-medium"
+      },
+      "night_active_duration": {
+        "default": "mdi:run-fast"
+      },
+      "day_rest_duration": {
+        "default": "mdi:power-sleep"
       }
     },
     "date": {

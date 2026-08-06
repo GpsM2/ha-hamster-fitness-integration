@@ -1,6 +1,6 @@
 # Hamster Fitness
 
-[![Version](https://img.shields.io/badge/version-0.2.6-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
@@ -34,6 +34,9 @@ license the project commercially.
 - **Distance tracking**: today, last night, and lifetime total.
 - **Speed tracking**: current speed and the fastest speed last night
   (needs a speed sensor).
+- **Activity tracking**: how long the current running session has lasted
+  (short pauses under 30 minutes don't reset it), and how long your
+  hamster has been resting since its last run.
 - **Temperature and humidity** readings near the cage.
 - **Cage door status**, including how many hours it's been closed.
 - **Weight tracking**: type in your hamster's weight by hand (for
@@ -49,11 +52,14 @@ license the project commercially.
 - **Hamster history**: when a hamster moves out (or passes away), mark a
   departure date. Its data is saved and frozen, so you can still see how
   far it ran in its lifetime — even after you set up a new hamster.
-- **Two dashboard cards built in** — no extra downloads needed:
+- **Three dashboard cards built in** — no extra downloads needed:
   - A card that shows one hamster's health score, speed, distances, and
     status.
   - A ranking card that automatically lists and compares every hamster
     you've set up, sorted by lifetime distance.
+  - A "Day & Night" card: an animated hamster running in its wheel or
+    sleeping in a nest, depending on whether it's actually active right
+    now, with a background that shifts with the sun.
 - **Keeps the wheel diameter in sync**: if your sensor device (like the
   ESPHome one in this repo) has its own wheel diameter setting, this
   integration can update it automatically whenever you change the
@@ -136,12 +142,14 @@ brightness, fade time, and turn-off delay.
 ### Step 4: Add the dashboard card
 
 1. Open a dashboard, click **Edit**, then **Add card**.
-2. Search for "Hamster Fitness Card."
-3. Pick your hamster's health score sensor and save. That's it — no YAML
-   needed.
+2. Search for "Hamster Fitness."
+3. Pick "Hamster Fitness: Health Score", choose your hamster's health
+   score sensor, and save. That's it — no YAML needed.
 
-Want to compare several hamsters? Add the **"Hamster Fitness Ranking
-Card"** the same way. It finds every hamster on its own.
+Want to compare several hamsters? Add **"Hamster Fitness: Ranking"** the
+same way — it finds every hamster on its own. Want the animated day/night
+view instead? Add **"Hamster Fitness: Day & Night"** and pick the same
+health score sensor.
 
 ### If something looks wrong after an update
 
@@ -166,6 +174,8 @@ can always tell where it came from — for example,
 | `sensor.hamster_<name>_lifetime_distance` | Total distance ever run |
 | `sensor.hamster_<name>_current_speed`¹ | Current wheel speed |
 | `sensor.hamster_<name>_max_speed_tonight`¹ | Fastest speed tonight |
+| `sensor.hamster_<name>_night_active_duration` | How long the current running session has lasted |
+| `sensor.hamster_<name>_day_rest_duration` | How long your hamster has been resting since its last run |
 | `sensor.hamster_<name>_humidity`² | Cage humidity |
 | `binary_sensor.hamster_<name>_warning` | On when something needs attention |
 | `binary_sensor.hamster_<name>_door` | Cage door open or closed |

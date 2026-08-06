@@ -29,6 +29,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
     async_track_state_change_event,
     async_track_time_change,
+    async_track_time_interval,
 )
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -53,6 +54,7 @@ from .const import (
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
     OPTION_MIN_DISTANCE_KM,
+    SESSION_END_GAP_MINUTES,
     STORAGE_VERSION,
     TEMP_BUFFER_C,
     WARNING_SCORE_THRESHOLD,
@@ -62,6 +64,7 @@ from .runtime_text import format_number, render_message
 _LOGGER = logging.getLogger(__name__)
 
 CM_PER_KM: Final = 100_000.0
+SESSION_END_GAP: Final = timedelta(minutes=SESSION_END_GAP_MINUTES)
 
 # Interne Formel-Konstanten (kein Options-Flow-Bezug, siehe _*_penalty()).
 _DISTANCE_MODERATE_PENALTY_MAX = 25.0
@@ -97,6 +100,14 @@ class HamsterFitnessData:
     # _async_handle_night_window_reset) - überlebt anders als die
     # Distanz-Baselines KEINEN Neustart von Home Assistant.
     max_speed_tonight_kmh: float | None = None
+    # Wanduhrzeit seit Beginn der aktuellen, zusammenhängenden Lauf-Session
+    # (Pausen < SESSION_END_GAP unterbrechen sie nicht) - 0, wenn gerade
+    # keine Session aktiv ist. Siehe _update_activity_session().
+    night_active_duration_min: float = 0.0
+    # Zeit seit der letzten Aktivität, NUR während keine Session aktiv ist
+    # (schließt sich mit night_active_duration_min gegenseitig aus) - 0,
+    # solange eine Session läuft oder noch nie Aktivität beobachtet wurde.
+    day_rest_duration_min: float = 0.0
     door_open: bool = False
     hours_door_closed: float | None = None
     distance_penalty: float = 0.0
@@ -150,6 +161,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_window_start: datetime | None = None
         self._max_speed_tonight_kmh: float | None = None
 
+        # Lauf-Session-Tracking für night_active_duration/day_rest_duration -
+        # siehe _update_activity_session(). Anders als die Baselines oben
+        # zählerskalen-unabhängig (reine Wanduhrzeit), daher beim Wechsel
+        # des Rad-Sensors NICHT invalidiert.
+        self._session_start_at: datetime | None = None
+        self._last_activity_at: datetime | None = None
+
         # Rotationen, die vor dem aktuellen Zähler-Stand "gebankt" wurden
         # (siehe _calculate()'s Reset-Erkennung) - macht lifetime_distance_km
         # robust gegenüber Geräte-Reboots des Rad-Sensors.
@@ -202,6 +220,19 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 second=0,
             )
         )
+        # _calculate() otherwise only reruns on source-sensor events or the
+        # two daily timers above - without this, a running session timing
+        # out (or the growing rest duration) would only be noticed whenever
+        # some unrelated sensor happens to fire next, not at a predictable
+        # cadence. Keeps night_active_duration/day_rest_duration reasonably
+        # live for the dashboard.
+        entry.async_on_unload(
+            async_track_time_interval(
+                self.hass,
+                self._async_handle_periodic_update,
+                timedelta(minutes=1),
+            )
+        )
 
     async def _async_update_data(self) -> HamsterFitnessData:
         """Compute the initial snapshot for the first refresh."""
@@ -221,6 +252,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
+
+        # Reine Wanduhrzeit, nicht an den Rad-Sensor-Zählerstand gekoppelt -
+        # anders als die Baselines unten unabhängig von sensor_changed
+        # wiederhergestellt. _calculate() erkennt beim nächsten Tick von
+        # selbst, ob die Pause seit dem letzten Speichern schon über
+        # SESSION_END_GAP lag.
+        session_start_raw = stored.get("session_start_at")
+        self._session_start_at = (
+            dt_util.parse_datetime(session_start_raw) if session_start_raw else None
+        )
+        last_activity_raw = stored.get("last_activity_at")
+        self._last_activity_at = (
+            dt_util.parse_datetime(last_activity_raw) if last_activity_raw else None
+        )
 
         if self._is_departed():
             # Bereits archivierter Hamster: den zuletzt eingefrorenen Stand
@@ -309,6 +354,16 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "departure_date": (
                     self._departure_date.isoformat() if self._departure_date else None
                 ),
+                "session_start_at": (
+                    self._session_start_at.isoformat()
+                    if self._session_start_at
+                    else None
+                ),
+                "last_activity_at": (
+                    self._last_activity_at.isoformat()
+                    if self._last_activity_at
+                    else None
+                ),
                 "frozen_snapshot": asdict(self.data),
             }
         )
@@ -340,6 +395,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
         self._max_speed_tonight_kmh = None
         self.hass.async_create_task(self._async_save_state())
+        self.async_set_updated_data(self._calculate())
+
+    @callback
+    def _async_handle_periodic_update(self, now: datetime) -> None:
+        """Recompute every minute, mainly to keep session/rest durations live."""
         self.async_set_updated_data(self._calculate())
 
     # ------------------------------------------------------------------
@@ -386,6 +446,31 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         state = self.hass.states.get(self._wheel_sensor)
         return _as_float(state.state) if state else None
 
+    def _update_activity_session(self, now: datetime, activity_detected: bool) -> None:
+        """Track the current run session / rest period.
+
+        Feeds night_active_duration_min/day_rest_duration_min (see
+        HamsterFitnessData). A session starts on the first activity pulse
+        after none was active, and only ends once SESSION_END_GAP has
+        passed without another pulse - short pauses (getting a drink,
+        grooming) don't reset it, matching the "Wanduhrzeit seit
+        Session-Start" semantics chosen for this. Only persisted at the
+        start/end boundary (not on every pulse) to avoid writing to disk
+        on every single wheel rotation during an active run.
+        """
+        if activity_detected:
+            self._last_activity_at = now
+            if self._session_start_at is None:
+                self._session_start_at = now
+                self.hass.async_create_task(self._async_save_state())
+        elif (
+            self._session_start_at is not None
+            and self._last_activity_at is not None
+            and now - self._last_activity_at > SESSION_END_GAP
+        ):
+            self._session_start_at = None
+            self.hass.async_create_task(self._async_save_state())
+
     @callback
     def _calculate(self) -> HamsterFitnessData:
         """Recompute distance, health score and warning state."""
@@ -395,8 +480,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             # Zuweisung an einen neuen Hamster) weiter Events feuern.
             return self.data
 
+        now = dt_util.utcnow()
         current_count = self._current_wheel_count()
         if current_count is not None:
+            activity_detected = (
+                self._last_known_count is not None
+                and current_count > self._last_known_count
+            )
             if (
                 self._last_known_count is not None
                 and current_count < self._last_known_count
@@ -411,6 +501,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 self._night_baseline_count = 0.0
                 self.hass.async_create_task(self._async_save_state())
             self._last_known_count = current_count
+            self._update_activity_session(now, activity_detected)
             rotations_today = max(0.0, current_count - self._baseline_count)
             distance_km = (
                 rotations_today * self._wheel_circumference_cm
@@ -445,12 +536,23 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     current_speed_kmh, self._max_speed_tonight_kmh or 0.0
                 )
 
+        night_active_duration_min = (
+            (now - self._session_start_at).total_seconds() / 60
+            if self._session_start_at is not None
+            else 0.0
+        )
+        day_rest_duration_min = (
+            (now - self._last_activity_at).total_seconds() / 60
+            if self._session_start_at is None and self._last_activity_at is not None
+            else 0.0
+        )
+
         door_state = self.hass.states.get(self._door_sensor)
         door_open = bool(door_state and door_state.state == "on")
         hours_door_closed: float | None = None
         if not door_open and door_state and door_state.last_changed:
             hours_door_closed = (
-                dt_util.utcnow() - door_state.last_changed
+                now - door_state.last_changed
             ).total_seconds() / 3600
 
         options = self._entry.options
@@ -514,6 +616,8 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 if self._max_speed_tonight_kmh is not None
                 else None
             ),
+            night_active_duration_min=round(night_active_duration_min, 1),
+            day_rest_duration_min=round(day_rest_duration_min, 1),
             door_open=door_open,
             hours_door_closed=(
                 round(hours_door_closed, 1) if hours_door_closed is not None else None

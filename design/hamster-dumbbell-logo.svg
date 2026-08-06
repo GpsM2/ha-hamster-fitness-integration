@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!--
+    Hamster Fitness card family - "hamster with dumbbells" logo, side
+    view, same illustration family as hamster-headband-logo.svg. Used as
+    a small inline icon in hamster-day-night-card.js's header; this file
+    is the larger, editable source.
+  -->
+
+  <!-- back leg -->
+  <ellipse cx="70" cy="150" rx="13" ry="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3" transform="rotate(15 70 150)"/>
+  <!-- front leg -->
+  <ellipse cx="128" cy="150" rx="13" ry="9" fill="#D9A876" stroke="#8B5A2B" stroke-width="3" transform="rotate(-15 128 150)"/>
+
+  <!-- stub tail -->
+  <circle cx="52" cy="122" r="8" fill="#C89666" stroke="#8B5A2B" stroke-width="2.5"/>
+
+  <!-- body, sitting upright to hold the dumbbell -->
+  <ellipse cx="100" cy="122" rx="48" ry="38" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- head -->
+  <circle cx="112" cy="70" r="30" fill="#D9A876" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- ears -->
+  <circle cx="90" cy="48" r="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+  <circle cx="128" cy="46" r="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- face -->
+  <circle cx="122" cy="66" r="4.5" fill="#3a2a1a"/>
+  <ellipse cx="134" cy="76" rx="6.5" ry="5" fill="#f4d9c6" stroke="#8B5A2B" stroke-width="1.5"/>
+  <circle cx="137" cy="76" r="2" fill="#5c4030"/>
+
+  <!-- raised arm holding the dumbbell -->
+  <path d="M138 108 Q158 96 168 74" fill="none" stroke="#D9A876" stroke-width="14" stroke-linecap="round"/>
+  <path d="M138 108 Q158 96 168 74" fill="none" stroke="#8B5A2B" stroke-width="14" stroke-linecap="round" opacity="0" />
+
+  <!-- other arm bracing on the ground -->
+  <path d="M78 132 Q66 148 60 162" fill="none" stroke="#C89666" stroke-width="13" stroke-linecap="round"/>
+
+  <!-- dumbbell -->
+  <g transform="rotate(-28 168 74)">
+    <rect x="150" y="70" width="36" height="8" rx="4" fill="#5c4a3a"/>
+    <rect x="144" y="62" width="12" height="24" rx="4" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+    <rect x="180" y="62" width="12" height="24" rx="4" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+  </g>
+
+  <!-- small sweat/effort mark -->
+  <path d="M74 44 q4 8 0 14" fill="none" stroke="#4EA8DE" stroke-width="4" stroke-linecap="round"/>
+</svg>
