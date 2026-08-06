@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hamster Fitness – Karten-Vorschau</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f2f3f5;
+    color: #212121;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .lead { margin: 0 0 22px; font-size: 13px; color: #666; max-width: 68ch; }
+  h2 { font-size: 13px; font-weight: 600; margin: 26px 0 8px; color: #444; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 520px)); gap: 22px; }
+  .narrow { max-width: 360px; }
+  .wide { max-width: 640px; }
+  /* Stand-in for Home Assistant's <ha-card>, which does not exist here. */
+  ha-card {
+    display: block;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --divider-color: #e0e0e0;
+    --card-background-color: #fff;
+    --primary-color: #03a9f4;
+  }
+  #status {
+    margin-bottom: 18px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-family: ui-monospace, "Cascadia Code", monospace;
+  }
+  .ok { background: #e5f6e8; color: #1b5e20; }
+  .fail { background: #fdecea; color: #8b1a1a; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Hamster Fitness – Karten-Vorschau</h1>
+<p class="lead">
+  Lädt die echten Kartendateien aus <code>custom_components/hamster_fitness/frontend/</code>
+  gegen einen nachgebauten <code>hass</code>-Zustand. Kein Home Assistant nötig.
+  Siehe <a href="README.md">README.md</a>.
+</p>
+<div id="status">Lade …</div>
+<div id="out"></div>
+
+<script type="module">
+const FRONTEND = "../../custom_components/hamster_fitness/frontend";
+
+const status = document.getElementById("status");
+const out = document.getElementById("out");
+
+// A failed ES module import aborts the whole file silently, which is
+// exactly how every card once vanished at once (see README). So the
+// harness checks explicitly rather than just rendering nothing.
+try {
+  await import(`${FRONTEND}/hamster-fitness-card.js`);
+  await import(`${FRONTEND}/hamster-day-night-card.js`);
+  await import(`${FRONTEND}/hamster-chronicle-card.js`);
+} catch (err) {
+  status.className = "fail";
+  status.textContent =
+    "Import fehlgeschlagen – keine Karte wird sich registriert haben:\n" + err;
+  throw err;
+}
+
+const expected = [
+  "hamster-fitness-card",
+  "hamster-fitness-ranking-card",
+  "hamster-day-night-card",
+  "hamster-chronicle-card",
+];
+const missing = expected.filter((name) => !customElements.get(name));
+if (missing.length) {
+  status.className = "fail";
+  status.textContent = "Nicht registriert: " + missing.join(", ");
+} else {
+  status.className = "ok";
+  status.textContent =
+    `${expected.length} Karten registriert · ` +
+    (window.customCards || []).map((c) => c.name).join(" · ");
+}
+
+function section(title) {
+  const h = document.createElement("h2");
+  h.textContent = title;
+  out.appendChild(h);
+}
+
+function place(card, className = "") {
+  const wrap = document.createElement("div");
+  if (className) wrap.className = className;
+  wrap.appendChild(card);
+  out.appendChild(wrap);
+  return wrap;
+}
+
+function grid(entries, build) {
+  const g = document.createElement("div");
+  g.className = "grid";
+  out.appendChild(g);
+  for (const [label, opts] of entries) {
+    const wrap = document.createElement("div");
+    const h = document.createElement("h2");
+    h.textContent = label;
+    h.style.marginTop = "0";
+    wrap.appendChild(h);
+    wrap.appendChild(build(opts));
+    g.appendChild(wrap);
+  }
+}
+
+// --- Nachgebauter hass-Zustand für einen Hamster ----------------------
+
+function baseHass({ night, active, speed, lightOn, paused, automationOn = true, coat = "#D48C46" }) {
+  const pausedUntil = new Date(Date.now() + 22 * 60000).toISOString();
+  return {
+    language: "de",
+    states: {
+      "sun.sun": {
+        state: night ? "below_horizon" : "above_horizon",
+        attributes: { elevation: night ? -20 : 42 },
+      },
+      "sensor.hamster_taco_active_duration": { state: active ? "75" : "0", attributes: {} },
+      "sensor.hamster_taco_rest_duration": { state: active ? "0" : "490", attributes: {} },
+      "sensor.hamster_taco_current_speed": { state: String(speed), attributes: {} },
+      "sensor.hamster_taco_night_distance": { state: "2.84", attributes: {} },
+      "sensor.hamster_taco_humidity": { state: "52", attributes: {} },
+      "switch.hamster_taco_light_automation": {
+        state: automationOn ? "on" : "off",
+        attributes: {
+          pause_active: !!paused,
+          paused_until: paused ? pausedUntil : null,
+          light_entity: "light.cage",
+        },
+      },
+      "light.cage": { state: lightOn ? "on" : "off", attributes: {} },
+      "sensor.hamster_taco_health_score": {
+        state: "88",
+        attributes: { temperature: 21.4, coat_color_hex: coat, acquisition_date: "2025-11-02" },
+      },
+    },
+    entities: {
+      "sensor.hamster_taco_health_score": { device_id: "d1", translation_key: "health_score" },
+      "sensor.hamster_taco_active_duration": { device_id: "d1", translation_key: "night_active_duration" },
+      "sensor.hamster_taco_rest_duration": { device_id: "d1", translation_key: "day_rest_duration" },
+      "sensor.hamster_taco_current_speed": { device_id: "d1", translation_key: "current_speed" },
+      "sensor.hamster_taco_night_distance": { device_id: "d1", translation_key: "night_distance" },
+      "sensor.hamster_taco_humidity": { device_id: "d1", translation_key: "humidity" },
+      "switch.hamster_taco_light_automation": { device_id: "d1", translation_key: "light_automation" },
+    },
+    devices: { d1: { name: "Hamster Taco" } },
+    callService: (...args) => console.log("callService", ...args),
+  };
+}
+
+function healthHass({ score, warn, coat = "#D48C46", history = true }) {
+  const hass = baseHass({ night: true, active: true, speed: 3.4, lightOn: false, coat });
+  hass.states["sensor.hamster_taco_health_score"] = {
+    state: String(score),
+    attributes: {
+      temperature: warn ? 12.5 : 21.4,
+      humidity: 52,
+      coat_color_hex: coat,
+      acquisition_date: "2025-11-02",
+      night_distance_km: 6.1,
+      last_completed_night_km: 5.4,
+      score_history: history
+        ? [
+            { date: "2026-07-31", score: 74 },
+            { date: "2026-08-01", score: 81 },
+            { date: "2026-08-02", score: 92 },
+            { date: "2026-08-03", score: 88 },
+            { date: "2026-08-04", score: 70 },
+            { date: "2026-08-05", score: 85 },
+            { date: "2026-08-06", score },
+          ]
+        : [],
+    },
+  };
+  const pillar = (key, id, value, attributes) => {
+    hass.states[id] = { state: String(value), attributes };
+    hass.entities[id] = { device_id: "d1", translation_key: key };
+  };
+  pillar("score_activity", "sensor.hamster_taco_activity_score", 100, {
+    night_distance_km: 6.1, last_completed_night_km: 5.4,
+    ideal_distance_min_km: 5, ideal_distance_max_km: 10,
+  });
+  pillar("score_sleep", "sensor.hamster_taco_sleep_score", warn ? 40 : 80, {
+    sleep_door_openings: warn ? 3 : 1, sleep_activity_sessions: warn ? 2 : 0,
+    sleep_phase_start_hour: 10, sleep_phase_end_hour: 17,
+  });
+  pillar("score_climate", "sensor.hamster_taco_climate_score", warn ? 10 : 100, {
+    temperature: warn ? 12.5 : 21.4, humidity: 52,
+  });
+  pillar("score_care", "sensor.hamster_taco_care_score", 92, {
+    hours_door_closed: 14, door_open: false, neglect_threshold_hours: 48,
+  });
+  hass.states["binary_sensor.hamster_taco_warning"] = {
+    state: warn ? "on" : "off",
+    attributes: { warning_reason: "Im Käfig ist es ziemlich kalt: 12,5 °C." },
+  };
+  hass.entities["binary_sensor.hamster_taco_warning"] = { device_id: "d1", translation_key: "warning" };
+  return hass;
+}
+
+function chronicleHass() {
+  const states = {}, entities = {}, devices = {};
+  const add = (slug, name, coat, acquired, departed, km, speed, score, breed) => {
+    const dev = `dev_${slug}`;
+    devices[dev] = { name: `Hamster ${name}` };
+    const ids = {
+      lifetime_distance: `sensor.hamster_${slug}_lifetime_distance`,
+      health_score: `sensor.hamster_${slug}_health_score`,
+      departure_date: `date.hamster_${slug}_departure_date`,
+      max_speed_tonight: `sensor.hamster_${slug}_max_speed_tonight`,
+    };
+    for (const [key, id] of Object.entries(ids)) {
+      entities[id] = { device_id: dev, platform: "hamster_fitness", translation_key: key };
+    }
+    states[ids.lifetime_distance] = { state: String(km), attributes: {} };
+    states[ids.health_score] = { state: String(score), attributes: {
+      coat_color_hex: coat, acquisition_date: acquired, breed } };
+    states[ids.departure_date] = { state: departed || "unknown", attributes: {} };
+    states[ids.max_speed_tonight] = { state: String(speed), attributes: {} };
+  };
+  add("taco", "Taco", "#D48C46", "2025-11-02", null, 184.3, 7.4, 88, "golden");
+  add("nala", "Nala", "#8A929A", "2024-03-15", "2026-02-20", 402.9, 9.1, 71, "winter_white");
+  return {
+    language: "de", states, entities, devices,
+    callWS: async () => ({ hamsters: [
+      { name: "Mochi", breed: "roborovski", coat_color_hex: "#E8D3A7",
+        acquisition_date: "2021-06-01", departure_date: "2023-09-12",
+        lifetime_distance_km: 611.4, lifetime_max_speed_kmh: 8.2,
+        final_health_score: 84, days_with_you: 833 },
+      { name: "Pepper", breed: "other", breed_other: "Mischling", coat_color_hex: "#333333",
+        acquisition_date: "2019-02-11", departure_date: "2021-05-30",
+        lifetime_distance_km: 508.0, lifetime_max_speed_kmh: 7.7,
+        final_health_score: 90, days_with_you: 839 },
+    ] }),
+  };
+}
+
+function makeCard(tag, config, hass) {
+  const card = document.createElement(tag);
+  card.setConfig(config);
+  card.hass = hass;
+  return card;
+}
+
+// --- Day & Night ------------------------------------------------------
+
+section("Day & Night");
+grid(
+  [
+    ["Nacht · aktiv · 4,2 km/h · Licht an", { night: true, active: true, speed: 4.2, lightOn: true }],
+    ["Nacht · aktiv · Verschnaufpause (0 km/h)", { night: true, active: true, speed: 0, lightOn: false }],
+    ["Tag · ruhend · Automatik pausiert", { night: false, active: false, speed: 0, lightOn: false, paused: true }],
+    ["Tag · ruhend · schwarzes Fell", { night: false, active: false, speed: 0, lightOn: false, coat: "#333333" }],
+  ],
+  (opts) => makeCard("hamster-day-night-card",
+    { entity: "sensor.hamster_taco_health_score" }, baseHass(opts))
+);
+
+section("Day & Night in einer schmalen Spalte (360 px)");
+place(
+  makeCard("hamster-day-night-card", { entity: "sensor.hamster_taco_health_score" },
+    baseHass({ night: true, active: true, speed: 6.5, lightOn: true })),
+  "narrow"
+);
+
+// --- Health Score -----------------------------------------------------
+
+section("Health Score");
+grid(
+  [
+    ["Voll vital (88)", { score: 88, warn: false }],
+    ["Tierarzt prüfen (42) mit Warnung", { score: 42, warn: true, coat: "#8A929A" }],
+    ["Beobachten (62), noch keine Historie", { score: 62, warn: false, history: false }],
+  ],
+  (opts) => makeCard("hamster-fitness-card",
+    { entity: "sensor.hamster_taco_health_score" }, healthHass(opts))
+);
+
+section("Health Score – Editor-Vorschau ohne Entity (Mock-Daten)");
+place(
+  makeCard("hamster-fitness-card", { entity: "sensor.hamster_taco_health_score" },
+    { language: "de", states: {}, entities: {}, devices: {}, callService: () => {} }),
+  "wide"
+);
+
+// --- Chronik & Ranking ------------------------------------------------
+
+section("Chronik (2 aktuelle + 2 archivierte)");
+place(
+  makeCard("hamster-chronicle-card",
+    { columns: ["distance", "top_speed", "days"] }, chronicleHass()),
+  "wide"
+);
+
+section("Ranking");
+place(makeCard("hamster-fitness-ranking-card", {}, chronicleHass()), "wide");
+</script>
+</body>
+</html>
