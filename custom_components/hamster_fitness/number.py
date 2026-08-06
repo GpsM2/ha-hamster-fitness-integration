@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from homeassistant.components.number import (
     NumberDeviceClass,
     NumberEntity,
@@ -67,10 +69,8 @@ class HamsterWeightNumber(
         last_state = await self.async_get_last_state()
         if last_state is None or last_state.state in ("unknown", "unavailable"):
             return
-        try:
+        with contextlib.suppress(ValueError):
             self._attr_native_value = float(last_state.state)
-        except ValueError:
-            pass
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the weight when changed via the UI."""

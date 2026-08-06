@@ -1,0 +1,5 @@
+# Test/dev dependencies - not needed to run the integration itself, only to
+# run `pytest`/`ruff`/`mypy` against this repo.
+pytest-homeassistant-custom-component
+ruff
+mypy
