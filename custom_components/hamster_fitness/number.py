@@ -44,7 +44,6 @@ class HamsterWeightNumber(
 
     _attr_has_entity_name = True
     _attr_translation_key = "weight"
-    _attr_icon = "mdi:scale-bathroom"
     _attr_device_class = NumberDeviceClass.WEIGHT
     _attr_native_unit_of_measurement = UnitOfMass.GRAMS
     _attr_native_min_value = MIN_WEIGHT_G

@@ -1,0 +1,37 @@
+{
+  "entity": {
+    "sensor": {
+      "health_score": {
+        "default": "mdi:heart-pulse"
+      },
+      "daily_distance": {
+        "default": "mdi:run-fast"
+      },
+      "night_distance": {
+        "default": "mdi:weather-night"
+      },
+      "lifetime_distance": {
+        "default": "mdi:map-marker-distance"
+      },
+      "humidity": {
+        "default": "mdi:water-percent"
+      },
+      "current_speed": {
+        "default": "mdi:speedometer"
+      },
+      "max_speed_tonight": {
+        "default": "mdi:speedometer-medium"
+      }
+    },
+    "date": {
+      "departure_date": {
+        "default": "mdi:calendar-heart"
+      }
+    },
+    "number": {
+      "weight": {
+        "default": "mdi:scale-bathroom"
+      }
+    }
+  }
+}

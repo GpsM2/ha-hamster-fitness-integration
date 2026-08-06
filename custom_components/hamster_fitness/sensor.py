@@ -74,7 +74,6 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
 
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:heart-pulse"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -114,7 +113,6 @@ class HamsterDailyDistanceSensor(HamsterFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_suggested_display_precision = 2
-    _attr_icon = "mdi:run-fast"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -149,7 +147,6 @@ class HamsterNightDistanceSensor(HamsterFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_suggested_display_precision = 2
-    _attr_icon = "mdi:weather-night"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -174,7 +171,6 @@ class HamsterHumiditySensor(HamsterFitnessSensorBase):
     _attr_device_class = SensorDeviceClass.HUMIDITY
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_icon = "mdi:water-percent"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -200,7 +196,6 @@ class HamsterCurrentSpeedSensor(HamsterFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
-    _attr_icon = "mdi:speedometer"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -226,7 +221,6 @@ class HamsterMaxSpeedTonightSensor(HamsterFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfSpeed.KILOMETERS_PER_HOUR
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 1
-    _attr_icon = "mdi:speedometer-medium"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
@@ -255,7 +249,6 @@ class HamsterLifetimeDistanceSensor(HamsterFitnessSensorBase):
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_suggested_display_precision = 1
-    _attr_icon = "mdi:map-marker-distance"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
