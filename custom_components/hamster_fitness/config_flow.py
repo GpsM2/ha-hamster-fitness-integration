@@ -210,6 +210,10 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if not self._is_numeric_state(user_input[CONF_WHEEL_SENSOR]):
                 errors[CONF_WHEEL_SENSOR] = "not_numeric"
+            if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
+                errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
+            if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):
+                errors[CONF_DOOR_SENSOR] = "entity_not_found"
 
             if not errors:
                 self._data.update(user_input)
@@ -240,6 +244,20 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         except (TypeError, ValueError):
             return False
         return True
+
+    @callback
+    def _entity_exists(self, entity_id: str) -> bool:
+        """Return True if the entity is currently known to Home Assistant.
+
+        A required source entity should exist by the time the entry is
+        created - the EntitySelector already limits picks to existing
+        entities, but this catches the rare case of an entity
+        disappearing between rendering the form and submitting it. Unlike
+        _is_numeric_state, this doesn't care about the *value* of the
+        state (unknown/unavailable are fine, same as elsewhere) - only
+        that Home Assistant knows about the entity at all.
+        """
+        return self.hass.states.get(entity_id) is not None
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
@@ -287,6 +305,10 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if not self._is_numeric_state(user_input[CONF_WHEEL_SENSOR]):
                 errors[CONF_WHEEL_SENSOR] = "not_numeric"
+            if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
+                errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
+            if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):
+                errors[CONF_DOOR_SENSOR] = "entity_not_found"
 
             if not errors:
                 self._data.update(user_input)
