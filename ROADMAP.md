@@ -147,6 +147,23 @@ items stay listed so the history stays traceable.
   (new `entity_not_found` error), the same defensive spirit as the
   existing wheel-sensor numeric check - covers the rare case of an entity
   disappearing between rendering the form and submitting it
+- Bugfix + feature: dynamic runtime text (warning reasons, daily-summary
+  push notifications) was hardcoded German, unlike every other user-facing
+  string in this integration. Moved it into a new `messages` section in
+  `strings.json`/`translations/*.json` (new `runtime_text.py`), resolved
+  through the same mechanism Home Assistant Core uses for translated
+  exception messages - defaults to English, applies German automatically
+  based on `hass.config.language`, and formats numbers with a decimal
+  point or comma to match. While verifying this against the real
+  `homeassistant` package, found and fixed a related latent bug: this
+  integration never shipped a `translations/en.json`, so - contrary to
+  the assumption earlier in this project - config flow/entity/options
+  text was **not** actually falling back to `strings.json` for English
+  users at runtime (only hassfest-built Core integrations get that
+  fallback for free); it would have shown blank/raw text for anyone
+  running Home Assistant in English. `translations/en.json` now mirrors
+  `strings.json` and needs to be kept in sync by hand going forward (see
+  CLAUDE.md)
 
 ## 🚧 Planned
 

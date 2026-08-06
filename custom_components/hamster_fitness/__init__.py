@@ -8,6 +8,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
+from . import runtime_text
 from .const import (
     CONF_HAMSTER_NAME,
     CONF_WHEEL_DIAMETER,
@@ -48,6 +49,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEntry) -> bool:
     """Set up Hamster Fitness from a config entry."""
+    # Warms the cache for warning/notification text (see runtime_text.py) -
+    # must happen before the coordinator's first refresh, which can
+    # already construct a warning message on the very first calculation.
+    await runtime_text.async_warm_up(hass)
+
     coordinator = HamsterFitnessCoordinator(hass, entry)
 
     # Registers the source-entity listeners (_async_setup) and computes the

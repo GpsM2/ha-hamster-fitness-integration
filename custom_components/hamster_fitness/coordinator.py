@@ -57,6 +57,7 @@ from .const import (
     TEMP_BUFFER_C,
     WARNING_SCORE_THRESHOLD,
 )
+from .runtime_text import format_number, render_message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -470,27 +471,33 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         reasons: dict[str, str] = {}
         if score < WARNING_SCORE_THRESHOLD:
-            reasons["low_score"] = f"Der Health-Score ist auf {score} % gesunken."
+            reasons["low_score"] = render_message(
+                self.hass, "warning.low_score", score=str(score)
+            )
         if distance_km < min_distance_km:
-            reasons["too_little_exercise"] = (
-                f"Bisher erst {_fmt_de(distance_km, 2)} km gelaufen, "
-                "deutlich weniger als üblich."
+            reasons["too_little_exercise"] = render_message(
+                self.hass,
+                "warning.too_little_exercise",
+                distance=format_number(self.hass, distance_km, 2),
             )
         if temperature is not None:
             hard_min = ideal_temp_min - TEMP_BUFFER_C
             hard_max = ideal_temp_max + TEMP_BUFFER_C
             if temperature < hard_min:
-                reasons["too_cold"] = (
-                    f"Im Käfig ist es kalt geworden: {_fmt_de(temperature, 1)} °C."
+                reasons["too_cold"] = render_message(
+                    self.hass,
+                    "warning.too_cold",
+                    temperature=format_number(self.hass, temperature, 1),
                 )
             elif temperature > hard_max:
-                reasons["too_hot"] = (
-                    f"Im Käfig ist es ziemlich warm: {_fmt_de(temperature, 1)} °C."
+                reasons["too_hot"] = render_message(
+                    self.hass,
+                    "warning.too_hot",
+                    temperature=format_number(self.hass, temperature, 1),
                 )
         if hours_door_closed is not None and hours_door_closed > NEGLECT_THRESHOLD_HOURS:
-            reasons["neglected"] = (
-                f"Der Käfig wurde seit {hours_door_closed:.0f} Stunden "
-                "nicht mehr geöffnet."
+            reasons["neglected"] = render_message(
+                self.hass, "warning.neglected", hours=f"{hours_door_closed:.0f}"
             )
 
         return HamsterFitnessData(
@@ -560,11 +567,6 @@ def _as_float(value: str | None) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
-
-
-def _fmt_de(value: float, decimals: int) -> str:
-    """Format a float with a German-style comma decimal separator."""
-    return f"{value:.{decimals}f}".replace(".", ",")
 
 
 def _distance_penalty(distance_km: float, min_distance_km: float) -> float:
