@@ -36,7 +36,7 @@ import {
   siblingEntityId,
   deviceDisplayName,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js";
+} from "./hamster-fitness-shared.js?v=2";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 

@@ -268,6 +268,21 @@ items stay listed so the history stays traceable.
   - **README split** into a short overview plus one page per card under
     `docs/cards/`.
 
+- **Hotfix nach 0.3.0-beta.1: keine Karte mehr auswählbar.** Die drei
+  Kartendateien werden als Lovelace-Ressourcen mit `?v=<n>` registriert und
+  daher nach einem Update frisch geladen - `hamster-fitness-shared.js`
+  aber nicht: es ist keine eigene Ressource, sondern wird von den Karten
+  per relativer URL importiert und bekam gar kein Cache-Busting. Browser
+  behielten also ihre Kopie aus 0.2.7, in der die in 0.3.0 neu
+  hinzugekommenen Exporte (`HEADER_STYLES`, `DEFAULT_FUR`, ...) fehlen.
+  Ein fehlgeschlagener ES-Modul-Import bricht die gesamte Datei ab, also
+  wurde kein einziges `customElements.define()` mehr erreicht - sämtliche
+  Karten verschwanden aus dem "Karte hinzufügen"-Dialog, auch die beiden
+  inhaltlich unveränderten. Der Import trägt jetzt eine eigene Version
+  (`SHARED_MODULE_VERSION` in `const.py`), und
+  `tests/test_frontend_resources.py` erzwingt, dass sie in allen
+  Kartendateien gesetzt ist und übereinstimmt.
+
 ## 🚧 Planned
 
 - Enable branch protection on `main` (block force-push/deletion, ideally

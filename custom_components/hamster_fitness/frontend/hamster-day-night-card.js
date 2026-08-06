@@ -39,7 +39,7 @@ import {
   deviceDisplayName,
   renderCardHeader,
   siblingEntityId,
-} from "./hamster-fitness-shared.js";
+} from "./hamster-fitness-shared.js?v=2";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;

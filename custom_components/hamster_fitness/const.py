@@ -209,6 +209,18 @@ MAX_WEIGHT_G: Final[float] = 2000.0
 
 # --- Frontend (bundled hamster-fitness-card, siehe frontend/__init__.py) ---
 URL_BASE: Final = f"/{DOMAIN}-frontend"
+# Cache-Busting für hamster-fitness-shared.js. Das Modul ist KEINE eigene
+# Lovelace-Ressource, sondern wird von den Karten per relativer URL
+# importiert - es bekommt also nicht automatisch das ?v=... der Karten
+# unten. Ohne eigene Version lädt der Browser weiter seine alte Kopie,
+# und sobald dort ein neu hinzugekommener Export fehlt, bricht der Import
+# ab: dann registriert sich KEINE der Karten mehr, auch die unveränderten
+# nicht (in 0.3.0-beta.1 genau so passiert).
+#
+# Bei jeder Änderung an hamster-fitness-shared.js hochzählen UND denselben
+# Wert in den ?v=-Importen aller Kartendateien nachziehen. tests/
+# test_frontend_resources.py prüft das ab, damit es nicht vergessen wird.
+SHARED_MODULE_VERSION: Final = "2"
 # "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
 # jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
 # Browser ggf. die alte, gecachte Version weiter aus.
@@ -216,16 +228,16 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "7",
+        "version": "8",
     },
     {
         "name": "Hamster Day & Night Card",
         "filename": "hamster-day-night-card.js",
-        "version": "2",
+        "version": "3",
     },
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "1",
+        "version": "2",
     },
 ]

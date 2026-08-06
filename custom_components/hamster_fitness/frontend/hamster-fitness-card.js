@@ -51,7 +51,7 @@ import {
   renderCardHeader,
   shade,
   siblingEntityId,
-} from "./hamster-fitness-shared.js";
+} from "./hamster-fitness-shared.js?v=2";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
