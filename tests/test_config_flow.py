@@ -1,0 +1,148 @@
+"""Tests for the Hamster Fitness config flow."""
+
+from __future__ import annotations
+
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.hamster_fitness.const import (
+    CONF_ACQUISITION_DATE,
+    CONF_DOOR_SENSOR,
+    CONF_HAMSTER_NAME,
+    CONF_TEMPERATURE_SENSOR,
+    CONF_WHEEL_DIAMETER,
+    CONF_WHEEL_SENSOR,
+    DOMAIN,
+)
+
+BASIC_INPUT = {
+    CONF_HAMSTER_NAME: "Taco",
+    CONF_ACQUISITION_DATE: "2024-01-01",
+    CONF_WHEEL_DIAMETER: 28.0,
+}
+
+SENSORS_INPUT = {
+    CONF_WHEEL_SENSOR: "sensor.wheel_rotations",
+    CONF_TEMPERATURE_SENSOR: "sensor.cage_temperature",
+    CONF_DOOR_SENSOR: "binary_sensor.cage_door",
+}
+
+
+async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
+    """A full user flow with valid input creates a config entry."""
+    hass.states.async_set("sensor.wheel_rotations", "42")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "sensors"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], SENSORS_INPUT
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["title"] == "Taco"
+    assert result["data"][CONF_HAMSTER_NAME] == "Taco"
+    assert result["data"][CONF_WHEEL_SENSOR] == "sensor.wheel_rotations"
+
+
+async def test_user_flow_rejects_blank_name(hass: HomeAssistant) -> None:
+    """A whitespace-only hamster name is rejected with invalid_name."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**BASIC_INPUT, CONF_HAMSTER_NAME: "   "}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_HAMSTER_NAME: "invalid_name"}
+
+
+async def test_user_flow_rejects_zero_diameter(hass: HomeAssistant) -> None:
+    """A wheel diameter of 0 is rejected with invalid_diameter."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**BASIC_INPUT, CONF_WHEEL_DIAMETER: 0}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_WHEEL_DIAMETER: "invalid_diameter"}
+
+
+async def test_sensors_step_rejects_non_numeric_wheel_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """A wheel_sensor whose state isn't a number is rejected with not_numeric."""
+    hass.states.async_set("sensor.wheel_rotations", "not-a-number")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], SENSORS_INPUT
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "sensors"
+    assert result["errors"] == {CONF_WHEEL_SENSOR: "not_numeric"}
+
+
+async def test_duplicate_name_aborts(hass: HomeAssistant) -> None:
+    """Setting up a second hamster with the same name aborts."""
+    MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="taco",
+        title="Taco",
+        data={**BASIC_INPUT, **SENSORS_INPUT},
+    ).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reconfigure_flow_updates_entry(hass: HomeAssistant) -> None:
+    """Reconfigure updates the entry's data without changing its unique_id."""
+    hass.states.async_set("sensor.wheel_rotations", "42")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="taco",
+        title="Taco",
+        data={**BASIC_INPUT, **SENSORS_INPUT},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**BASIC_INPUT, CONF_WHEEL_DIAMETER: 30.0}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "reconfigure_sensors"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], SENSORS_INPUT
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_WHEEL_DIAMETER] == 30.0
+    assert entry.unique_id == "taco"
