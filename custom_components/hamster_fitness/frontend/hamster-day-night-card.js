@@ -3,10 +3,11 @@
  *
  * Bundled with the Hamster Fitness integration, auto-registered as a
  * Lovelace resource (see frontend/__init__.py) - no HACS frontend install
- * needed. Big illustrated card: the hamster runs in its wheel (animated,
- * speed-coupled) at night, or sleeps in a nest during the day - driven by
- * the hamster's *actual* activity (night_active_duration sensor), not
- * just the clock, layered on top of a sun-position-driven background.
+ * needed. One big illustrated scene: the hamster runs in its wheel
+ * (animated, speed-coupled) while it is actually active, or sleeps in its
+ * nest while it is not - layered on a sun-position-driven sky. The
+ * readings sit as pill-shaped chips inside that scene rather than in a
+ * separate stats block underneath.
  *
  * Config:
  *   type: custom:hamster-day-night-card
@@ -17,10 +18,17 @@
  *   show_active_duration: true
  *   show_rest_duration: true
  *   show_climate: true
+ *   show_light: true
  *
  * Sibling entities (night_active_duration, day_rest_duration,
- * current_speed, daily_distance, humidity, ...) are resolved the same
- * way as the main card - see hamster-fitness-shared.js.
+ * current_speed, night_distance, humidity, light_automation, ...) are
+ * resolved by translation_key - see hamster-fitness-shared.js.
+ *
+ * Rendering note: the DOM is built once and then patched in place. An
+ * earlier version rebuilt innerHTML on every `hass` update, which
+ * restarted the wheel's CSS animation from 0deg several times a second -
+ * that is what made it stutter. Only the chip block, which has no
+ * animation, is still re-rendered wholesale.
  */
 
 import {
@@ -31,10 +39,16 @@ import {
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
-const MIN_SPIN_S = 0.4;
-const MAX_SPIN_S = 6;
-const MIN_SPEED_KMH = 0.5;
+// Seconds for one full revolution, at the fastest/slowest speed we still
+// animate. Below STOP_SPEED_KMH the wheel is parked instead of crawling.
+const MIN_SPIN_S = 0.45;
+const MAX_SPIN_S = 5;
 const MAX_SPEED_KMH = 20;
+const STOP_SPEED_KMH = 0.15;
+// Reference length of one revolution. The wheel always runs at exactly
+// this duration and is sped up or slowed down via playbackRate instead -
+// see _applyWheelSpin() for why that matters.
+const SPIN_BASE_MS = 2000;
 
 const NIGHT_GRADIENT = ["#0B132B", "#1C2541"];
 const DAY_GRADIENT_HORIZON = ["#F4A261", "#E9C46A"];
@@ -45,31 +59,34 @@ const STATUS_ONLINE = { label: "Online", color: "#06D6A0" };
 const STATUS_OFFLINE = { label: "Offline", color: "#EF476F" };
 const STATUS_UNAVAILABLE = { label: "Nicht verfügbar", color: "#8D99AE" };
 
+const DEFAULT_FUR = "#D48C46";
+
 const DEFAULT_TOGGLES = {
   show_speed: true,
   show_distance: true,
   show_active_duration: true,
   show_rest_duration: true,
   show_climate: true,
+  show_light: true,
 };
 
 // Hamster with dumbbells, side view - compact version of
 // design/hamster-dumbbell-logo.svg, for the card header. Same
 // illustration family as the main card's headband-hamster logo.
 const LOGO_DUMBBELL_SVG = `
-<svg viewBox="0 0 200 200" width="30" height="30" aria-hidden="true">
-  <ellipse cx="70" cy="150" rx="13" ry="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3" transform="rotate(15 70 150)"/>
-  <ellipse cx="128" cy="150" rx="13" ry="9" fill="#D9A876" stroke="#8B5A2B" stroke-width="3" transform="rotate(-15 128 150)"/>
-  <circle cx="52" cy="122" r="8" fill="#C89666" stroke="#8B5A2B" stroke-width="2.5"/>
-  <ellipse cx="100" cy="122" rx="48" ry="38" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
-  <circle cx="112" cy="70" r="30" fill="#D9A876" stroke="#8B5A2B" stroke-width="3"/>
-  <circle cx="90" cy="48" r="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
-  <circle cx="128" cy="46" r="9" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+<svg viewBox="0 0 200 200" width="34" height="34" aria-hidden="true">
+  <ellipse cx="70" cy="150" rx="13" ry="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3" transform="rotate(15 70 150)"/>
+  <ellipse cx="128" cy="150" rx="13" ry="9" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3" transform="rotate(-15 128 150)"/>
+  <circle cx="52" cy="122" r="8" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
+  <ellipse cx="100" cy="122" rx="48" ry="38" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+  <circle cx="112" cy="70" r="30" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+  <circle cx="90" cy="48" r="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+  <circle cx="128" cy="46" r="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
   <circle cx="122" cy="66" r="4.5" fill="#3a2a1a"/>
-  <ellipse cx="134" cy="76" rx="6.5" ry="5" fill="#f4d9c6" stroke="#8B5A2B" stroke-width="1.5"/>
+  <ellipse cx="134" cy="76" rx="6.5" ry="5" fill="#f4d9c6" stroke="var(--hdn-fur-dark)" stroke-width="1.5"/>
   <circle cx="137" cy="76" r="2" fill="#5c4030"/>
-  <path d="M138 108 Q158 96 168 74" fill="none" stroke="#D9A876" stroke-width="14" stroke-linecap="round"/>
-  <path d="M78 132 Q66 148 60 162" fill="none" stroke="#C89666" stroke-width="13" stroke-linecap="round"/>
+  <path d="M138 108 Q158 96 168 74" fill="none" stroke="var(--hdn-fur-light)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M78 132 Q66 148 60 162" fill="none" stroke="var(--hdn-fur)" stroke-width="13" stroke-linecap="round"/>
   <g transform="rotate(-28 168 74)">
     <rect x="150" y="70" width="36" height="8" rx="4" fill="#5c4a3a"/>
     <rect x="144" y="62" width="12" height="24" rx="4" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
@@ -78,8 +95,20 @@ const LOGO_DUMBBELL_SVG = `
 </svg>
 `;
 
+const ICONS = {
+  speed: "M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Zm1 4v7h-2V6h2Z",
+  distance:
+    "M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z",
+  timer:
+    "M15 1H9v2h6V1Zm-4 13h2V8h-2v6Zm8.03-6.61 1.42-1.42a11 11 0 0 0-1.41-1.41l-1.42 1.42A9 9 0 1 0 21 13a8.94 8.94 0 0 0-1.97-5.61Z",
+  climate:
+    "M15 13V5a3 3 0 0 0-6 0v8a5 5 0 1 0 6 0Zm-3-9a1 1 0 0 1 1 1v3h-2V5a1 1 0 0 1 1-1Z",
+  light:
+    "M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2Z",
+};
+
 function hexToRgb(hex) {
-  const n = parseInt(hex.replace("#", ""), 16);
+  const n = parseInt(String(hex).replace("#", ""), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
@@ -88,6 +117,19 @@ function lerpColor(hexA, hexB, t) {
   const b = hexToRgb(hexB);
   const rgb = a.map((channel, i) => Math.round(channel + (b[i] - channel) * t));
   return `rgb(${rgb.join(", ")})`;
+}
+
+/** Lightens (amount > 0) or darkens (amount < 0) a hex colour. */
+function shade(hex, amount) {
+  const rgb = hexToRgb(hex).map((channel) => {
+    const target = amount > 0 ? 255 : 0;
+    return Math.round(channel + (target - channel) * Math.abs(amount));
+  });
+  return `rgb(${rgb.join(", ")})`;
+}
+
+function isValidHex(value) {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
 class HamsterDayNightCard extends HTMLElement {
@@ -103,36 +145,7 @@ class HamsterDayNightCard extends HTMLElement {
       );
     }
     this._config = { ...DEFAULT_TOGGLES, ...config };
-
-    if (!this.content) {
-      this.innerHTML = `
-        <ha-card>
-          <div class="hdn-root"></div>
-        </ha-card>
-        <style>${HamsterDayNightCard.styles}</style>
-      `;
-      this.content = this.querySelector(".hdn-root");
-      const openMoreInfo = (target) => {
-        this.dispatchEvent(
-          new CustomEvent("hass-more-info", {
-            detail: { entityId: target.dataset.entity },
-            bubbles: true,
-            composed: true,
-          })
-        );
-      };
-      this.content.addEventListener("click", (ev) => {
-        const target = ev.target.closest("[data-entity]");
-        if (target) openMoreInfo(target);
-      });
-      this.content.addEventListener("keydown", (ev) => {
-        if (ev.key !== "Enter" && ev.key !== " ") return;
-        const target = ev.target.closest("[data-entity]");
-        if (!target) return;
-        ev.preventDefault();
-        openMoreInfo(target);
-      });
-    }
+    this._ensureSkeleton();
     this._render();
   }
 
@@ -152,6 +165,99 @@ class HamsterDayNightCard extends HTMLElement {
   static getStubConfig(hass, entities) {
     const match = (entities || []).find((id) => ENTITY_PATTERN.test(id));
     return { entity: match || "sensor.hamster_taco_health_score", ...DEFAULT_TOGGLES };
+  }
+
+  /**
+   * Builds the persistent DOM exactly once. Everything the render pass
+   * touches afterwards is either a CSS custom property or one of the
+   * cached child nodes below - crucially never the wheel's own element,
+   * whose running animation must not be interrupted.
+   */
+  _ensureSkeleton() {
+    if (this._root) return;
+
+    this.innerHTML = `
+      <ha-card>
+        <div class="hdn-root">
+          <div class="hdn-error" hidden></div>
+          <div class="hdn-sky">
+            <div class="hdn-decor"></div>
+            <div class="hdn-header">
+              <span class="hdn-logo">${LOGO_DUMBBELL_SVG}</span>
+              <div class="hdn-header-text">
+                <span class="hdn-title"></span>
+                <span class="hdn-subtitle">Day &amp; Night</span>
+              </div>
+              <span class="hdn-status-chip">
+                <span class="hdn-status-dot"></span>
+                <span class="hdn-status-label"></span>
+              </span>
+            </div>
+            <div class="hdn-body">
+              <div class="hdn-scene"></div>
+              <div class="hdn-chips"></div>
+            </div>
+          </div>
+        </div>
+      </ha-card>
+      <style>${HamsterDayNightCard.styles}</style>
+    `;
+
+    this._root = this.querySelector(".hdn-root");
+    this._errorEl = this.querySelector(".hdn-error");
+    this._skyEl = this.querySelector(".hdn-sky");
+    this._decorEl = this.querySelector(".hdn-decor");
+    this._titleEl = this.querySelector(".hdn-title");
+    this._statusDotEl = this.querySelector(".hdn-status-dot");
+    this._statusLabelEl = this.querySelector(".hdn-status-label");
+    this._sceneEl = this.querySelector(".hdn-scene");
+    this._chipsEl = this.querySelector(".hdn-chips");
+
+    this._sceneMode = null;
+    this._decorMode = null;
+
+    const openMoreInfo = (target) => {
+      this.dispatchEvent(
+        new CustomEvent("hass-more-info", {
+          detail: { entityId: target.dataset.entity },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    };
+
+    this._root.addEventListener("click", (ev) => {
+      const pauseButton = ev.target.closest("[data-action='pause-light']");
+      if (pauseButton) {
+        this._pauseLight(pauseButton.dataset.switch);
+        return;
+      }
+      const target = ev.target.closest("[data-entity]");
+      if (target) openMoreInfo(target);
+    });
+    this._root.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      const pauseButton = ev.target.closest("[data-action='pause-light']");
+      if (pauseButton) {
+        ev.preventDefault();
+        this._pauseLight(pauseButton.dataset.switch);
+        return;
+      }
+      const target = ev.target.closest("[data-entity]");
+      if (!target) return;
+      ev.preventDefault();
+      openMoreInfo(target);
+    });
+  }
+
+  _pauseLight(switchEntityId) {
+    if (!this._hass || !switchEntityId) return;
+    this._hass.callService(
+      "hamster_fitness",
+      "pause_light_automation",
+      {},
+      { entity_id: switchEntityId }
+    );
   }
 
   _entityId(key) {
@@ -181,7 +287,13 @@ class HamsterDayNightCard extends HTMLElement {
     const total = Math.max(0, Math.round(Number(minutes)));
     const h = Math.floor(total / 60);
     const m = total % 60;
-    return h > 0 ? `${h} Std. ${m} Min.` : `${m} Min.`;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  _fmtClock(isoString) {
+    const parsed = new Date(isoString);
+    if (Number.isNaN(parsed.getTime())) return "–";
+    return parsed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   }
 
   _backgroundGradient() {
@@ -203,14 +315,56 @@ class HamsterDayNightCard extends HTMLElement {
     return !sun || sun.state === "below_horizon";
   }
 
+  /**
+   * Seconds per revolution for the current speed, or null when the wheel
+   * should be standing still. Returning null (rather than a very long
+   * duration) is what lets a hamster pause mid-session - the activity
+   * sensor still counts, but the wheel visibly stops.
+   */
   _spinDurationS(currentSpeed) {
     const speed = currentSpeed ? Number(currentSpeed.state) : NaN;
-    const clamped = Number.isFinite(speed)
-      ? Math.min(Math.max(speed, MIN_SPEED_KMH), MAX_SPEED_KMH)
-      : MIN_SPEED_KMH * 2;
-    // Inversely proportional to speed, then clamped to a sane animation range.
+    if (!Number.isFinite(speed) || speed <= STOP_SPEED_KMH) return null;
+    const clamped = Math.min(speed, MAX_SPEED_KMH);
     const raw = (MIN_SPIN_S * MAX_SPEED_KMH) / clamped;
-    return Math.min(MAX_SPIN_S, Math.max(MIN_SPIN_S, raw)).toFixed(2);
+    return Math.min(MAX_SPIN_S, Math.max(MIN_SPIN_S, raw));
+  }
+
+  /**
+   * Spins the wheel at `spinSeconds` per revolution, or parks it when
+   * that is null.
+   *
+   * Uses the Web Animations API rather than a CSS animation on purpose.
+   * A CSS animation whose `animation-duration` is rewritten restarts from
+   * 0deg - and the speed sensor changes constantly, so the wheel visibly
+   * snapped back on nearly every update. `playbackRate` retimes the very
+   * same running animation instead, keeping the wheel exactly where it
+   * is, which is what makes it track the real speed smoothly.
+   */
+  _applyWheelSpin(spinSeconds) {
+    const el = this._wheelEl;
+    if (!el || typeof el.animate !== "function") return;
+
+    if (!this._wheelAnim) {
+      const reduceMotion =
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduceMotion) return;
+      this._wheelAnim = el.animate(
+        [{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }],
+        { duration: SPIN_BASE_MS, iterations: Infinity, easing: "linear" }
+      );
+    }
+
+    if (spinSeconds === null) {
+      // Standing still mid-session: the hamster is having a breather, but
+      // the activity sensor is still counting the session.
+      this._wheelAnim.pause();
+      this._sceneEl.classList.add("hdn-scene-idle");
+      return;
+    }
+    this._wheelAnim.playbackRate = SPIN_BASE_MS / (spinSeconds * 1000);
+    this._wheelAnim.play();
+    this._sceneEl.classList.remove("hdn-scene-idle");
   }
 
   _connectionStatus(currentSpeedEntityId) {
@@ -221,27 +375,35 @@ class HamsterDayNightCard extends HTMLElement {
     return STATUS_ONLINE;
   }
 
-  _wheelScene(spinDurationS) {
+  _wheelScene() {
     return `
-      <svg class="hdn-scene-svg" viewBox="0 0 200 200" aria-hidden="true">
-        <g class="hdn-wheel-spin" style="animation-duration: ${spinDurationS}s">
-          <circle cx="100" cy="100" r="82" fill="none" stroke="#8B5A2B" stroke-width="11"/>
-          <circle cx="100" cy="100" r="68" fill="#C19A6B" opacity="0.3"/>
-          <g stroke="#8B5A2B" stroke-width="6" stroke-linecap="round">
-            <line x1="100" y1="20" x2="100" y2="180"/>
-            <line x1="20" y1="100" x2="180" y2="100"/>
-            <line x1="44" y1="44" x2="156" y2="156"/>
-            <line x1="156" y1="44" x2="44" y2="156"/>
+      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
+        <ellipse cx="110" cy="188" rx="78" ry="7" fill="rgba(0,0,0,0.18)"/>
+        <g class="hdn-wheel-stand" stroke="#9AA3AD" stroke-width="6" stroke-linecap="round" fill="none">
+          <path d="M40 186 L110 130 L180 186"/>
+          <path d="M62 186 H158"/>
+        </g>
+        <g class="hdn-wheel-spin">
+          <circle cx="110" cy="100" r="80" fill="none" stroke="#AEB6BF" stroke-width="10"/>
+          <circle cx="110" cy="100" r="68" fill="none" stroke="#C19A6B" stroke-width="9" opacity="0.75"/>
+          <g stroke="#AEB6BF" stroke-width="5" stroke-linecap="round">
+            <line x1="110" y1="24" x2="110" y2="176"/>
+            <line x1="34" y1="100" x2="186" y2="100"/>
+            <line x1="56" y1="46" x2="164" y2="154"/>
+            <line x1="164" y1="46" x2="56" y2="154"/>
           </g>
-          <circle cx="100" cy="100" r="11" fill="#8B5A2B"/>
+          <circle cx="110" cy="100" r="12" fill="#8A929A"/>
         </g>
         <g class="hdn-hamster-run">
-          <ellipse cx="88" cy="172" rx="10" ry="6" fill="#C89666" stroke="#8B5A2B" stroke-width="2"/>
-          <ellipse cx="112" cy="172" rx="10" ry="6" fill="#D9A876" stroke="#8B5A2B" stroke-width="2"/>
-          <ellipse cx="100" cy="158" rx="26" ry="19" fill="#C89666" stroke="#8B5A2B" stroke-width="2.5"/>
-          <circle cx="120" cy="144" r="15" fill="#D9A876" stroke="#8B5A2B" stroke-width="2.5"/>
-          <circle cx="112" cy="132" r="5" fill="#C89666" stroke="#8B5A2B" stroke-width="2"/>
-          <circle cx="126" cy="141" r="2.3" fill="#3a2a1a"/>
+          <ellipse cx="96" cy="164" rx="11" ry="6" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <ellipse cx="124" cy="164" rx="11" ry="6" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <ellipse cx="108" cy="146" rx="30" ry="21" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
+          <ellipse cx="104" cy="152" rx="18" ry="12" fill="var(--hdn-belly)" opacity="0.75"/>
+          <circle cx="134" cy="130" r="17" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
+          <circle cx="126" cy="116" r="6" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <circle cx="141" cy="127" r="2.6" fill="#3a2a1a"/>
+          <ellipse cx="149" cy="134" rx="4.5" ry="3.5" fill="#f4d9c6"/>
+          <path d="M80 142 q-12 4 -18 12" fill="none" stroke="var(--hdn-fur-dark)" stroke-width="4" stroke-linecap="round"/>
         </g>
       </svg>
     `;
@@ -249,149 +411,256 @@ class HamsterDayNightCard extends HTMLElement {
 
   _restScene() {
     return `
-      <svg class="hdn-scene-svg" viewBox="0 0 200 200" aria-hidden="true">
-        <g opacity="0.3">
-          <circle cx="100" cy="55" r="38" fill="none" stroke="#8B5A2B" stroke-width="6"/>
-          <line x1="100" y1="19" x2="100" y2="91" stroke="#8B5A2B" stroke-width="3"/>
-          <line x1="64" y1="55" x2="136" y2="55" stroke="#8B5A2B" stroke-width="3"/>
+      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
+        <g opacity="0.28" stroke="#AEB6BF" fill="none">
+          <circle cx="176" cy="70" r="36" stroke-width="6"/>
+          <line x1="176" y1="34" x2="176" y2="106" stroke-width="3"/>
+          <line x1="140" y1="70" x2="212" y2="70" stroke-width="3"/>
+          <path d="M148 108 L176 84 L204 108" stroke-width="4"/>
         </g>
-        <text class="hdn-zzz hdn-zzz-1" x="128" y="95">Z</text>
-        <text class="hdn-zzz hdn-zzz-2" x="144" y="78">Z</text>
-        <text class="hdn-zzz hdn-zzz-3" x="160" y="62">Z</text>
-        <ellipse cx="100" cy="168" rx="58" ry="17" fill="#e8d3a0"/>
-        <path d="M50 168 q10 -8 20 0 M60 172 q10 -8 20 0 M120 172 q10 -8 20 0 M130 168 q10 -8 20 0"
-              fill="none" stroke="#c9a86a" stroke-width="2.5" stroke-linecap="round"/>
+        <text class="hdn-zzz hdn-zzz-1" x="104" y="74">z</text>
+        <text class="hdn-zzz hdn-zzz-2" x="118" y="56">Z</text>
+        <text class="hdn-zzz hdn-zzz-3" x="136" y="38">Z</text>
+        <ellipse cx="100" cy="164" rx="76" ry="26" fill="#e6cfa0"/>
+        <ellipse cx="100" cy="158" rx="60" ry="20" fill="#f0e0bb"/>
+        <g stroke="#cbab72" stroke-width="2.5" stroke-linecap="round" fill="none">
+          <path d="M34 164 q10 -8 20 0"/>
+          <path d="M50 172 q10 -8 20 0"/>
+          <path d="M126 172 q10 -8 20 0"/>
+          <path d="M146 164 q10 -8 20 0"/>
+        </g>
         <g class="hdn-hamster-sleep">
-          <ellipse cx="100" cy="150" rx="40" ry="30" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
-          <circle cx="70" cy="134" r="21" fill="#D9A876" stroke="#8B5A2B" stroke-width="3"/>
-          <circle cx="57" cy="121" r="7.5" fill="#C89666" stroke="#8B5A2B" stroke-width="2"/>
-          <path d="M60 132 q4 3 8 0" fill="none" stroke="#3a2a1a" stroke-width="2.2" stroke-linecap="round"/>
-          <ellipse cx="80" cy="140" rx="5" ry="4" fill="#f4d9c6"/>
+          <ellipse cx="100" cy="150" rx="42" ry="30" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+          <ellipse cx="104" cy="158" rx="26" ry="16" fill="var(--hdn-belly)" opacity="0.7"/>
+          <circle cx="68" cy="136" r="22" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+          <circle cx="55" cy="122" r="8" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <path d="M58 136 q5 4 10 0" fill="none" stroke="#3a2a1a" stroke-width="2.4" stroke-linecap="round"/>
+          <ellipse cx="79" cy="143" rx="5" ry="4" fill="#f4d9c6"/>
         </g>
       </svg>
     `;
   }
 
+  _moonSvg() {
+    return `
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden="true">
+        <circle cx="26" cy="30" r="1.7" fill="#fff" opacity="0.85"/>
+        <circle cx="64" cy="16" r="1.1" fill="#fff" opacity="0.6"/>
+        <circle cx="104" cy="34" r="1.5" fill="#fff" opacity="0.75"/>
+        <circle cx="148" cy="14" r="1" fill="#fff" opacity="0.5"/>
+        <circle cx="186" cy="30" r="1.3" fill="#fff" opacity="0.7"/>
+        <circle cx="44" cy="52" r="1" fill="#fff" opacity="0.5"/>
+        <circle cx="92" cy="10" r="1.2" fill="#fff" opacity="0.6"/>
+        <circle cx="222" cy="48" r="1.2" fill="#fff" opacity="0.55"/>
+        <path d="M272 30 a17 17 0 1 0 0.6 0 a13 13 0 1 1 -0.6 0" fill="#F4E285" opacity="0.95"/>
+      </svg>
+    `;
+  }
+
+  _sunSvg() {
+    return `
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden="true">
+        <g class="hdn-sun">
+          <circle cx="266" cy="32" r="16" fill="#FFD166"/>
+          <g stroke="#FFD166" stroke-width="3" stroke-linecap="round" opacity="0.85">
+            <line x1="266" y1="6" x2="266" y2="0"/>
+            <line x1="266" y1="64" x2="266" y2="58"/>
+            <line x1="240" y1="32" x2="234" y2="32"/>
+            <line x1="298" y1="32" x2="292" y2="32"/>
+            <line x1="248" y1="14" x2="244" y2="10"/>
+            <line x1="284" y1="50" x2="288" y2="54"/>
+            <line x1="284" y1="14" x2="288" y2="10"/>
+            <line x1="248" y1="50" x2="244" y2="54"/>
+          </g>
+        </g>
+        <g fill="#ffffff" opacity="0.5">
+          <ellipse cx="60" cy="34" rx="30" ry="11"/>
+          <ellipse cx="46" cy="28" rx="17" ry="10"/>
+          <ellipse cx="150" cy="58" rx="24" ry="9"/>
+        </g>
+      </svg>
+    `;
+  }
+
+  _chip({ icon, label, value, entity, tone }) {
+    const attrs = entity
+      ? `data-entity="${entity}" tabindex="0" role="button" class="hdn-chip hdn-clickable${tone ? ` hdn-chip-${tone}` : ""}"`
+      : `class="hdn-chip${tone ? ` hdn-chip-${tone}` : ""}"`;
+    return `
+      <div ${attrs}>
+        <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${icon}"/></svg>
+        <span class="hdn-chip-text">
+          <span class="hdn-chip-label">${label}</span>
+          <span class="hdn-chip-value">${value}</span>
+        </span>
+      </div>
+    `;
+  }
+
+  _lightChip() {
+    const switchId = this._entityId("light_automation");
+    const automation = this._hass.states[switchId];
+    if (!automation) return ""; // no cage light configured for this hamster
+
+    const lightId = automation.attributes.light_entity;
+    const light = lightId ? this._hass.states[lightId] : undefined;
+    const lightOn = light && light.state === "on";
+    const paused = automation.attributes.pause_active;
+    const pausedUntil = automation.attributes.paused_until;
+
+    let statusText;
+    if (automation.state === "off") {
+      statusText = "Automatik aus";
+    } else if (paused) {
+      statusText = `Pause bis ${this._fmtClock(pausedUntil)}`;
+    } else {
+      statusText = lightOn ? "Licht an" : "Licht aus";
+    }
+
+    const button =
+      automation.state === "on" && !paused
+        ? `<button class="hdn-chip-button" data-action="pause-light" data-switch="${switchId}" type="button">30 Min. Pause</button>`
+        : "";
+
+    return `
+      <div class="hdn-chip hdn-chip-wide${lightOn ? " hdn-chip-lit" : ""}">
+        <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.light}"/></svg>
+        <span class="hdn-chip-text">
+          <span class="hdn-chip-label hdn-clickable" data-entity="${switchId}" tabindex="0" role="button">Käfiglicht</span>
+          <span class="hdn-chip-value">${statusText}</span>
+        </span>
+        ${button}
+      </div>
+    `;
+  }
+
   _render() {
-    if (!this._hass || !this.content || !this._config) return;
+    if (!this._hass || !this._root || !this._config) return;
 
     const healthScore = this._entity("health_score");
     if (!healthScore) {
-      this.content.innerHTML = `
-        <div class="hdn-error">
-          Entity "<strong>${this._config.entity}</strong>" nicht gefunden.
-          Prüfe die Karten-Konfiguration.
-        </div>
-      `;
+      this._errorEl.hidden = false;
+      this._errorEl.innerHTML = `Entity "<strong>${this._config.entity}</strong>" nicht gefunden. Prüfe die Karten-Konfiguration.`;
+      this._skyEl.hidden = true;
       return;
     }
+    this._errorEl.hidden = true;
+    this._skyEl.hidden = false;
 
     const nightActive = this._entity("night_active_duration");
     const dayRest = this._entity("day_rest_duration");
     const currentSpeed = this._entity("current_speed");
-    const dailyDistance = this._entity("daily_distance");
+    const nightDistance = this._entity("night_distance");
     const humidity = this._entity("humidity");
     const temperature = healthScore.attributes.temperature;
 
     const activeMinutes = nightActive ? Number(nightActive.state) : 0;
     const isActive = Number.isFinite(activeMinutes) && activeMinutes > 0;
 
+    // Fur colour comes from the hamster's profile (config flow), so two
+    // hamsters on one dashboard don't look like the same animal.
+    const fur = isValidHex(healthScore.attributes.coat_color_hex)
+      ? healthScore.attributes.coat_color_hex
+      : DEFAULT_FUR;
+    this._root.style.setProperty("--hdn-fur", fur);
+    this._root.style.setProperty("--hdn-fur-light", shade(fur, 0.18));
+    this._root.style.setProperty("--hdn-fur-dark", shade(fur, -0.4));
+    this._root.style.setProperty("--hdn-belly", shade(fur, 0.62));
+
+    this._skyEl.style.background = this._backgroundGradient();
+
     const title =
       this._config.title ||
       deviceDisplayName(this._hass, this._config.entity) ||
       this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+    this._titleEl.textContent = title.toUpperCase();
 
     const status = this._connectionStatus(this._entityId("current_speed"));
-    const scene = isActive
-      ? this._wheelScene(this._spinDurationS(currentSpeed))
-      : this._restScene();
+    this._statusDotEl.style.background = status.color;
+    this._statusLabelEl.textContent = isActive ? "Aktiv" : "Ruht";
+    this._statusLabelEl.title = status.label;
 
-    this.content.style.setProperty("--hdn-bg", this._backgroundGradient());
+    // Sky decoration and scene are only rebuilt when they actually change
+    // mode - rebuilding them every update is what used to restart the
+    // wheel animation mid-spin.
+    const decorMode = this._isNight() ? "night" : "day";
+    if (decorMode !== this._decorMode) {
+      this._decorEl.innerHTML =
+        decorMode === "night" ? this._moonSvg() : this._sunSvg();
+      this._decorMode = decorMode;
+    }
 
-    this.content.innerHTML = `
-      <div class="hdn-banner" style="background: var(--hdn-bg)">
-        ${this._isNight() ? this._starsAndMoon() : ""}
-        <div class="hdn-header">
-          ${LOGO_DUMBBELL_SVG}
-          <div class="hdn-header-text">
-            <span class="hdn-title">${title.toUpperCase()}</span>
-            <span class="hdn-subtitle">Hamster Day &amp; Night</span>
-          </div>
-        </div>
-        <div class="hdn-scene">${scene}</div>
-      </div>
+    const sceneMode = isActive ? "run" : "rest";
+    if (sceneMode !== this._sceneMode) {
+      this._sceneEl.innerHTML = isActive ? this._wheelScene() : this._restScene();
+      this._sceneMode = sceneMode;
+      this._wheelEl = this._sceneEl.querySelector(".hdn-wheel-spin");
+      this._wheelAnim = null; // the old animation went out with the old node
+    }
 
-      <div class="hdn-stats">
-        ${
-          this._config.show_active_duration
-            ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("night_active_duration")}" tabindex="0" role="button">
-                 <span class="hdn-stat-label">Aktuelle Lauf-Dauer</span>
-                 <span class="hdn-stat-value">${this._fmtDuration(activeMinutes)}</span>
-               </div>`
-            : ""
-        }
-        ${
-          this._config.show_rest_duration
-            ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("day_rest_duration")}" tabindex="0" role="button">
-                 <span class="hdn-stat-label">Ruhezeit</span>
-                 <span class="hdn-stat-value">${this._fmtDuration(dayRest && dayRest.state)}</span>
-               </div>`
-            : ""
-        }
-        ${
-          this._config.show_speed
-            ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("current_speed")}" tabindex="0" role="button">
-                 <span class="hdn-stat-label">Geschwindigkeit</span>
-                 <span class="hdn-stat-value">${this._fmt(currentSpeed && currentSpeed.state, 1, "km/h")}</span>
-               </div>`
-            : ""
-        }
-        ${
-          this._config.show_distance
-            ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("daily_distance")}" tabindex="0" role="button">
-                 <span class="hdn-stat-label">Distanz heute</span>
-                 <span class="hdn-stat-value">${this._fmt(dailyDistance && dailyDistance.state, 2, "km")}</span>
-               </div>`
-            : ""
-        }
-        ${
-          this._config.show_climate
-            ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("health_score")}" tabindex="0" role="button">
-                 <span class="hdn-stat-label">Temperatur</span>
-                 <span class="hdn-stat-value">${this._fmt(temperature, 1, "°C")}</span>
-               </div>
-               ${
-                 humidity
-                   ? `<div class="hdn-stat hdn-clickable" data-entity="${this._entityId("humidity")}" tabindex="0" role="button">
-                        <span class="hdn-stat-label">Luftfeuchtigkeit</span>
-                        <span class="hdn-stat-value">${this._fmt(humidity.state, 0, "%")}</span>
-                      </div>`
-                   : ""
-               }`
-            : ""
-        }
-      </div>
+    if (this._sceneMode === "run") {
+      this._applyWheelSpin(this._spinDurationS(currentSpeed));
+    }
 
-      <div class="hdn-footer">
-        <span class="hdn-status-dot" style="background: ${status.color}"></span>
-        <span class="hdn-status-label" style="color: ${status.color}">${status.label}</span>
-      </div>
-    `;
-  }
+    const chips = [];
+    if (this._config.show_active_duration && isActive) {
+      chips.push(
+        this._chip({
+          icon: ICONS.timer,
+          label: "Läuft seit",
+          value: this._fmtDuration(activeMinutes),
+          entity: this._entityId("night_active_duration"),
+        })
+      );
+    }
+    if (this._config.show_rest_duration && !isActive) {
+      chips.push(
+        this._chip({
+          icon: ICONS.timer,
+          label: "Ruht seit",
+          value: this._fmtDuration(dayRest && dayRest.state),
+          entity: this._entityId("day_rest_duration"),
+        })
+      );
+    }
+    if (this._config.show_speed) {
+      chips.push(
+        this._chip({
+          icon: ICONS.speed,
+          label: "Geschwindigkeit",
+          value: this._fmt(currentSpeed && currentSpeed.state, 1, "km/h"),
+          entity: this._entityId("current_speed"),
+        })
+      );
+    }
+    if (this._config.show_distance) {
+      chips.push(
+        this._chip({
+          icon: ICONS.distance,
+          label: "Diese Nacht",
+          value: this._fmt(nightDistance && nightDistance.state, 2, "km"),
+          entity: this._entityId("night_distance"),
+        })
+      );
+    }
+    if (this._config.show_climate) {
+      const climate = humidity
+        ? `${this._fmt(temperature, 1, "°C")} · ${this._fmt(humidity.state, 0, "%")}`
+        : this._fmt(temperature, 1, "°C");
+      chips.push(
+        this._chip({
+          icon: ICONS.climate,
+          label: "Klima",
+          value: climate,
+          entity: this._entityId("health_score"),
+        })
+      );
+    }
+    if (this._config.show_light) {
+      chips.push(this._lightChip());
+    }
 
-  _starsAndMoon() {
-    return `
-      <svg class="hdn-stars" viewBox="0 0 300 160" preserveAspectRatio="none" aria-hidden="true">
-        <circle cx="30" cy="24" r="1.6" fill="#fff" opacity="0.8"/>
-        <circle cx="70" cy="14" r="1.1" fill="#fff" opacity="0.6"/>
-        <circle cx="120" cy="30" r="1.4" fill="#fff" opacity="0.7"/>
-        <circle cx="160" cy="12" r="1" fill="#fff" opacity="0.5"/>
-        <circle cx="200" cy="26" r="1.3" fill="#fff" opacity="0.7"/>
-        <circle cx="50" cy="44" r="1" fill="#fff" opacity="0.5"/>
-        <circle cx="100" cy="10" r="1.2" fill="#fff" opacity="0.6"/>
-        <path d="M258 34 a16 16 0 1 0 0.5 0 a12 12 0 1 1 -0.5 0" fill="#F4E285" opacity="0.9"/>
-      </svg>
-    `;
+    this._chipsEl.innerHTML = chips.join("");
   }
 
   _capitalize(text) {
@@ -404,73 +673,191 @@ HamsterDayNightCard.styles = `
     padding: 0;
     overflow: hidden;
   }
+  .hdn-root {
+    --hdn-fur: ${DEFAULT_FUR};
+    --hdn-fur-light: #e0a869;
+    --hdn-fur-dark: #7f5429;
+    --hdn-belly: #f2ddc4;
+  }
   .hdn-error {
     color: var(--secondary-text-color);
     font-size: 0.9em;
     padding: 16px;
   }
-  .hdn-banner {
+  .hdn-sky {
     position: relative;
-    padding: 16px 16px 0;
+    padding: 14px 16px 18px;
     overflow: hidden;
-    transition: background 0.6s ease;
+    transition: background 0.8s ease;
   }
-  .hdn-stars {
+  .hdn-decor {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100px;
+    inset: 0 0 auto 0;
+    height: 130px;
     pointer-events: none;
+  }
+  .hdn-decor-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .hdn-sun {
+    transform-origin: 266px 32px;
+    animation: sunPulse 6s ease-in-out infinite;
+  }
+  @keyframes sunPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
   }
   .hdn-header {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
-    z-index: 1;
+    gap: 10px;
+    z-index: 2;
+  }
+  .hdn-logo {
+    display: flex;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
   }
   .hdn-header-text {
     display: flex;
     flex-direction: column;
-    line-height: 1.15;
+    line-height: 1.1;
+    min-width: 0;
   }
   .hdn-title {
-    font-size: 1.3em;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    font-size: 1.55em;
+    font-weight: 900;
+    letter-spacing: 0.06em;
     color: #ffffff;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .hdn-subtitle {
-    font-size: 0.75em;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.78em;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.82);
   }
-  .hdn-scene {
+  .hdn-status-chip {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(4px);
+    font-size: 0.72em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffffff;
+    flex-shrink: 0;
+  }
+  .hdn-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .hdn-body {
     position: relative;
-    margin-top: 4px;
     z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
   }
   .hdn-scene-svg {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 220px;
+    max-height: 240px;
   }
+  .hdn-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .hdn-chip {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 12px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(6px);
+    color: #ffffff;
+  }
+  .hdn-chip-icon {
+    width: 19px;
+    height: 19px;
+    flex-shrink: 0;
+    fill: rgba(255, 255, 255, 0.9);
+  }
+  .hdn-chip-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+  }
+  .hdn-chip-label {
+    font-size: 0.66em;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+  }
+  .hdn-chip-value {
+    font-size: 1.15em;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .hdn-chip-lit {
+    border-color: rgba(255, 209, 102, 0.75);
+    box-shadow: 0 0 14px rgba(255, 209, 102, 0.3);
+  }
+  .hdn-chip-lit .hdn-chip-icon {
+    fill: #FFD166;
+  }
+  .hdn-chip-button {
+    margin-left: auto;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.7em;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
+  }
+  .hdn-chip-button:hover,
+  .hdn-chip-button:focus-visible {
+    background: rgba(255, 255, 255, 0.3);
+    outline: none;
+  }
+  /* The rotation itself is driven from JS (see _applyWheelSpin) so that a
+     speed change retimes the running animation instead of restarting it. */
   .hdn-wheel-spin {
-    transform-origin: 100px 100px;
-    animation-name: spinWheel;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-  }
-  @keyframes spinWheel {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    transform-origin: 110px 100px;
   }
   .hdn-hamster-run {
     animation: runBob 0.5s ease-in-out infinite;
-    transform-origin: 100px 172px;
+    transform-origin: 108px 164px;
+  }
+  /* Wheel parked mid-session: stop the hamster bobbing along with it. */
+  .hdn-scene-idle .hdn-hamster-run {
+    animation-play-state: paused;
   }
   @keyframes runBob {
     0%, 100% { transform: translateY(0); }
@@ -485,8 +872,8 @@ HamsterDayNightCard.styles = `
     50% { transform: scale(1.03); opacity: 0.92; }
   }
   .hdn-zzz {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 800;
     fill: #ffffff;
     opacity: 0;
     animation: floatZzz 3s ease-in infinite;
@@ -495,70 +882,50 @@ HamsterDayNightCard.styles = `
   .hdn-zzz-2 { animation-delay: 0.6s; }
   .hdn-zzz-3 { animation-delay: 1.2s; }
   @keyframes floatZzz {
-    0% { opacity: 0; transform: translateY(6px); }
+    0% { opacity: 0; transform: translateY(8px); }
     15% { opacity: 0.9; }
     80% { opacity: 0.3; }
-    100% { opacity: 0; transform: translateY(-14px); }
-  }
-  .hdn-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-    padding: 14px 16px;
-  }
-  .hdn-stat {
-    display: flex;
-    flex-direction: column;
-  }
-  .hdn-stat-label {
-    font-size: 0.75em;
-    color: var(--secondary-text-color);
-  }
-  .hdn-stat-value {
-    font-size: 1em;
-    font-weight: 600;
-    color: var(--primary-text-color);
-  }
-  .hdn-footer {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 16px 14px;
-    font-size: 0.8em;
-  }
-  .hdn-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .hdn-status-label {
-    font-weight: 600;
+    100% { opacity: 0; transform: translateY(-16px); }
   }
   .hdn-clickable {
     cursor: pointer;
-    border-radius: 8px;
-    padding: 4px 6px;
-    margin: -4px -6px;
-    transition: background-color 0.15s ease;
   }
-  .hdn-clickable:hover,
   .hdn-clickable:focus-visible {
-    background-color: var(--secondary-background-color, rgba(127, 127, 127, 0.15));
-    outline: none;
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 
-  @media (max-width: 380px) {
+  @media (prefers-reduced-motion: reduce) {
+    .hdn-hamster-run,
+    .hdn-hamster-sleep,
+    .hdn-zzz,
+    .hdn-sun {
+      animation: none;
+    }
+  }
+
+  /* Narrow cards (sidebar columns, phones): stack the chips under the
+     scene instead of squeezing both into two columns. */
+  @media (max-width: 460px) {
+    .hdn-body {
+      grid-template-columns: 1fr;
+    }
+    .hdn-chips {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+    .hdn-chip {
+      flex: 1 1 45%;
+    }
+    .hdn-chip-wide {
+      flex-basis: 100%;
+    }
     .hdn-title {
-      font-size: 1.1em;
+      font-size: 1.3em;
     }
     .hdn-scene-svg {
-      max-height: 170px;
-    }
-    .hdn-stats {
-      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-      gap: 6px;
-      padding: 10px 12px;
+      max-height: 190px;
     }
   }
 `;
@@ -570,12 +937,12 @@ window.customCards.push({
   type: "hamster-day-night-card",
   name: "Hamster Fitness: Day & Night",
   description:
-    "Zeigt den Hamster animiert im Laufrad (nachts/aktiv) oder schlafend im Nest (tagsüber/ruhend), mit sonnenstand-abhängigem Hintergrund.",
+    "Zeigt den Hamster animiert im Laufrad (aktiv) oder schlafend im Nest (ruhend), mit sonnenstand-abhängigem Himmel und den Messwerten direkt in der Szene.",
 });
 
 /**
  * Visual editor ("Configure card" dialog), backed by <ha-form> - same
- * pattern as the other two cards' editors.
+ * pattern as the other cards' editors.
  */
 const DAY_NIGHT_EDITOR_SCHEMA = [
   {
@@ -589,16 +956,18 @@ const DAY_NIGHT_EDITOR_SCHEMA = [
   { name: "show_active_duration", selector: { boolean: {} } },
   { name: "show_rest_duration", selector: { boolean: {} } },
   { name: "show_climate", selector: { boolean: {} } },
+  { name: "show_light", selector: { boolean: {} } },
 ];
 
 const DAY_NIGHT_EDITOR_LABELS = {
   entity: "Health-Score-Sensor des Hamsters",
   title: "Titel (optional)",
   show_speed: "Geschwindigkeit anzeigen",
-  show_distance: "Distanz anzeigen",
-  show_active_duration: "Aktuelle Lauf-Dauer anzeigen",
+  show_distance: "Nachtdistanz anzeigen",
+  show_active_duration: "Lauf-Dauer anzeigen",
   show_rest_duration: "Ruhezeit anzeigen",
   show_climate: "Temperatur/Luftfeuchtigkeit anzeigen",
+  show_light: "Käfiglicht anzeigen (mit Pause-Button)",
 };
 
 class HamsterDayNightCardEditor extends HTMLElement {
