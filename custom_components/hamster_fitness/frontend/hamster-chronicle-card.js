@@ -1,0 +1,562 @@
+/**
+ * Hamster Fitness: Chronicle
+ *
+ * Every hamster that ever lived in this Home Assistant, in one list -
+ * the ones currently set up and the ones long gone, each in its own coat
+ * colour with move-in and move-out dates.
+ *
+ * The two halves come from different places, because they have to:
+ *
+ * - Current hamsters (including departed ones whose config entry still
+ *   exists) are discovered through the entity registry, the same way the
+ *   ranking card does it - platform "hamster_fitness", translation_key
+ *   "lifetime_distance" - so it works whatever language the entity_ids
+ *   ended up in, and needs no configuration.
+ * - Hamsters whose config entry has since been deleted have no entities
+ *   left to find. Those come from the lifetime archive, fetched once via
+ *   the `hamster_fitness/history` WebSocket command (see archive.py).
+ *   If that command is unavailable, the card simply shows the live half.
+ *
+ * Config:
+ *   type: custom:hamster-chronicle-card
+ *   title: Hamster-Chronik    # optional
+ *   columns:                  # optional - which stats to show per row
+ *     - distance
+ *     - top_speed
+ *     - days
+ *     - score
+ */
+
+import {
+  DEFAULT_FUR,
+  HEADER_STYLES,
+  isValidHex,
+  renderCardHeader,
+  shade,
+  siblingEntityId,
+  deviceDisplayName,
+  HAMSTER_PREFIX,
+} from "./hamster-fitness-shared.js";
+
+const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
+
+const ALL_COLUMNS = ["distance", "top_speed", "days", "score"];
+const DEFAULT_COLUMNS = ["distance", "days"];
+
+const COLUMN_LABELS = {
+  distance: "Gesamtdistanz",
+  top_speed: "Topspeed",
+  days: "Tage bei dir",
+  score: "Health Score",
+};
+
+const BREED_LABELS = {
+  golden: "Goldhamster",
+  teddy: "Teddyhamster",
+  winter_white: "Dsungarischer Zwerghamster",
+  campbell: "Campbell-Zwerghamster",
+  roborovski: "Roborowski-Zwerghamster",
+  chinese: "Chinesischer Zwerghamster",
+  other: "Sonstige",
+};
+
+// Small hamster silhouette, tinted per row with that hamster's own colour.
+const HAMSTER_MARK = `
+<svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">
+  <ellipse cx="24" cy="30" rx="14" ry="11" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1.2"/>
+  <ellipse cx="15" cy="34" rx="4" ry="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <ellipse cx="33" cy="34" rx="4" ry="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="24" cy="17" r="9.5" fill="var(--row-fur-light)" stroke="var(--row-fur-dark)" stroke-width="1.2"/>
+  <circle cx="17" cy="10" r="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="31" cy="10" r="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="20" cy="16" r="1.4" fill="#3a2a1a"/>
+  <circle cx="28" cy="16" r="1.4" fill="#3a2a1a"/>
+  <ellipse cx="24" cy="20" rx="2.2" ry="1.6" fill="#f4d9c6"/>
+</svg>
+`;
+
+const LOGO_CHRONICLE = `
+<svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">
+  <rect x="8" y="7" width="32" height="34" rx="4" fill="#ffffff" opacity="0.92"/>
+  <rect x="8" y="7" width="9" height="34" rx="4" fill="#C19A6B"/>
+  <g stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" opacity="0.65">
+    <line x1="22" y1="16" x2="35" y2="16"/>
+    <line x1="22" y1="23" x2="35" y2="23"/>
+    <line x1="22" y1="30" x2="31" y2="30"/>
+  </g>
+</svg>
+`;
+
+function fmtNumber(value, decimals, unit) {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) return "–";
+  const num = Number(value).toFixed(decimals).replace(".", ",");
+  return unit ? `${num} ${unit}` : num;
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function daysBetween(fromIso, toIso) {
+  if (!fromIso) return null;
+  const from = new Date(fromIso);
+  const to = toIso ? new Date(toIso) : new Date();
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000));
+}
+
+class HamsterChronicleCard extends HTMLElement {
+  setConfig(config) {
+    const columns = Array.isArray(config && config.columns)
+      ? config.columns.filter((name) => ALL_COLUMNS.includes(name))
+      : DEFAULT_COLUMNS;
+    this._config = { ...(config || {}), columns };
+
+    if (!this._root) {
+      this.innerHTML = `
+        <ha-card>
+          <div class="hch-root">
+            <div class="hch-banner"></div>
+            <div class="hch-body"></div>
+          </div>
+        </ha-card>
+        <style>${HamsterChronicleCard.styles}</style>
+      `;
+      this._root = this.querySelector(".hch-root");
+      this._bannerEl = this.querySelector(".hch-banner");
+      this._bodyEl = this.querySelector(".hch-body");
+
+      const openMoreInfo = (target) => {
+        this.dispatchEvent(
+          new CustomEvent("hass-more-info", {
+            detail: { entityId: target.dataset.entity },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      };
+      this._root.addEventListener("click", (ev) => {
+        const target = ev.target.closest("[data-entity]");
+        if (target) openMoreInfo(target);
+      });
+      this._root.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const target = ev.target.closest("[data-entity]");
+        if (!target) return;
+        ev.preventDefault();
+        openMoreInfo(target);
+      });
+    }
+    this._render();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (first) this._loadArchive();
+    this._render();
+  }
+
+  getCardSize() {
+    return 5;
+  }
+
+  static getConfigElement() {
+    return document.createElement("hamster-chronicle-card-editor");
+  }
+
+  static getStubConfig() {
+    return { title: "Hamster-Chronik", columns: DEFAULT_COLUMNS };
+  }
+
+  /**
+   * Fetches archived hamsters once per card instance. Deliberately
+   * tolerant: an older integration version (or a Home Assistant that has
+   * not registered the command yet) just means the archived half stays
+   * empty, rather than the whole card failing.
+   */
+  async _loadArchive() {
+    if (!this._hass || typeof this._hass.callWS !== "function") return;
+    try {
+      const result = await this._hass.callWS({ type: "hamster_fitness/history" });
+      this._archive = (result && result.hamsters) || [];
+    } catch (err) {
+      this._archive = [];
+      this._archiveFailed = true;
+    }
+    this._render();
+  }
+
+  _capitalize(text) {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  /** Hamsters that still have entities in this Home Assistant. */
+  _liveHamsters() {
+    const entities = this._hass.entities || {};
+    return Object.entries(entities)
+      .filter(
+        ([, entry]) =>
+          entry.platform === "hamster_fitness" &&
+          entry.translation_key === "lifetime_distance"
+      )
+      .map(([id]) => {
+        const state = this._hass.states[id];
+        const scoreId = siblingEntityId(this._hass, id, "health_score");
+        const score = scoreId && this._hass.states[scoreId];
+        const speedId = siblingEntityId(this._hass, id, "max_speed_tonight");
+        const departureId = siblingEntityId(this._hass, id, "departure_date");
+        const departure = departureId && this._hass.states[departureId];
+        const departureDate =
+          departure && departure.state && departure.state !== "unknown"
+            ? departure.state
+            : null;
+        const attrs = (score && score.attributes) || {};
+        const match = id.match(LIFETIME_DISTANCE_PATTERN);
+        const slug = match ? match[1].replace(HAMSTER_PREFIX, "") : id;
+
+        return {
+          entityId: scoreId || id,
+          name: deviceDisplayName(this._hass, id) || this._capitalize(slug),
+          breed: attrs.breed,
+          breedOther: attrs.breed_other,
+          coatHex: isValidHex(attrs.coat_color_hex) ? attrs.coat_color_hex : DEFAULT_FUR,
+          acquisitionDate: attrs.acquisition_date,
+          departureDate,
+          distance: state ? Number(state.state) : NaN,
+          topSpeed: speedId && this._hass.states[speedId]
+            ? Number(this._hass.states[speedId].state)
+            : NaN,
+          score: score ? Number(score.state) : NaN,
+          archived: false,
+        };
+      });
+  }
+
+  /** Hamsters whose config entry is gone, read from the archive file. */
+  _archivedHamsters(liveNames) {
+    return (this._archive || [])
+      // A hamster that is both archived and still configured would show
+      // up twice; the live entry wins, since its numbers keep updating.
+      .filter((record) => !liveNames.has(record.name))
+      .map((record) => ({
+        entityId: null,
+        name: record.name,
+        breed: record.breed,
+        breedOther: record.breed_other,
+        coatHex: isValidHex(record.coat_color_hex) ? record.coat_color_hex : DEFAULT_FUR,
+        acquisitionDate: record.acquisition_date,
+        departureDate: record.departure_date,
+        distance: Number(record.lifetime_distance_km),
+        topSpeed: Number(record.lifetime_max_speed_kmh),
+        score: Number(record.final_health_score),
+        days: record.days_with_you,
+        archived: true,
+      }));
+  }
+
+  _breedLabel(row) {
+    if (row.breed === "other" && row.breedOther) return row.breedOther;
+    return BREED_LABELS[row.breed] || null;
+  }
+
+  _columnValue(row, column) {
+    switch (column) {
+      case "distance":
+        return fmtNumber(row.distance, 1, "km");
+      case "top_speed":
+        return fmtNumber(row.topSpeed, 1, "km/h");
+      case "days": {
+        const days =
+          row.days !== undefined && row.days !== null
+            ? row.days
+            : daysBetween(row.acquisitionDate, row.departureDate);
+        return days === null ? "–" : `${days}`;
+      }
+      case "score":
+        return fmtNumber(row.score, 0, "%");
+      default:
+        return "–";
+    }
+  }
+
+  _row(row) {
+    const period = [fmtDate(row.acquisitionDate), fmtDate(row.departureDate)];
+    const periodText = period[0]
+      ? period[1]
+        ? `${period[0]} – ${period[1]}`
+        : `seit ${period[0]}`
+      : row.archived
+        ? "Zeitraum unbekannt"
+        : "";
+
+    const stats = this._config.columns
+      .map(
+        (column) => `
+          <div class="hch-stat">
+            <span class="hch-stat-label">${COLUMN_LABELS[column]}</span>
+            <span class="hch-stat-value">${this._columnValue(row, column)}</span>
+          </div>
+        `
+      )
+      .join("");
+
+    const clickable = row.entityId
+      ? `data-entity="${row.entityId}" tabindex="0" role="button"`
+      : "";
+    const breed = this._breedLabel(row);
+
+    return `
+      <div class="hch-row${row.entityId ? " hch-clickable" : ""}${row.departureDate ? " hch-past" : ""}"
+           style="--row-fur: ${row.coatHex}; --row-fur-light: ${shade(row.coatHex, 0.18)}; --row-fur-dark: ${shade(row.coatHex, -0.4)}"
+           ${clickable}>
+        <span class="hch-mark">${HAMSTER_MARK}</span>
+        <div class="hch-ident">
+          <span class="hch-name">
+            ${row.name}
+            ${row.departureDate ? '<span class="hch-tag">ausgezogen</span>' : ""}
+            ${row.archived ? '<span class="hch-tag hch-tag-archive">Archiv</span>' : ""}
+          </span>
+          <span class="hch-meta">${[breed, periodText].filter(Boolean).join(" · ")}</span>
+        </div>
+        <div class="hch-stats">${stats}</div>
+      </div>
+    `;
+  }
+
+  _render() {
+    if (!this._hass || !this._root || !this._config) return;
+
+    const live = this._liveHamsters();
+    const liveNames = new Set(live.map((row) => row.name));
+    const rows = [...live, ...this._archivedHamsters(liveNames)].sort((a, b) => {
+      // Current hamsters first, then by move-in date, newest first.
+      if (!!a.departureDate !== !!b.departureDate) return a.departureDate ? 1 : -1;
+      return String(b.acquisitionDate || "").localeCompare(String(a.acquisitionDate || ""));
+    });
+
+    this._bannerEl.innerHTML = renderCardHeader({
+      logoSvg: LOGO_CHRONICLE,
+      title: (this._config.title || "Hamster-Chronik").toUpperCase(),
+      subtitle: "Gesamtübersicht",
+      badgeHtml: `<span class="hf-badge">${rows.length} ${rows.length === 1 ? "Hamster" : "Hamster"}</span>`,
+    });
+
+    if (rows.length === 0) {
+      this._bodyEl.innerHTML = `
+        <div class="hch-empty">
+          Noch keine Hamster gefunden. Sobald ein Hamster eingerichtet ist,
+          taucht er hier auf – und bleibt auch nach dem Auszug in der Chronik.
+        </div>
+      `;
+      return;
+    }
+
+    this._bodyEl.innerHTML = `
+      <div class="hch-rows">${rows.map((row) => this._row(row)).join("")}</div>
+      ${
+        this._archiveFailed
+          ? `<div class="hch-note">Das Lebenslauf-Archiv konnte nicht geladen werden – es werden nur aktuell eingerichtete Hamster angezeigt.</div>`
+          : ""
+      }
+    `;
+  }
+}
+
+HamsterChronicleCard.styles = `
+  ${HEADER_STYLES}
+
+  ha-card {
+    padding: 0;
+    overflow: hidden;
+  }
+  .hch-banner {
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #5c4a3a, #8B5A2B);
+  }
+  .hch-body {
+    padding: 10px 12px 14px;
+  }
+  .hch-empty,
+  .hch-note {
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    padding: 8px 4px;
+  }
+  .hch-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .hch-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 8px;
+    border-radius: 12px;
+    transition: background-color 0.15s ease;
+  }
+  .hch-past {
+    opacity: 0.72;
+  }
+  .hch-clickable {
+    cursor: pointer;
+  }
+  .hch-clickable:hover,
+  .hch-clickable:focus-visible {
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+    outline: none;
+  }
+  .hch-mark {
+    display: flex;
+    flex-shrink: 0;
+  }
+  .hch-ident {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+  .hch-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    color: var(--primary-text-color);
+  }
+  .hch-tag {
+    font-size: 0.62em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
+    color: var(--secondary-text-color);
+  }
+  .hch-tag-archive {
+    background: rgba(139, 90, 43, 0.18);
+  }
+  .hch-meta {
+    font-size: 0.76em;
+    color: var(--secondary-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hch-stats {
+    display: flex;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .hch-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+  }
+  .hch-stat-label {
+    font-size: 0.62em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hch-stat-value {
+    font-size: 0.98em;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 460px) {
+    .hch-row {
+      flex-wrap: wrap;
+    }
+    .hch-stats {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 16px;
+      padding-left: 41px;
+    }
+    .hch-stat {
+      align-items: flex-start;
+    }
+  }
+`;
+
+customElements.define("hamster-chronicle-card", HamsterChronicleCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "hamster-chronicle-card",
+  name: "Hamster Fitness: Chronik",
+  description:
+    "Alle Hamster dieses Home Assistant auf einen Blick - aktuelle und längst ausgezogene, mit Zeitraum und wählbaren Kennzahlen.",
+});
+
+const CHRONICLE_EDITOR_SCHEMA = [
+  { name: "title", selector: { text: {} } },
+  {
+    name: "columns",
+    selector: {
+      select: {
+        multiple: true,
+        mode: "list",
+        options: ALL_COLUMNS.map((value) => ({ value, label: COLUMN_LABELS[value] })),
+      },
+    },
+  },
+];
+
+const CHRONICLE_EDITOR_LABELS = {
+  title: "Titel (optional)",
+  columns: "Angezeigte Kennzahlen",
+};
+
+class HamsterChronicleCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { columns: DEFAULT_COLUMNS, ...config };
+    this._renderForm();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._renderForm();
+  }
+
+  _renderForm() {
+    if (!this._hass || !this._config) return;
+
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (schema) =>
+        CHRONICLE_EDITOR_LABELS[schema.name] || schema.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        this._config = ev.detail.value;
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config: this._config },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this.appendChild(this._form);
+    }
+
+    this._form.hass = this._hass;
+    this._form.schema = CHRONICLE_EDITOR_SCHEMA;
+    this._form.data = this._config;
+  }
+}
+
+customElements.define("hamster-chronicle-card-editor", HamsterChronicleCardEditor);
