@@ -41,7 +41,6 @@ class HamsterDepartureDateEntity(
 
     _attr_has_entity_name = True
     _attr_translation_key = "departure_date"
-    _attr_icon = "mdi:calendar-heart"
 
     def __init__(
         self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
