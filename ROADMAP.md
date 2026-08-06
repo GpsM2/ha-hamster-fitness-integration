@@ -164,6 +164,21 @@ items stay listed so the history stays traceable.
   running Home Assistant in English. `translations/en.json` now mirrors
   `strings.json` and needs to be kept in sync by hand going forward (see
   CLAUDE.md)
+- Third dashboard card, `hamster-day-night-card` ("Hamster
+  Fitness: Day & Night"): the hamster runs animated in its wheel (speed-
+  coupled spin) at night/while active, or sleeps in a nest during the
+  day/while resting - driven by two new sensors,
+  `sensor.<hamster>_night_active_duration` and
+  `sensor.<hamster>_day_rest_duration` (mutually exclusive continuous
+  running/resting time, tolerates pauses under 30 minutes without ending
+  a session, survives Home Assistant restarts). Background is a sun-
+  position-driven gradient (`sun.sun`, independent of the activity state,
+  so a hamster napping at 2am correctly shows as sleeping rather than
+  spinning just because it's dark). All three cards were renamed to a
+  shared "Hamster Fitness: X" naming scheme in the card picker for
+  consistency (cosmetic only, `custom:type` ids unchanged). Shared entity/
+  device lookup helpers extracted into `hamster-fitness-shared.js` so the
+  logic isn't duplicated across card files.
 
 ## 🚧 Planned
 

@@ -146,6 +146,12 @@
       },
       "max_speed_tonight": {
         "name": "Top speed tonight"
+      },
+      "night_active_duration": {
+        "name": "Active duration"
+      },
+      "day_rest_duration": {
+        "name": "Rest duration"
       }
     },
     "binary_sensor": {

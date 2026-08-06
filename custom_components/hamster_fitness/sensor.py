@@ -7,7 +7,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfSpeed, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -37,6 +37,8 @@ async def async_setup_entry(
         HamsterDailyDistanceSensor(coordinator, entry),
         HamsterNightDistanceSensor(coordinator, entry),
         HamsterLifetimeDistanceSensor(coordinator, entry),
+        HamsterNightActiveDurationSensor(coordinator, entry),
+        HamsterDayRestDurationSensor(coordinator, entry),
     ]
     # Nur anlegen, wenn beim Einrichten ein entsprechender Quell-Sensor
     # ausgewählt wurde - siehe CONF_HUMIDITY_SENSOR/CONF_SPEED_SENSOR in
@@ -158,6 +160,58 @@ class HamsterNightDistanceSensor(HamsterFitnessSensorBase):
     def native_value(self) -> float:
         """Return tonight's distance in km."""
         return self.coordinator.data.night_distance_km
+
+
+class HamsterNightActiveDurationSensor(HamsterFitnessSensorBase):
+    """How long the current continuous running session has lasted.
+
+    A session starts on the first wheel movement after none was active,
+    and keeps running through short pauses (drinking, grooming) - only a
+    gap of SESSION_END_GAP_MINUTES (see coordinator.py) ends it, at which
+    point this drops back to 0. Tracked across restarts (unlike
+    max_speed_tonight) since a nightly Home Assistant update shouldn't
+    silently reset an in-progress session.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the night-active-duration sensor."""
+        super().__init__(coordinator, entry, "night_active_duration")
+
+    @property
+    def native_value(self) -> float:
+        """Return the current session's elapsed time in minutes (0 if resting)."""
+        return self.coordinator.data.night_active_duration_min
+
+
+class HamsterDayRestDurationSensor(HamsterFitnessSensorBase):
+    """How long the hamster has been continuously inactive since its last run.
+
+    Mutually exclusive with night_active_duration: this is 0 while a run
+    session is active, and starts counting the moment one ends.
+    """
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the day-rest-duration sensor."""
+        super().__init__(coordinator, entry, "day_rest_duration")
+
+    @property
+    def native_value(self) -> float:
+        """Return the current rest period's elapsed time in minutes (0 if active)."""
+        return self.coordinator.data.day_rest_duration_min
 
 
 class HamsterHumiditySensor(HamsterFitnessSensorBase):

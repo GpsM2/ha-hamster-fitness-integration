@@ -102,6 +102,12 @@ DAILY_RESET_HOUR: Final[int] = 9
 # die typische Aktivitätsphase ab.
 NIGHT_WINDOW_START_HOUR: Final[int] = 20
 
+# --- Aktivitäts-/Ruhe-Sensoren (night_active_duration / day_rest_duration) ---
+# Wie lange eine Laufpause andauern darf, bevor eine Lauf-Session als
+# beendet gilt (siehe coordinator.py's _calculate()). Kürzere Pausen
+# (z. B. Trinken, Putzen) unterbrechen die Session nicht.
+SESSION_END_GAP_MINUTES: Final[int] = 30
+
 # --- Storage ---
 STORAGE_VERSION: Final[int] = 1
 
@@ -132,6 +138,11 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "4",
-    }
+        "version": "5",
+    },
+    {
+        "name": "Hamster Day & Night Card",
+        "filename": "hamster-day-night-card.js",
+        "version": "1",
+    },
 ]

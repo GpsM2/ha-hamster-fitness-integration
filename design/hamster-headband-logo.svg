@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!--
+    Hamster Fitness card family - "running hamster with headband" logo,
+    side view (running motion reads more clearly from the side than
+    front-on). Used as a small inline icon in hamster-fitness-card.js's
+    header (see LOGO_HEADBAND_SVG there); this file is the larger,
+    editable source. Same illustration family as
+    hamster-dumbbell-logo.svg.
+  -->
+
+  <!-- back legs (mid push-off stride) -->
+  <path d="M78 122 Q60 128 48 148 Q46 154 52 155 Q58 156 62 150 Q72 134 84 128 Z"
+        fill="#C89666" stroke="#8B5A2B" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M92 130 Q84 146 70 158 Q66 162 70 166 Q75 169 80 164 Q96 148 104 134 Z"
+        fill="#D9A876" stroke="#8B5A2B" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- front legs (reaching forward) -->
+  <path d="M132 128 Q148 132 160 146 Q164 151 159 155 Q154 158 149 153 Q136 140 124 134 Z"
+        fill="#D9A876" stroke="#8B5A2B" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M124 138 Q136 148 142 164 Q144 169 138 171 Q133 173 130 167 Q120 152 114 142 Z"
+        fill="#C89666" stroke="#8B5A2B" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- stub tail -->
+  <circle cx="52" cy="108" r="8" fill="#C89666" stroke="#8B5A2B" stroke-width="2.5"/>
+
+  <!-- body -->
+  <ellipse cx="100" cy="112" rx="52" ry="34" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- head -->
+  <circle cx="146" cy="86" r="32" fill="#D9A876" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- ear -->
+  <circle cx="132" cy="60" r="10" fill="#C89666" stroke="#8B5A2B" stroke-width="3"/>
+
+  <!-- headband: clear thick arc across the forehead, tied with a small knot -->
+  <path d="M118 66 A30 30 0 0 1 172 78" fill="none" stroke="#e45c5c" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="120" cy="68" r="6" fill="#c73e3e"/>
+
+  <!-- face -->
+  <circle cx="160" cy="82" r="4.5" fill="#3a2a1a"/>
+  <ellipse cx="173" cy="92" rx="7" ry="5.5" fill="#f4d9c6" stroke="#8B5A2B" stroke-width="1.5"/>
+  <circle cx="176" cy="92" r="2.3" fill="#5c4030"/>
+
+  <!-- motion lines -->
+  <path d="M28 100 L44 100" stroke="#c9b8a3" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 114 L42 114" stroke="#c9b8a3" stroke-width="4" stroke-linecap="round"/>
+</svg>

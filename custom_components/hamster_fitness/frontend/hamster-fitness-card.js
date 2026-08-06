@@ -16,13 +16,13 @@
  * current_speed, max_speed_tonight, humidity, warning, door, weight,
  * departure_date) are found via the entity/device registry: same
  * device_id as `entity`, matched by translation_key (see siblingEntityId()
- * below). translation_key is a fixed English string set in Python and
- * never changes, unlike entity_id - which Home Assistant generates once
- * from the *translated* name active when the entity was first created, so
- * it can end up in German, French, etc. instead of English. If registry
- * data isn't available for some reason, this falls back to swapping
- * `entity`'s `_health_score` suffix, which only works when entity_id
- * happens to be English.
+ * in hamster-fitness-shared.js). translation_key is a fixed English
+ * string set in Python and never changes, unlike entity_id - which Home
+ * Assistant generates once from the *translated* name active when the
+ * entity was first created, so it can end up in German, French, etc.
+ * instead of English. If registry data isn't available for some reason,
+ * this falls back to swapping `entity`'s `_health_score` suffix, which
+ * only works when entity_id happens to be English.
  *
  * The entity_id itself only needs to END in "_health_score" - it does NOT
  * have to start with "hamster_". New hamsters get that prefix (see
@@ -33,51 +33,41 @@
  * over parsing the entity_id.
  */
 
+import {
+  HAMSTER_PREFIX,
+  deviceDisplayName,
+  siblingEntityId,
+} from "./hamster-fitness-shared.js";
+
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
 const DEFAULT_MAX_SPEED = 5;
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
-const HAMSTER_PREFIX = /^hamster_/;
 
 const RING_COLOR_NEUTRAL = "#00b8a9";
 
-/**
- * Finds a sibling entity on the same device by its translation_key.
- * translation_key is a fixed English string set in the integration's
- * Python code (e.g. "daily_distance") and never changes - unlike
- * entity_id, which Home Assistant generates once from the *translated*
- * name active when the entity was first created, so it can end up in
- * German, French, etc. instead of English. Returns null if the entity/
- * device registry data isn't available yet or there's no match.
- */
-function siblingEntityId(hass, entityId, translationKey) {
-  const entities = hass && hass.entities;
-  const self = entities && entities[entityId];
-  const deviceId = self && self.device_id;
-  if (!deviceId) return null;
-  for (const [id, entry] of Object.entries(entities)) {
-    if (entry.device_id === deviceId && entry.translation_key === translationKey) {
-      return id;
-    }
-  }
-  return null;
-}
-
-/**
- * Resolves the display title from the device's own name, which is set
- * once from the hamster's actual name and never translated (see
- * hamster_device_info() in coordinator.py) - unlike the entity_id slug,
- * which may be in any language.
- */
-function deviceDisplayName(hass, entityId) {
-  const entities = hass && hass.entities;
-  const devices = hass && hass.devices;
-  const self = entities && entities[entityId];
-  const device = self && devices && devices[self.device_id];
-  const name = device && (device.name_by_user || device.name);
-  return name ? name.replace(/^Hamster\s+/, "") : null;
-}
+// Running hamster with a headband - same illustration family as the
+// Day & Night card's dumbbell logo (see hamster-day-night-card.js and
+// design/hamster-headband-logo.svg), just for visual consistency between
+// the two cards' headers.
+const LOGO_HEADBAND_SVG = `
+<svg viewBox="0 0 48 48" width="28" height="28" aria-hidden="true">
+  <ellipse cx="24" cy="30" rx="14" ry="11" fill="#C89666"/>
+  <ellipse cx="24" cy="30" rx="14" ry="11" fill="none" stroke="#8B5A2B" stroke-width="1"/>
+  <ellipse cx="15" cy="34" rx="4.2" ry="3" fill="#C89666" stroke="#8B5A2B" stroke-width="1"/>
+  <ellipse cx="33" cy="34" rx="4.2" ry="3" fill="#C89666" stroke="#8B5A2B" stroke-width="1"/>
+  <circle cx="24" cy="17" r="9.5" fill="#D9A876"/>
+  <circle cx="24" cy="17" r="9.5" fill="none" stroke="#8B5A2B" stroke-width="1"/>
+  <path d="M15.5 12.5 A9.5 9.5 0 0 1 32.5 12.5 L31 9.5 A11 11 0 0 0 17 9.5 Z" fill="#e45c5c"/>
+  <circle cx="17" cy="10" r="2.6" fill="#C89666" stroke="#8B5A2B" stroke-width="1"/>
+  <circle cx="31" cy="10" r="2.6" fill="#C89666" stroke="#8B5A2B" stroke-width="1"/>
+  <circle cx="20" cy="16" r="1.4" fill="#3a2a1a"/>
+  <circle cx="28" cy="16" r="1.4" fill="#3a2a1a"/>
+  <ellipse cx="24" cy="20" rx="2.2" ry="1.6" fill="#f4d9c6"/>
+  <circle cx="24" cy="19.3" r="0.7" fill="#5c4030"/>
+</svg>
+`;
 
 class HamsterFitnessCard extends HTMLElement {
   setConfig(config) {
@@ -277,7 +267,7 @@ class HamsterFitnessCard extends HTMLElement {
 
     this.content.innerHTML = `
       <div class="hfc-header">
-        <span class="hfc-title">🐹 ${title}</span>
+        <span class="hfc-title">${LOGO_HEADBAND_SVG} ${title}</span>
         ${isDeparted ? '<span class="hfc-badge hfc-badge-muted">Ausgezogen</span>' : ""}
       </div>
 
@@ -369,9 +359,15 @@ HamsterFitnessCard.styles = `
     margin-bottom: 8px;
   }
   .hfc-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 1.2em;
     font-weight: 600;
     color: var(--primary-text-color);
+  }
+  .hfc-title svg {
+    flex-shrink: 0;
   }
   .hfc-badge {
     font-size: 0.75em;
@@ -559,7 +555,7 @@ customElements.define("hamster-fitness-card", HamsterFitnessCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "hamster-fitness-card",
-  name: "Hamster Fitness Card",
+  name: "Hamster Fitness: Health Score",
   description:
     "Zeigt Health Score und Live-Geschwindigkeit als Ringe, plus Distanzen, Klima und Status eines Hamsters aus der Hamster-Fitness-Integration.",
 });
@@ -795,7 +791,7 @@ customElements.define("hamster-fitness-ranking-card", HamsterFitnessRankingCard)
 
 window.customCards.push({
   type: "hamster-fitness-ranking-card",
-  name: "Hamster Fitness Ranking Card",
+  name: "Hamster Fitness: Ranking",
   description:
     "Vergleicht alle Hamster in diesem Home Assistant nach Lebenszeit-Distanz - erkennt sie automatisch, keine Konfiguration nötig.",
 });
