@@ -283,16 +283,30 @@ items stay listed so the history stays traceable.
   `tests/test_frontend_resources.py` erzwingt, dass sie in allen
   Kartendateien gesetzt ist und übereinstimmt.
 
+- **Cards follow Home Assistant's language now.** Everything Python-side
+  already did, but the four Lovelace cards carried hardcoded German -
+  roughly 130 strings, from chip labels to the husbandry tips in the
+  health-score modals. They now resolve through a translation table in
+  `hamster-fitness-shared.js`, English as source and fallback, German
+  applied automatically from `hass.language`. Deliberately not via
+  `strings.json`: Home Assistant only loads a fixed set of translation
+  categories into the frontend and card text fits none of them, so
+  `hass.localize` cannot reach a custom category (Python-side runtime
+  text solves the same problem from the other end, see `runtime_text.py`).
+  Numbers, dates, times and weekday abbreviations go through `Intl` with
+  the active locale instead of a hardcoded comma and `de-DE`. Where no
+  `hass` exists yet - `setConfig()` errors and the card-picker entries,
+  both of which run before it is assigned - the browser's own language
+  stands in, so a misconfigured card still explains itself in German to a
+  German user. Three new tests guard it: every key a card uses must exist
+  in the English table, a German-only key is treated as a typo, and an
+  umlaut outside the table fails the build.
+
 ## 🚧 Planned
 
 - Enable branch protection on `main` (block force-push/deletion, ideally
   require PR review) once the repo goes public - GitHub only offers this
   for private repos on paid plans, so it's on hold until then.
-- Card localisation. Python-side text (config flow, entity names, warning
-  and notification messages) follows Home Assistant's language, but the
-  four Lovelace cards still carry hardcoded German labels. Worth moving
-  them through the same `strings.json` mechanism, or at least an
-  English/German switch, before the repo goes public.
 - The 7-day trend records the score standing at `DAILY_RESET_HOUR`, i.e.
   one snapshot per day rather than a daily average. Fine as a trend, but
   a day that dipped and recovered looks unremarkable - worth revisiting

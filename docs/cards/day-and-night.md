@@ -65,3 +65,4 @@ show_climate: false
   wheel stutter. Speed changes now retime the running animation instead
   of restarting it.
 - With `prefers-reduced-motion` set, the animations are skipped.
+- The card's text follows `hass.language` (English and German).

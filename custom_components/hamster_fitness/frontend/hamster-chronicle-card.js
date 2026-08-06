@@ -30,35 +30,41 @@
 import {
   DEFAULT_FUR,
   HEADER_STYLES,
+  fmtDate,
+  fmtNumber,
   isValidHex,
   renderCardHeader,
   shade,
   siblingEntityId,
   deviceDisplayName,
+  t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=2";
+} from "./hamster-fitness-shared.js?v=3";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
 const ALL_COLUMNS = ["distance", "top_speed", "days", "score"];
 const DEFAULT_COLUMNS = ["distance", "days"];
 
+// Translation keys (see hamster-fitness-shared.js), resolved per render.
 const COLUMN_LABELS = {
-  distance: "Gesamtdistanz",
-  top_speed: "Topspeed",
-  days: "Tage bei dir",
-  score: "Health Score",
+  distance: "chronicle.colDistance",
+  top_speed: "chronicle.colTopSpeed",
+  days: "chronicle.colDays",
+  score: "chronicle.colScore",
 };
 
-const BREED_LABELS = {
-  golden: "Goldhamster",
-  teddy: "Teddyhamster",
-  winter_white: "Dsungarischer Zwerghamster",
-  campbell: "Campbell-Zwerghamster",
-  roborovski: "Roborowski-Zwerghamster",
-  chinese: "Chinesischer Zwerghamster",
-  other: "Sonstige",
-};
+// Mirrors const.py's BREEDS. Breeds the integration doesn't know show no
+// label at all rather than a raw key.
+const BREED_KEYS = new Set([
+  "golden",
+  "teddy",
+  "winter_white",
+  "campbell",
+  "roborovski",
+  "chinese",
+  "other",
+]);
 
 // Small hamster silhouette, tinted per row with that hamster's own colour.
 const HAMSTER_MARK = `
@@ -86,23 +92,6 @@ const LOGO_CHRONICLE = `
   </g>
 </svg>
 `;
-
-function fmtNumber(value, decimals, unit) {
-  if (value === undefined || value === null || Number.isNaN(Number(value))) return "–";
-  const num = Number(value).toFixed(decimals).replace(".", ",");
-  return unit ? `${num} ${unit}` : num;
-}
-
-function fmtDate(iso) {
-  if (!iso) return null;
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
 
 function daysBetween(fromIso, toIso) {
   if (!fromIso) return null;
@@ -173,7 +162,7 @@ class HamsterChronicleCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { title: "Hamster-Chronik", columns: DEFAULT_COLUMNS };
+    return { title: t(null, "chronicle.title"), columns: DEFAULT_COLUMNS };
   }
 
   /**
@@ -264,15 +253,15 @@ class HamsterChronicleCard extends HTMLElement {
 
   _breedLabel(row) {
     if (row.breed === "other" && row.breedOther) return row.breedOther;
-    return BREED_LABELS[row.breed] || null;
+    return BREED_KEYS.has(row.breed) ? t(this._hass, `breed.${row.breed}`) : null;
   }
 
   _columnValue(row, column) {
     switch (column) {
       case "distance":
-        return fmtNumber(row.distance, 1, "km");
+        return fmtNumber(this._hass, row.distance, 1, "km");
       case "top_speed":
-        return fmtNumber(row.topSpeed, 1, "km/h");
+        return fmtNumber(this._hass, row.topSpeed, 1, "km/h");
       case "days": {
         const days =
           row.days !== undefined && row.days !== null
@@ -281,27 +270,28 @@ class HamsterChronicleCard extends HTMLElement {
         return days === null ? "–" : `${days}`;
       }
       case "score":
-        return fmtNumber(row.score, 0, "%");
+        return fmtNumber(this._hass, row.score, 0, "%");
       default:
         return "–";
     }
   }
 
   _row(row) {
-    const period = [fmtDate(row.acquisitionDate), fmtDate(row.departureDate)];
-    const periodText = period[0]
-      ? period[1]
-        ? `${period[0]} – ${period[1]}`
-        : `seit ${period[0]}`
+    const from = fmtDate(this._hass, row.acquisitionDate);
+    const until = fmtDate(this._hass, row.departureDate);
+    const periodText = from
+      ? until
+        ? `${from} \u2013 ${until}`
+        : t(this._hass, "chronicle.since", { date: from })
       : row.archived
-        ? "Zeitraum unbekannt"
+        ? t(this._hass, "chronicle.unknownPeriod")
         : "";
 
     const stats = this._config.columns
       .map(
         (column) => `
           <div class="hch-stat">
-            <span class="hch-stat-label">${COLUMN_LABELS[column]}</span>
+            <span class="hch-stat-label">${t(this._hass, COLUMN_LABELS[column])}</span>
             <span class="hch-stat-value">${this._columnValue(row, column)}</span>
           </div>
         `
@@ -321,8 +311,8 @@ class HamsterChronicleCard extends HTMLElement {
         <div class="hch-ident">
           <span class="hch-name">
             ${row.name}
-            ${row.departureDate ? '<span class="hch-tag">ausgezogen</span>' : ""}
-            ${row.archived ? '<span class="hch-tag hch-tag-archive">Archiv</span>' : ""}
+            ${row.departureDate ? `<span class="hch-tag">${t(this._hass, "chronicle.movedOut")}</span>` : ""}
+            ${row.archived ? `<span class="hch-tag hch-tag-archive">${t(this._hass, "chronicle.archived")}</span>` : ""}
           </span>
           <span class="hch-meta">${[breed, periodText].filter(Boolean).join(" · ")}</span>
         </div>
@@ -344,17 +334,14 @@ class HamsterChronicleCard extends HTMLElement {
 
     this._bannerEl.innerHTML = renderCardHeader({
       logoSvg: LOGO_CHRONICLE,
-      title: (this._config.title || "Hamster-Chronik").toUpperCase(),
-      subtitle: "Gesamtübersicht",
-      badgeHtml: `<span class="hf-badge">${rows.length} ${rows.length === 1 ? "Hamster" : "Hamster"}</span>`,
+      title: (this._config.title || t(this._hass, "chronicle.title")).toUpperCase(),
+      subtitle: t(this._hass, "chronicle.subtitle"),
+      badgeHtml: `<span class="hf-badge">${t(this._hass, "chronicle.count", { count: rows.length })}</span>`,
     });
 
     if (rows.length === 0) {
       this._bodyEl.innerHTML = `
-        <div class="hch-empty">
-          Noch keine Hamster gefunden. Sobald ein Hamster eingerichtet ist,
-          taucht er hier auf – und bleibt auch nach dem Auszug in der Chronik.
-        </div>
+        <div class="hch-empty">${t(this._hass, "chronicle.empty")}</div>
       `;
       return;
     }
@@ -363,7 +350,7 @@ class HamsterChronicleCard extends HTMLElement {
       <div class="hch-rows">${rows.map((row) => this._row(row)).join("")}</div>
       ${
         this._archiveFailed
-          ? `<div class="hch-note">Das Lebenslauf-Archiv konnte nicht geladen werden – es werden nur aktuell eingerichtete Hamster angezeigt.</div>`
+          ? `<div class="hch-note">${t(this._hass, "chronicle.archiveFailed")}</div>`
           : ""
       }
     `;
@@ -497,9 +484,8 @@ customElements.define("hamster-chronicle-card", HamsterChronicleCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "hamster-chronicle-card",
-  name: "Hamster Fitness: Chronik",
-  description:
-    "Alle Hamster dieses Home Assistant auf einen Blick - aktuelle und längst ausgezogene, mit Zeitraum und wählbaren Kennzahlen.",
+  name: t(null, "chronicle.pickerName"),
+  description: t(null, "chronicle.pickerDescription"),
 });
 
 const CHRONICLE_EDITOR_SCHEMA = [
@@ -510,15 +496,15 @@ const CHRONICLE_EDITOR_SCHEMA = [
       select: {
         multiple: true,
         mode: "list",
-        options: ALL_COLUMNS.map((value) => ({ value, label: COLUMN_LABELS[value] })),
+        options: [],
       },
     },
   },
 ];
 
 const CHRONICLE_EDITOR_LABELS = {
-  title: "Titel (optional)",
-  columns: "Angezeigte Kennzahlen",
+  title: "common.optionalTitle",
+  columns: "chronicle.columns",
 };
 
 class HamsterChronicleCardEditor extends HTMLElement {
@@ -538,7 +524,9 @@ class HamsterChronicleCardEditor extends HTMLElement {
     if (!this._form) {
       this._form = document.createElement("ha-form");
       this._form.computeLabel = (schema) =>
-        CHRONICLE_EDITOR_LABELS[schema.name] || schema.name;
+        CHRONICLE_EDITOR_LABELS[schema.name]
+          ? t(this._hass, CHRONICLE_EDITOR_LABELS[schema.name])
+          : schema.name;
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this._config = ev.detail.value;
@@ -553,8 +541,27 @@ class HamsterChronicleCardEditor extends HTMLElement {
       this.appendChild(this._form);
     }
 
+    // The column options carry translated labels, so the schema is built
+    // here rather than at module load - `hass` only exists by now.
+    const schema = CHRONICLE_EDITOR_SCHEMA.map((entry) =>
+      entry.name === "columns"
+        ? {
+            ...entry,
+            selector: {
+              select: {
+                ...entry.selector.select,
+                options: ALL_COLUMNS.map((value) => ({
+                  value,
+                  label: t(this._hass, COLUMN_LABELS[value]),
+                })),
+              },
+            },
+          }
+        : entry
+    );
+
     this._form.hass = this._hass;
-    this._form.schema = CHRONICLE_EDITOR_SCHEMA;
+    this._form.schema = schema;
     this._form.data = this._config;
   }
 }

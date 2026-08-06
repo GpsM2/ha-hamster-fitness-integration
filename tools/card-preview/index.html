@@ -49,12 +49,17 @@
   Lädt die echten Kartendateien aus <code>custom_components/hamster_fitness/frontend/</code>
   gegen einen nachgebauten <code>hass</code>-Zustand. Kein Home Assistant nötig.
   Siehe <a href="README.md">README.md</a>.
+  Sprache: <a href="?lang=de">Deutsch</a> · <a href="?lang=en">English</a>
 </p>
 <div id="status">Lade …</div>
 <div id="out"></div>
 
 <script type="module">
 const FRONTEND = "../../custom_components/hamster_fitness/frontend";
+
+// The cards follow Home Assistant's language; ?lang= mocks it so both
+// translations can be eyeballed without changing anything in HA.
+const LANG = new URLSearchParams(location.search).get("lang") || "de";
 
 const status = document.getElementById("status");
 const out = document.getElementById("out");
@@ -124,7 +129,7 @@ function grid(entries, build) {
 function baseHass({ night, active, speed, lightOn, paused, automationOn = true, coat = "#D48C46" }) {
   const pausedUntil = new Date(Date.now() + 22 * 60000).toISOString();
   return {
-    language: "de",
+    language: LANG,
     states: {
       "sun.sun": {
         state: night ? "below_horizon" : "above_horizon",
@@ -236,7 +241,7 @@ function chronicleHass() {
   add("taco", "Taco", "#D48C46", "2025-11-02", null, 184.3, 7.4, 88, "golden");
   add("nala", "Nala", "#8A929A", "2024-03-15", "2026-02-20", 402.9, 9.1, 71, "winter_white");
   return {
-    language: "de", states, entities, devices,
+    language: LANG, states, entities, devices,
     callWS: async () => ({ hamsters: [
       { name: "Mochi", breed: "roborovski", coat_color_hex: "#E8D3A7",
         acquisition_date: "2021-06-01", departure_date: "2023-09-12",
@@ -294,7 +299,7 @@ grid(
 section("Health Score – Editor-Vorschau ohne Entity (Mock-Daten)");
 place(
   makeCard("hamster-fitness-card", { entity: "sensor.hamster_taco_health_score" },
-    { language: "de", states: {}, entities: {}, devices: {}, callService: () => {} }),
+    { language: LANG, states: {}, entities: {}, devices: {}, callService: () => {} }),
   "wide"
 );
 
