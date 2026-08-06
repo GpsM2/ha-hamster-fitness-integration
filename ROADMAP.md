@@ -186,6 +186,150 @@ items stay listed so the history stays traceable.
   require PR review) once the repo goes public - GitHub only offers this
   for private repos on paid plans, so it's on hold until then.
 
+### Bugfix: health score drops at the 9 AM reset despite an active night
+
+Reported: right at `DAILY_RESET_HOUR` (9 AM), `daily_distance_km` resets to
+~0, which immediately triggers the `too_little_exercise` penalty even if
+the hamster ran a lot overnight - the score visibly drops even though
+nothing bad actually happened. The health score's distance penalty should
+be based on the current/most recently completed *night* (`night_distance_km`,
+already tracked separately) instead of - or blended with -
+`daily_distance_km`, since that's what actually reflects a hamster's
+nocturnal activity. The daytime value is not interesting on its own and
+should no longer be shown on the main card. Needs a closer look at how
+`_distance_penalty()` in `coordinator.py` picks its input once this is
+tackled, and how "the current/most recently completed night" is defined
+right after a fresh `NIGHT_WINDOW_START_HOUR` reset.
+
+### Bugfix: Day & Night wheel animation stutters/flickers, doesn't track speed live
+
+The wheel's `@keyframes spinWheel` animation restarts from 0deg on every
+`_render()` (every `hass` update rebuilds the card's innerHTML from
+scratch), which reads as stutter/flicker instead of one smooth spin. Needs
+rework so the rotation continues seamlessly across re-renders (e.g. track
+elapsed rotation and set the starting `transform` accordingly, or move the
+spin to a persisted DOM node that isn't torn down each render). Separately,
+the wheel should react live to the actual current speed - including
+coming to a visible stop mid-session if speed drops to 0, even while
+`night_active_duration` is still counting (a session can have the hamster
+motionless for a bit without timing out, per the 30-minute grace period).
+
+### Card redesign: playful style, data embedded in the scene
+
+Redesign both cards to be more playful/illustrated, moving the data rows
+into the scene itself instead of a separate section at the card's foot -
+a mockup was provided as the layout/style reference, saved at
+`design/mockup-day-night-card.png`. Key cues from the mockup to match:
+data readouts overlaid directly on the illustrated scene (not a separate
+stats grid), rounded pill-style info chips, larger/friendlier typography,
+a small connection-status chip inline in the scene rather than a footer
+row.
+
+### Day & Night card: light automation control
+
+Add a button on the card to pause the cage-light automation for 30 minutes
+(auto re-enables afterward), plus show the light's current on/off status
+when a light entity is connected. Needs a new coordinator-side "pause
+until" mechanism for `door_light.py`'s automation (temporarily skip
+turn-on/off while paused) and a way for the card to trigger it (a new
+service the card calls, most likely) and read the light's live state.
+
+### Weight-reminder push notification
+
+Let the user opt in to a periodic push reminder to weigh the hamster (on
+the kitchen scale, entered into `number.<hamster>_weight`), toggleable
+independently in the options menu - same pattern as the existing
+warnings/daily-summary toggles in `notify.py`.
+
+### Dynamic hamster profile & color customization
+
+- At setup (config flow) and via Reconfigure, let the user pick a hamster
+  breed/type (e.g. Golden Hamster, Winter White Dwarf, Roborovski, ...)
+  in addition to the existing name/acquisition date/wheel diameter.
+- Let the user pick a main coat color from 4 predefined swatches:
+  Golden-brown `#D48C46`, Silver-grey `#8A929A`, Cream/sand `#E8D3A7`,
+  Black/dark `#333333`.
+- The hamster illustration/logo becomes a dynamic SVG whose `fill`
+  color(s) (or a CSS custom property) are driven by the selected hex
+  value, instead of the fixed color palette the current logos use.
+
+### Lifetime history archive on departure (`history_lifedata.json`)
+
+When a departure date is set (hamster passed away or moved out), archive
+that hamster's profile into a durable history file (e.g.
+`config/hamster_fitness/history_lifedata.json` via `Store`, matching the
+existing per-entry storage pattern) before/alongside freezing its live
+snapshot. Should persist: name, breed/type, color hex, acquisition date,
+departure date, and aggregated lifetime stats (total distance, top speed,
+active days, etc.). This becomes the data source for the new overview card
+below.
+
+### 4th Lovelace card: "Hamster Chronicle & Overview"
+
+A new card listing every hamster that ever existed in this Home Assistant
+- both currently active ones and archived ones from the history file above
+ - each with its move-in/move-out dates and an icon/logo in its own coat
+color. Which stat columns are shown should be configurable (checkboxes),
+similar to the Day & Night card's `show_*` toggles.
+
+### Multi-hamster parallel operation - test & harden
+
+Explicitly test and confirm that running several hamster config entries
+side by side stays fully isolated: entity IDs, `Store` storage keys
+(already per-`entry_id`, e.g. `hamster_fitness_<entry_id>_baseline` -
+worth double-checking this holds for every new storage key added by the
+items above too), and dashboard cards (translation_key-based sibling
+lookup already handles this, per the entity-registry rework earlier this
+project) all need to keep working without cross-talk between hamsters.
+
+### `hamster-fitness-card` (health score) redesign
+
+Overhaul to match the Day & Night card's visual language and add richer,
+more actionable detail:
+
+- **Header**: same outer layout/spacing/typography as the Day & Night
+  card's header (keep the current header SVG icon). Subtitle changes to a
+  dynamic "seit X Monaten bei dir" derived from `acquisition_date`. Add a
+  status badge (top right): 🟢 "Voll vital" / 🟡 "Beobachten" / 🔴
+  "Tierarzt prüfen", thresholded off the health score.
+- **Hero**: keep the central health-score ring (0-100, color-coded), add a
+  highlighted "Smart Insight" box below it for the dynamic problem-
+  description text (already available via `warning_reason`/the
+  `messages` translation category).
+- **Interactive 2x2 grid** ("4 pillars of health"), each tile opens a
+  modal (`ha-dialog` or a custom shadow-DOM overlay) with detail + a care
+  tip:
+  - 🏃 Activity & endurance: "Hamsters instinctively hide illness as long
+    as possible. A sudden >30% drop in nightly running distance is often
+    the very first sign of one - watch the trend, not just one night."
+  - 😴 Sleep & rest quality: "Hamsters are crepuscular/nocturnal.
+    Disturbing their main sleep phase (10:00-17:00) with light, vibration,
+    or cage openings causes chronic stress and weakens the immune system."
+  - 🌡️ Climate & environment: "Ideal range is 18-22°C, 40-60% humidity.
+    Below 15°C risks life-threatening torpor; above 24°C risks heat
+    stroke."
+  - 🧹 Care & interaction: measured via the door/lid sensor - tracks how
+    regularly the cage is opened for feeding/cleaning. Best is 1-2 short
+    openings in the late evening; avoid frequent daytime opening (ties
+    into the "too much daytime opening" scoring item above).
+  - These four map naturally onto new per-pillar score sensors
+    (`sensor.hamster_<name>_score_activity/_sleep/_climate/_care` in the
+    request) worth evaluating against the existing single combined
+    `distance_penalty`/`temperature_penalty`/`care_penalty` breakdown -
+    may become new sensors, or the modal content might just read the
+    existing breakdown attributes instead of needing new entities.
+- **Trend section**: comparison readouts (e.g. "5.4 km (+0.6 km vs. 7-day
+  avg)", "Climate 100% in range") plus a 7-day bar chart of daily scores
+  at the bottom of the card. Needs the coordinator to start keeping a
+  short rolling history of daily scores somewhere (not currently tracked
+  beyond `previous_day_distance_km`).
+- Technical notes carried over from the request: plain
+  LitElement/HTMLElement web component (no new build tooling), full
+  mock-data fallback for the dashboard editor preview, header CSS classes
+  kept identical to `hamster-day-night-card.js`'s.
+- Consider splitting `README.md` into a short top-level overview plus one
+  doc per card, now that there'll be four cards with real depth each.
+
 ## 🔍 To investigate
 
 ### Distance calculation seemed high compared to the ESP's own numbers
