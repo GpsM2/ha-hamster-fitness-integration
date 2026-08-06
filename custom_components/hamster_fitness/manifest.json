@@ -4,11 +4,11 @@
   "codeowners": ["@GpsM2"],
   "config_flow": true,
   "dependencies": ["frontend", "http"],
-  "documentation": "https://github.com/GpsM2/ha-hamster-fitness",
+  "documentation": "https://github.com/GpsM2/ha-hamster-fitness-integration",
   "homeassistant": "2026.3.0",
   "integration_type": "device",
   "iot_class": "calculated",
-  "issue_tracker": "https://github.com/GpsM2/ha-hamster-fitness/issues",
+  "issue_tracker": "https://github.com/GpsM2/ha-hamster-fitness-integration/issues",
   "requirements": [],
-  "version": "0.2.7"
+  "version": "0.2.8"
 }

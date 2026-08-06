@@ -1,31 +1,36 @@
-# Hamster Fitness
+# Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.2.7-blue.svg)](custom_components/hamster_fitness/manifest.json)
-[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.2.8-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R8O124JOD1)
+
+> **This is the software repository.** It contains only the Home
+> Assistant integration (Python) and its Lovelace dashboard cards. The
+> physical wheel sensor, 3D-printed parts, and ESPHome firmware live in a
+> separate repository:
+> **[hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)**.
 
 Hamster Fitness is a free add-on for Home Assistant. It watches your
 hamster's running wheel, cage temperature, and cage door, and turns that
 data into one simple health score. It can also send you alerts, show
 nice cards on your dashboard, and turn on a light when you open the cage.
 
-This repository has two parts:
-
-- **The Home Assistant integration** (`custom_components/hamster_fitness/`)
-  — the main add-on.
-- **The sensor firmware** (`esphome/`) — code for a small, cheap sensor
-  that counts wheel turns. You only need this if you don't already have a
-  way to track wheel rotations.
+This repository contains **only the Home Assistant integration**
+(`custom_components/hamster_fitness/`). You'll also need a rotation
+sensor for the wheel — see
+[hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
+for the ESPHome-based one this project was built around, or bring your
+own.
 
 ## License
 
-This project uses the [PolyForm Noncommercial License 1.0.0](LICENSE).
-In short: anyone can use, change, and share the code for free, but only
-for **non-commercial** purposes (personal use, hobby projects, schools,
-research). The author (GpsM2) keeps full rights and may also use or
-license the project commercially.
+This project uses the [Apache License 2.0](LICENSE) — a permissive
+open-source license: anyone can use, modify, and distribute the code,
+including commercially, as long as the license and copyright notice are
+kept. (The hardware repo uses a different, non-commercial license — see
+its README.)
 
 ## Features
 
@@ -61,38 +66,32 @@ license the project commercially.
     sleeping in a nest, depending on whether it's actually active right
     now, with a background that shifts with the sun.
 - **Keeps the wheel diameter in sync**: if your sensor device (like the
-  ESPHome one in this repo) has its own wheel diameter setting, this
-  integration can update it automatically whenever you change the
+  ESPHome one from the hardware repo) has its own wheel diameter setting,
+  this integration can update it automatically whenever you change the
   diameter here — no need to enter the same number twice.
 
 ## What you need
 
 - A recent version of Home Assistant (2026.3 or newer).
-- A sensor that counts your hamster wheel's rotations. The easiest way is
-  to build the small ESP8266 sensor in this repo (see below) — it costs
-  only a few euros in parts. If you already have a rotation counter from
-  somewhere else, you can use that instead.
+- A sensor that counts your hamster wheel's rotations. See
+  [hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
+  to build the small, cheap ESPHome-based one this project was designed
+  around — it costs only a few euros in parts. If you already have a
+  rotation counter from somewhere else, you can use that instead.
 - Optional, but nice to have: a temperature sensor, a humidity sensor, a
   door/lid sensor for the cage, a light, and a speed sensor. Everything
   optional will simply be skipped if you don't have it.
 
 ## Installation
 
-### Step 1: Build the wheel sensor
+### Step 1: Set up the wheel sensor
 
-Skip this step if you already have a working rotation sensor.
-
-1. Get a cheap ESP8266 board (like a "D1 Mini") and an optical sensor
-   (a small light sensor that notices when something passes by it).
-2. Open `esphome/hamster-wheel-sensor.yaml` in ESPHome and flash it to
-   your board.
-3. In your ESPHome `secrets.yaml` file, add these four entries:
-   `wifi_ssid`, `wifi_password`, `esphome_web_d027a9__encryption_key`,
-   `esphome_web_d018de__ota_password`.
-4. Attach the sensor to the wheel so it "sees" one mark or magnet once
-   per full turn.
-5. Once it's flashed, Home Assistant should find it automatically
-   through the ESPHome integration.
+Skip this step if you already have a working rotation sensor. Otherwise,
+follow the build guide in
+[hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
+to flash the ESPHome firmware onto a cheap ESP8266 board — once it's
+flashed, Home Assistant should find it automatically through the ESPHome
+integration.
 
 ### Step 2: Install the Home Assistant integration
 

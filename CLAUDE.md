@@ -8,11 +8,28 @@ Entwicklungsprozess.
 ## Projektziel
 
 Hamster Fitness ist eine Home-Assistant-Custom-Integration
-(`custom_components/hamster_fitness/`) plus optionale ESPHome-Firmware
-(`esphome/`). Mittelfristiges Ziel: Code-Qualität auf einem Niveau, das
-eine spätere Aufnahme in Home Assistant Core (Gold/Platinum Quality Scale)
-realistisch macht – auch wenn das Projekt aktuell privat/eigenständig
-bleibt und nicht jede Regel sofort erzwungen wird.
+(`custom_components/hamster_fitness/`). Mittelfristiges Ziel: Code-Qualität
+auf einem Niveau, das eine spätere Aufnahme in Home Assistant Core
+(Gold/Platinum Quality Scale) realistisch macht – auch wenn das Projekt
+aktuell privat/eigenständig bleibt und nicht jede Regel sofort erzwungen
+wird.
+
+## Scope dieses Repos (STRIKT EINHALTEN)
+
+Dieses Repository (`ha-hamster-fitness-integration`) verwaltet
+**ausschließlich**:
+
+- Python-Code der Home-Assistant-Integration
+  (`custom_components/hamster_fitness/`),
+- die Lovelace-Karten (`custom_components/hamster_fitness/frontend/`),
+- sowie die zugehörigen Software-Tests (`tests/`).
+
+Hardware-Inhalte (ESPHome-Firmware, CAD/3D-Druck-Dateien, Platinen/KiCad,
+Bauanleitungen) gehören **nicht** hierher, sondern ins separate Repo
+[hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware).
+Falls eine Anfrage Hardware-Dateien in diesem Repo anlegen oder ändern
+würde, bitte nachfragen statt sie hier einzufügen – vermutlich gehört sie
+ins Hardware-Repo.
 
 ## Standards (Home Assistant Quality Scale)
 
