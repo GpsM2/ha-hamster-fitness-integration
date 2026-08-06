@@ -24,9 +24,16 @@ from datetime import date, datetime, timedelta
 from typing import Any, Final
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.core import (
+    CALLBACK_TYPE,
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    callback,
+)
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
     async_track_state_change_event,
     async_track_time_change,
     async_track_time_interval,
@@ -217,6 +224,22 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # Abgeschlossene Tages-Scores für das Trend-Diagramm der Karte.
         self._score_history: list[dict[str, Any]] = []
 
+        # Käfiglicht-Automatik: dauerhafter Schalterzustand plus optionale,
+        # von selbst auslaufende Pause (siehe door_light.py und die
+        # pause_light_automation-Aktion). Beides wird persistiert, damit ein
+        # Neustart eine bewusst abgeschaltete Automatik nicht heimlich
+        # wieder scharf schaltet.
+        self._light_automation_enabled: bool = True
+        self._light_pause_until: datetime | None = None
+        self._cancel_light_pause: CALLBACK_TYPE | None = None
+
+        # Wann zuletzt ein Gewicht eingetragen wurde - Grundlage der
+        # Wiege-Erinnerung (siehe notify.py). Bewusst hier und nicht über
+        # den last_changed-Zeitstempel der number-Entity: der wird bei
+        # jedem Neustart neu gesetzt, wenn RestoreEntity den alten Wert
+        # wiederherstellt, und "vor 2 Minuten gewogen" wäre schlicht falsch.
+        self._weight_last_set_at: datetime | None = None
+
         # Lauf-Session-Tracking für night_active_duration/day_rest_duration -
         # siehe _update_activity_session(). Anders als die Baselines oben
         # zählerskalen-unabhängig (reine Wanduhrzeit), daher beim Wechsel
@@ -243,9 +266,12 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
     async def _async_setup(self) -> None:
         """Restore persisted state and register source-entity listeners."""
-        await self._async_restore_state()
-
         entry = self._entry
+        # Registered before restoring, since restoring may already re-arm a
+        # light pause that outlived a restart.
+        entry.async_on_unload(self._cancel_light_pause_timer)
+
+        await self._async_restore_state()
         tracked_entities = [self._wheel_sensor, self._temperature_sensor, self._door_sensor]
         if self._humidity_sensor:
             tracked_entities.append(self._humidity_sensor)
@@ -314,6 +340,21 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._sleep_door_openings = stored.get("sleep_door_openings", 0)
             self._sleep_activity_sessions = stored.get("sleep_activity_sessions", 0)
             self._score_history = stored.get("score_history", [])
+            self._light_automation_enabled = stored.get(
+                "light_automation_enabled", True
+            )
+            pause_raw = stored.get("light_pause_until")
+            pause_until = dt_util.parse_datetime(pause_raw) if pause_raw else None
+            # Eine Pause, die während eines Neustarts abgelaufen ist, gilt
+            # als vorbei; eine noch laufende wird mitsamt ihrem Timer
+            # wiederhergestellt, damit sie danach nicht ewig aktiv bleibt.
+            if pause_until is not None and pause_until > dt_util.utcnow():
+                self._light_pause_until = pause_until
+                self._schedule_light_pause_end(pause_until)
+            weighed_raw = stored.get("weight_last_set_at")
+            self._weight_last_set_at = (
+                dt_util.parse_datetime(weighed_raw) if weighed_raw else None
+            )
 
         departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
@@ -413,6 +454,17 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "sleep_door_openings": self._sleep_door_openings,
                 "sleep_activity_sessions": self._sleep_activity_sessions,
                 "score_history": self._score_history,
+                "light_automation_enabled": self._light_automation_enabled,
+                "light_pause_until": (
+                    self._light_pause_until.isoformat()
+                    if self._light_pause_until
+                    else None
+                ),
+                "weight_last_set_at": (
+                    self._weight_last_set_at.isoformat()
+                    if self._weight_last_set_at
+                    else None
+                ),
                 "night_baseline_count": self._night_baseline_count,
                 "night_window_start": (
                     self._night_window_start.isoformat()
@@ -504,6 +556,96 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     def _async_handle_periodic_update(self, now: datetime) -> None:
         """Recompute every minute, mainly to keep session/rest durations live."""
         self.async_set_updated_data(self._calculate())
+
+    # ------------------------------------------------------------------
+    # Gewicht (siehe number.py und die Wiege-Erinnerung in notify.py)
+    # ------------------------------------------------------------------
+
+    @property
+    def weight_last_set_at(self) -> datetime | None:
+        """Return when a weight was last entered, or None if never."""
+        return self._weight_last_set_at
+
+    async def async_record_weight_update(self) -> None:
+        """Remember that a weight was just entered."""
+        self._weight_last_set_at = dt_util.utcnow()
+        await self._async_save_state()
+        self.async_update_listeners()
+
+    # ------------------------------------------------------------------
+    # Käfiglicht-Automatik (Schalter + Pause, siehe door_light.py)
+    # ------------------------------------------------------------------
+
+    @property
+    def light_automation_enabled(self) -> bool:
+        """Return whether the cage-light automation is switched on at all."""
+        return self._light_automation_enabled
+
+    @property
+    def light_pause_until(self) -> datetime | None:
+        """Return when the current pause ends, or None if not paused."""
+        return self._light_pause_until
+
+    @property
+    def light_automation_active(self) -> bool:
+        """Return whether the automation may act on the door right now.
+
+        The single question door_light.py asks: it is active when the
+        switch is on *and* no temporary pause is running.
+        """
+        if not self._light_automation_enabled:
+            return False
+        return self._light_pause_until is None
+
+    async def async_set_light_automation_enabled(self, enabled: bool) -> None:
+        """Turn the cage-light automation on or off for good."""
+        self._light_automation_enabled = enabled
+        # Switching the automation off makes a running pause meaningless,
+        # and switching it back on shouldn't silently resume one either.
+        self._cancel_light_pause_timer()
+        self._light_pause_until = None
+        await self._async_save_state()
+        self.async_update_listeners()
+
+    async def async_pause_light_automation(self, minutes: float) -> None:
+        """Skip the door-triggered light switching for `minutes`.
+
+        Calling this again while a pause is running replaces it, so a
+        second tap on the card's button extends the break instead of
+        stacking timers.
+        """
+        self._cancel_light_pause_timer()
+        pause_until = dt_util.utcnow() + timedelta(minutes=minutes)
+        self._light_pause_until = pause_until
+        self._schedule_light_pause_end(pause_until)
+        await self._async_save_state()
+        self.async_update_listeners()
+
+    @callback
+    def _schedule_light_pause_end(self, pause_until: datetime) -> None:
+        """Arm the timer that lets the pause expire on its own.
+
+        Teardown is handled once in `_async_setup` rather than here -
+        registering it per pause would pile up one dead unload callback
+        for every pause ever started.
+        """
+        self._cancel_light_pause = async_track_point_in_utc_time(
+            self.hass, self._async_handle_light_pause_end, pause_until
+        )
+
+    @callback
+    def _cancel_light_pause_timer(self) -> None:
+        """Cancel a pending pause-expiry timer, if one is armed."""
+        if self._cancel_light_pause is not None:
+            self._cancel_light_pause()
+            self._cancel_light_pause = None
+
+    async def _async_handle_light_pause_end(self, _now: datetime) -> None:
+        """Re-arm the automation once the pause has run its course."""
+        self._cancel_light_pause = None
+        self._light_pause_until = None
+        await self._async_save_state()
+        self.async_update_listeners()
 
     # ------------------------------------------------------------------
     # Archivierung (Auszugs-/Sterbedatum, siehe date.py)

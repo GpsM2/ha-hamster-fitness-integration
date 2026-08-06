@@ -49,10 +49,14 @@ from .const import (
     DEFAULT_MIN_DISTANCE_KM,
     DEFAULT_NOTIFICATION_TIME,
     DEFAULT_WARNINGS_ENABLED,
+    DEFAULT_WEIGHT_REMINDER_DAYS,
+    DEFAULT_WEIGHT_REMINDER_ENABLED,
     DEFAULT_WHEEL_DIAMETER_CM,
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
+    MAX_WEIGHT_REMINDER_DAYS,
     MAX_WHEEL_DIAMETER_CM,
+    MIN_WEIGHT_REMINDER_DAYS,
     MIN_WHEEL_DIAMETER_CM,
     OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_IDEAL_TEMP_MAX,
@@ -64,6 +68,8 @@ from .const import (
     OPTION_MIN_DISTANCE_KM,
     OPTION_NOTIFICATION_TIME,
     OPTION_WARNINGS_ENABLED,
+    OPTION_WEIGHT_REMINDER_DAYS,
+    OPTION_WEIGHT_REMINDER_ENABLED,
     SKIP_VALIDATION_STATES,
 )
 
@@ -389,6 +395,29 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                     OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
                 ),
             ): TimeSelector(),
+            # Teilt sich die Uhrzeit oben mit der Tageszusammenfassung -
+            # erinnert aber nur, wenn tatsächlich zu lange nicht gewogen
+            # wurde, siehe notify.py.
+            vol.Required(
+                OPTION_WEIGHT_REMINDER_ENABLED,
+                default=current.get(
+                    OPTION_WEIGHT_REMINDER_ENABLED, DEFAULT_WEIGHT_REMINDER_ENABLED
+                ),
+            ): BooleanSelector(),
+            vol.Required(
+                OPTION_WEIGHT_REMINDER_DAYS,
+                default=current.get(
+                    OPTION_WEIGHT_REMINDER_DAYS, DEFAULT_WEIGHT_REMINDER_DAYS
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=MIN_WEIGHT_REMINDER_DAYS,
+                    max=MAX_WEIGHT_REMINDER_DAYS,
+                    step=1,
+                    unit_of_measurement="d",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             # Ab hier nur wirksam, wenn CONF_LIGHT_ENTITY konfiguriert ist -
             # siehe door_light.py. Werden trotzdem immer angezeigt, wie die
             # übrigen Options auch unabhängig von den Quell-Sensoren.

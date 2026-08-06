@@ -71,7 +71,21 @@ class HamsterWeightNumber(
         with contextlib.suppress(ValueError):
             self._attr_native_value = float(last_state.state)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        """Expose when this weight was last entered.
+
+        Deliberately not the entity's own `last_changed`: RestoreEntity
+        re-publishes the stored value on every restart, which would reset
+        that timestamp and make a weeks-old weight look fresh. The
+        coordinator keeps the real one (and the weigh-in reminder in
+        notify.py goes by it).
+        """
+        last_set = self.coordinator.weight_last_set_at
+        return {"last_weighed_at": last_set.isoformat() if last_set else None}
+
     async def async_set_native_value(self, value: float) -> None:
         """Update the weight when changed via the UI."""
         self._attr_native_value = value
         self.async_write_ha_state()
+        await self.coordinator.async_record_weight_update()

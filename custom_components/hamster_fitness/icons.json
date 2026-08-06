@@ -50,6 +50,19 @@
       "weight": {
         "default": "mdi:scale-bathroom"
       }
+    },
+    "switch": {
+      "light_automation": {
+        "default": "mdi:lightbulb-auto",
+        "state": {
+          "off": "mdi:lightbulb-auto-outline"
+        }
+      }
+    }
+  },
+  "services": {
+    "pause_light_automation": {
+      "service": "mdi:pause-circle-outline"
     }
   }
 }

@@ -101,6 +101,8 @@
           "warnings_enabled": "Send warning notifications",
           "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time",
+          "weight_reminder_enabled": "Remind me to weigh the hamster",
+          "weight_reminder_days": "Weigh-in interval",
           "light_brightness_pct": "Cage light brightness",
           "light_transition_s": "Cage light transition time",
           "light_turn_off_enabled": "Turn cage light off automatically",
@@ -113,6 +115,8 @@
           "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent.",
+          "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
+          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
           "light_brightness_pct": "Only relevant if a cage light was selected in the sensors step. Brightness the light is set to when the cage opens.",
           "light_transition_s": "Only relevant if a cage light was selected. Fade duration for both turning on and off, in seconds. 0 switches instantly.",
           "light_turn_off_enabled": "Only relevant if a cage light was selected. Turn off automatically when the cage closes. Turn off if something else (e.g. an automation) should control when the light goes off.",
@@ -193,6 +197,11 @@
       "weight": {
         "name": "Weight"
       }
+    },
+    "switch": {
+      "light_automation": {
+        "name": "Light automation"
+      }
     }
   },
   "messages": {
@@ -207,7 +216,21 @@
       "daily_summary": "Ran {distance} km last night! {comparison}",
       "more_than_yesterday": "That's {delta} m more than yesterday.",
       "less_than_yesterday": "That's {delta} m less than yesterday.",
-      "same_as_yesterday": "That's the same as yesterday."
+      "same_as_yesterday": "That's the same as yesterday.",
+      "weight_reminder": "It's been {days} days since the last weigh-in.",
+      "weight_reminder_never": "No weight recorded yet - time for a first weigh-in?"
+    }
+  },
+  "services": {
+    "pause_light_automation": {
+      "name": "Pause light automation",
+      "description": "Temporarily stops the cage-light automation from reacting to the cage door, then re-arms it by itself. Handy while cleaning the cage, so the light doesn't flick on and off with every lift of the lid.",
+      "fields": {
+        "duration_minutes": {
+          "name": "Duration",
+          "description": "How long the automation stays paused. Calling this again replaces a running pause instead of stacking another one on top."
+        }
+      }
     }
   }
 }

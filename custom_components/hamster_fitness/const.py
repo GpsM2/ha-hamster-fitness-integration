@@ -129,6 +129,18 @@ SLEEP_PHASE_END_HOUR: Final[int] = 17
 # werden (siehe coordinator.py's _record_daily_score()).
 SCORE_HISTORY_DAYS: Final[int] = 7
 
+# --- Licht-Automatik: Schalter & Pause ---
+# Der Schalter switch.<hamster>_light_automation bildet den dauerhaften
+# Wunsch ab ("Automatik grundsätzlich an/aus"). Die Pause ist davon
+# unabhängig und temporär: sie überspringt das automatische Schalten für
+# eine begrenzte Zeit und läuft danach von selbst wieder aus - gedacht für
+# "ich mache jetzt den Käfig sauber und will nicht, dass das Licht bei
+# jedem Deckelheben an- und ausgeht". Siehe door_light.py.
+SERVICE_PAUSE_LIGHT_AUTOMATION: Final = "pause_light_automation"
+ATTR_DURATION_MINUTES: Final = "duration_minutes"
+DEFAULT_LIGHT_PAUSE_MINUTES: Final[int] = 30
+MAX_LIGHT_PAUSE_MINUTES: Final[int] = 1440
+
 # --- Storage ---
 STORAGE_VERSION: Final[int] = 1
 
@@ -144,6 +156,7 @@ PLATFORMS: Final[list[Platform]] = [
     Platform.BINARY_SENSOR,
     Platform.DATE,
     Platform.NUMBER,
+    Platform.SWITCH,
 ]
 
 # --- Gewicht ---

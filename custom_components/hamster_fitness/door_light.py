@@ -7,8 +7,15 @@ no-op, nothing is ever touched.
 
 Reacts to the coordinator's `door_open` (not the raw door_sensor
 directly), the same single source of truth the health-score calculation
-and binary_sensor.<hamster>_door already use - keeps one consistent view
-of "is the door open" instead of a second, potentially racing listener.
+and binary_sensor.<hamster>_cage_door already use - keeps one consistent
+view of "is the door open" instead of a second, potentially racing
+listener.
+
+Whether the automation may act at all is likewise the coordinator's
+call (`light_automation_active`): it combines the permanent
+switch.<hamster>_light_automation state with any running temporary pause
+(the `hamster_fitness.pause_light_automation` action). Both survive a
+restart, so a deliberately disabled automation stays disabled.
 """
 
 from __future__ import annotations
@@ -74,7 +81,7 @@ class HamsterFitnessDoorLight:
         # bereits offener Deckel nicht erst auf die nächste Änderung warten
         # muss, um das Licht einzuschalten.
         self._previous_door_open = self._coordinator.data.door_open
-        if self._previous_door_open:
+        if self._previous_door_open and self._coordinator.light_automation_active:
             self._hass.async_create_task(self._async_turn_on())
 
     # ------------------------------------------------------------------
@@ -115,7 +122,17 @@ class HamsterFitnessDoorLight:
         door_open = self._coordinator.data.door_open
         if door_open == self._previous_door_open:
             return
+        # Recorded even while the automation is off/paused, so resuming
+        # doesn't mistake an already-open door for a fresh opening.
         self._previous_door_open = door_open
+
+        if not self._coordinator.light_automation_active:
+            _LOGGER.debug(
+                "Hamster Fitness: Licht-Automatik ist aus oder pausiert, "
+                "Türwechsel wird nicht auf %s angewendet",
+                self._light_entity,
+            )
+            return
 
         self._async_cancel_pending_turn_off()
 
