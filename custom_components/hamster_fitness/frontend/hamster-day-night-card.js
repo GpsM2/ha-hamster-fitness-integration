@@ -32,7 +32,12 @@
  */
 
 import {
+  DEFAULT_FUR,
+  HEADER_STYLES,
+  applyFur,
+  coatColor,
   deviceDisplayName,
+  renderCardHeader,
   siblingEntityId,
 } from "./hamster-fitness-shared.js";
 
@@ -59,8 +64,6 @@ const STATUS_ONLINE = { label: "Online", color: "#06D6A0" };
 const STATUS_OFFLINE = { label: "Offline", color: "#EF476F" };
 const STATUS_UNAVAILABLE = { label: "Nicht verfügbar", color: "#8D99AE" };
 
-const DEFAULT_FUR = "#D48C46";
-
 const DEFAULT_TOGGLES = {
   show_speed: true,
   show_distance: true,
@@ -75,18 +78,18 @@ const DEFAULT_TOGGLES = {
 // illustration family as the main card's headband-hamster logo.
 const LOGO_DUMBBELL_SVG = `
 <svg viewBox="0 0 200 200" width="34" height="34" aria-hidden="true">
-  <ellipse cx="70" cy="150" rx="13" ry="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3" transform="rotate(15 70 150)"/>
-  <ellipse cx="128" cy="150" rx="13" ry="9" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3" transform="rotate(-15 128 150)"/>
-  <circle cx="52" cy="122" r="8" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
-  <ellipse cx="100" cy="122" rx="48" ry="38" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
-  <circle cx="112" cy="70" r="30" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
-  <circle cx="90" cy="48" r="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
-  <circle cx="128" cy="46" r="9" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
+  <ellipse cx="70" cy="150" rx="13" ry="9" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3" transform="rotate(15 70 150)"/>
+  <ellipse cx="128" cy="150" rx="13" ry="9" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="3" transform="rotate(-15 128 150)"/>
+  <circle cx="52" cy="122" r="8" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
+  <ellipse cx="100" cy="122" rx="48" ry="38" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+  <circle cx="112" cy="70" r="30" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+  <circle cx="90" cy="48" r="9" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+  <circle cx="128" cy="46" r="9" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
   <circle cx="122" cy="66" r="4.5" fill="#3a2a1a"/>
-  <ellipse cx="134" cy="76" rx="6.5" ry="5" fill="#f4d9c6" stroke="var(--hdn-fur-dark)" stroke-width="1.5"/>
+  <ellipse cx="134" cy="76" rx="6.5" ry="5" fill="#f4d9c6" stroke="var(--hf-fur-dark)" stroke-width="1.5"/>
   <circle cx="137" cy="76" r="2" fill="#5c4030"/>
-  <path d="M138 108 Q158 96 168 74" fill="none" stroke="var(--hdn-fur-light)" stroke-width="14" stroke-linecap="round"/>
-  <path d="M78 132 Q66 148 60 162" fill="none" stroke="var(--hdn-fur)" stroke-width="13" stroke-linecap="round"/>
+  <path d="M138 108 Q158 96 168 74" fill="none" stroke="var(--hf-fur-light)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M78 132 Q66 148 60 162" fill="none" stroke="var(--hf-fur)" stroke-width="13" stroke-linecap="round"/>
   <g transform="rotate(-28 168 74)">
     <rect x="150" y="70" width="36" height="8" rx="4" fill="#5c4a3a"/>
     <rect x="144" y="62" width="12" height="24" rx="4" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
@@ -117,19 +120,6 @@ function lerpColor(hexA, hexB, t) {
   const b = hexToRgb(hexB);
   const rgb = a.map((channel, i) => Math.round(channel + (b[i] - channel) * t));
   return `rgb(${rgb.join(", ")})`;
-}
-
-/** Lightens (amount > 0) or darkens (amount < 0) a hex colour. */
-function shade(hex, amount) {
-  const rgb = hexToRgb(hex).map((channel) => {
-    const target = amount > 0 ? 255 : 0;
-    return Math.round(channel + (target - channel) * Math.abs(amount));
-  });
-  return `rgb(${rgb.join(", ")})`;
-}
-
-function isValidHex(value) {
-  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
 class HamsterDayNightCard extends HTMLElement {
@@ -182,17 +172,15 @@ class HamsterDayNightCard extends HTMLElement {
           <div class="hdn-error" hidden></div>
           <div class="hdn-sky">
             <div class="hdn-decor"></div>
-            <div class="hdn-header">
-              <span class="hdn-logo">${LOGO_DUMBBELL_SVG}</span>
-              <div class="hdn-header-text">
-                <span class="hdn-title"></span>
-                <span class="hdn-subtitle">Day &amp; Night</span>
-              </div>
-              <span class="hdn-status-chip">
-                <span class="hdn-status-dot"></span>
+            ${renderCardHeader({
+              logoSvg: LOGO_DUMBBELL_SVG,
+              title: "",
+              subtitle: "Day &amp; Night",
+              badgeHtml: `<span class="hf-badge">
+                <span class="hf-badge-dot"></span>
                 <span class="hdn-status-label"></span>
-              </span>
-            </div>
+              </span>`,
+            })}
             <div class="hdn-body">
               <div class="hdn-scene"></div>
               <div class="hdn-chips"></div>
@@ -207,8 +195,8 @@ class HamsterDayNightCard extends HTMLElement {
     this._errorEl = this.querySelector(".hdn-error");
     this._skyEl = this.querySelector(".hdn-sky");
     this._decorEl = this.querySelector(".hdn-decor");
-    this._titleEl = this.querySelector(".hdn-title");
-    this._statusDotEl = this.querySelector(".hdn-status-dot");
+    this._titleEl = this.querySelector(".hf-title");
+    this._statusDotEl = this.querySelector(".hf-badge-dot");
     this._statusLabelEl = this.querySelector(".hdn-status-label");
     this._sceneEl = this.querySelector(".hdn-scene");
     this._chipsEl = this.querySelector(".hdn-chips");
@@ -395,15 +383,15 @@ class HamsterDayNightCard extends HTMLElement {
           <circle cx="110" cy="100" r="12" fill="#8A929A"/>
         </g>
         <g class="hdn-hamster-run">
-          <ellipse cx="96" cy="164" rx="11" ry="6" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
-          <ellipse cx="124" cy="164" rx="11" ry="6" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
-          <ellipse cx="108" cy="146" rx="30" ry="21" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
-          <ellipse cx="104" cy="152" rx="18" ry="12" fill="var(--hdn-belly)" opacity="0.75"/>
-          <circle cx="134" cy="130" r="17" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="2.5"/>
-          <circle cx="126" cy="116" r="6" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <ellipse cx="96" cy="164" rx="11" ry="6" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
+          <ellipse cx="124" cy="164" rx="11" ry="6" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
+          <ellipse cx="108" cy="146" rx="30" ry="21" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
+          <ellipse cx="104" cy="152" rx="18" ry="12" fill="var(--hf-belly)" opacity="0.75"/>
+          <circle cx="134" cy="130" r="17" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
+          <circle cx="126" cy="116" r="6" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
           <circle cx="141" cy="127" r="2.6" fill="#3a2a1a"/>
           <ellipse cx="149" cy="134" rx="4.5" ry="3.5" fill="#f4d9c6"/>
-          <path d="M80 142 q-12 4 -18 12" fill="none" stroke="var(--hdn-fur-dark)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M80 142 q-12 4 -18 12" fill="none" stroke="var(--hf-fur-dark)" stroke-width="4" stroke-linecap="round"/>
         </g>
       </svg>
     `;
@@ -430,10 +418,10 @@ class HamsterDayNightCard extends HTMLElement {
           <path d="M146 164 q10 -8 20 0"/>
         </g>
         <g class="hdn-hamster-sleep">
-          <ellipse cx="100" cy="150" rx="42" ry="30" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
-          <ellipse cx="104" cy="158" rx="26" ry="16" fill="var(--hdn-belly)" opacity="0.7"/>
-          <circle cx="68" cy="136" r="22" fill="var(--hdn-fur-light)" stroke="var(--hdn-fur-dark)" stroke-width="3"/>
-          <circle cx="55" cy="122" r="8" fill="var(--hdn-fur)" stroke="var(--hdn-fur-dark)" stroke-width="2"/>
+          <ellipse cx="100" cy="150" rx="42" ry="30" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+          <ellipse cx="104" cy="158" rx="26" ry="16" fill="var(--hf-belly)" opacity="0.7"/>
+          <circle cx="68" cy="136" r="22" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+          <circle cx="55" cy="122" r="8" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
           <path d="M58 136 q5 4 10 0" fill="none" stroke="#3a2a1a" stroke-width="2.4" stroke-linecap="round"/>
           <ellipse cx="79" cy="143" rx="5" ry="4" fill="#f4d9c6"/>
         </g>
@@ -559,13 +547,7 @@ class HamsterDayNightCard extends HTMLElement {
 
     // Fur colour comes from the hamster's profile (config flow), so two
     // hamsters on one dashboard don't look like the same animal.
-    const fur = isValidHex(healthScore.attributes.coat_color_hex)
-      ? healthScore.attributes.coat_color_hex
-      : DEFAULT_FUR;
-    this._root.style.setProperty("--hdn-fur", fur);
-    this._root.style.setProperty("--hdn-fur-light", shade(fur, 0.18));
-    this._root.style.setProperty("--hdn-fur-dark", shade(fur, -0.4));
-    this._root.style.setProperty("--hdn-belly", shade(fur, 0.62));
+    applyFur(this._root, coatColor(healthScore));
 
     this._skyEl.style.background = this._backgroundGradient();
 
@@ -669,15 +651,16 @@ class HamsterDayNightCard extends HTMLElement {
 }
 
 HamsterDayNightCard.styles = `
+  ${HEADER_STYLES}
   ha-card {
     padding: 0;
     overflow: hidden;
   }
   .hdn-root {
-    --hdn-fur: ${DEFAULT_FUR};
-    --hdn-fur-light: #e0a869;
-    --hdn-fur-dark: #7f5429;
-    --hdn-belly: #f2ddc4;
+    --hf-fur: ${DEFAULT_FUR};
+    --hf-fur-light: #e0a869;
+    --hf-fur-dark: #7f5429;
+    --hf-belly: #f2ddc4;
   }
   .hdn-error {
     color: var(--secondary-text-color);
@@ -708,62 +691,6 @@ HamsterDayNightCard.styles = `
   @keyframes sunPulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
-  }
-  .hdn-header {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    z-index: 2;
-  }
-  .hdn-logo {
-    display: flex;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-  }
-  .hdn-header-text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-    min-width: 0;
-  }
-  .hdn-title {
-    font-size: 1.55em;
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    color: #ffffff;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .hdn-subtitle {
-    font-size: 0.78em;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.82);
-  }
-  .hdn-status-chip {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 11px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.16);
-    backdrop-filter: blur(4px);
-    font-size: 0.72em;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #ffffff;
-    flex-shrink: 0;
-  }
-  .hdn-status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
   }
   .hdn-body {
     position: relative;
@@ -920,9 +847,6 @@ HamsterDayNightCard.styles = `
     }
     .hdn-chip-wide {
       flex-basis: 100%;
-    }
-    .hdn-title {
-      font-size: 1.3em;
     }
     .hdn-scene-svg {
       max-height: 190px;
