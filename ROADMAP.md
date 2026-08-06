@@ -179,6 +179,18 @@ items stay listed so the history stays traceable.
   consistency (cosmetic only, `custom:type` ids unchanged). Shared entity/
   device lookup helpers extracted into `hamster-fitness-shared.js` so the
   logic isn't duplicated across card files.
+- Split the project into two repos. This one
+  (`ha-hamster-fitness-integration`, renamed from `ha-hamster-fitness`) now
+  contains only the Home Assistant integration, Lovelace cards, and
+  software tests, relicensed to the permissive
+  [Apache License 2.0](LICENSE) (was PolyForm Noncommercial). `esphome/`
+  moved out to the new
+  [hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
+  repo (private, CC BY-NC 4.0), which will also hold future CAD/3D-print
+  and PCB files. Both repos got a `transfer-issue.yml` workflow that
+  auto-moves mislabeled issues to the other repo (needs a `CROSS_REPO_PAT`
+  secret in each repo - the default `GITHUB_TOKEN` can't write across
+  repos, so this doesn't work automatically yet).
 
 ## 🚧 Planned
 
