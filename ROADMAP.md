@@ -150,7 +150,9 @@ items stay listed so the history stays traceable.
 
 ## 🚧 Planned
 
-_Nothing open right now - new ideas get added here._
+- Enable branch protection on `main` (block force-push/deletion, ideally
+  require PR review) once the repo goes public - GitHub only offers this
+  for private repos on paid plans, so it's on hold until then.
 
 ## 🔍 To investigate
 
