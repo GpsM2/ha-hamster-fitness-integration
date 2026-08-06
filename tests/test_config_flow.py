@@ -33,6 +33,8 @@ SENSORS_INPUT = {
 async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     """A full user flow with valid input creates a config entry."""
     hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    hass.states.async_set("binary_sensor.cage_door", "off")
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -84,6 +86,8 @@ async def test_sensors_step_rejects_non_numeric_wheel_sensor(
 ) -> None:
     """A wheel_sensor whose state isn't a number is rejected with not_numeric."""
     hass.states.async_set("sensor.wheel_rotations", "not-a-number")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    hass.states.async_set("binary_sensor.cage_door", "off")
 
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -121,6 +125,8 @@ async def test_duplicate_name_aborts(hass: HomeAssistant) -> None:
 async def test_reconfigure_flow_updates_entry(hass: HomeAssistant) -> None:
     """Reconfigure updates the entry's data without changing its unique_id."""
     hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    hass.states.async_set("binary_sensor.cage_door", "off")
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="taco",
