@@ -182,6 +182,12 @@ items stay listed so the history stays traceable.
 
 ## 🚧 Planned
 
+_When work on this batch (everything below, added 2026-08-06) actually
+starts: bump `manifest.json`'s version to `0.3.0` (explicit user
+instruction, overrides the usual patch-only bump rule for this batch),
+and put together one coherent plan covering all of it before implementing
+- not a grab-bag of unrelated changes._
+
 - Enable branch protection on `main` (block force-push/deletion, ideally
   require PR review) once the repo goes public - GitHub only offers this
   for private repos on paid plans, so it's on hold until then.
