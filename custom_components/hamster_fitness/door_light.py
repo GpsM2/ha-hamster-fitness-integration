@@ -14,6 +14,7 @@ of "is the door open" instead of a second, potentially racing listener.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
@@ -135,7 +136,7 @@ class HamsterFitnessDoorLight:
             self._cancel_delayed_turn_off()
             self._cancel_delayed_turn_off = None
 
-    async def _async_handle_delayed_turn_off(self, _now) -> None:
+    async def _async_handle_delayed_turn_off(self, _now: datetime) -> None:
         """Run the turn-off once OPTION_LIGHT_TURN_OFF_DELAY_S has elapsed."""
         self._cancel_delayed_turn_off = None
         await self._async_turn_off()
