@@ -28,7 +28,7 @@ required.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_change
@@ -148,13 +148,15 @@ class HamsterFitnessNotifier:
         )
 
     @property
-    def _summary_time(self):
+    def _summary_time(self) -> time:
         raw = self._entry.options.get(
             OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
         )
-        return dt_util.parse_time(raw) or dt_util.parse_time(
+        parsed = dt_util.parse_time(raw) or dt_util.parse_time(
             DEFAULT_NOTIFICATION_TIME
         )
+        assert parsed is not None  # DEFAULT_NOTIFICATION_TIME always parses
+        return parsed
 
     # ------------------------------------------------------------------
     # Tägliche Zusammenfassung

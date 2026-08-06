@@ -121,6 +121,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             name=f"{DOMAIN} ({entry.title})",
             update_interval=None,  # push-only, siehe _async_handle_source_event
         )
+        # DataUpdateCoordinator.config_entry is typed ConfigEntry[Any] | None
+        # (a coordinator doesn't have to be tied to one) - this integration's
+        # coordinator always is, so a precisely-typed alias avoids sprinkling
+        # "entry is not None" narrowing everywhere it's used below.
+        self._entry: HamsterFitnessConfigEntry = entry
         # Der Config Flow fragt den Durchmesser ab (so werden Hamsterräder
         # verkauft), intern wird für die Distanzberechnung aber der Umfang
         # gebraucht.
@@ -165,7 +170,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         """Restore persisted state and register source-entity listeners."""
         await self._async_restore_state()
 
-        entry = self.config_entry
+        entry = self._entry
         tracked_entities = [self._wheel_sensor, self._temperature_sensor, self._door_sensor]
         if self._humidity_sensor:
             tracked_entities.append(self._humidity_sensor)
@@ -207,13 +212,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
     async def _async_restore_state(self) -> None:
         """Load persisted baselines, falling back to "start counting now"."""
-        stored = await self._store.async_load()
+        stored: dict[str, Any] = await self._store.async_load() or {}
         if stored:
             self._previous_day_distance_km = stored.get(
                 "previous_day_distance_km", 0.0
             )
 
-        departure_raw = stored.get("departure_date") if stored else None
+        departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
 
         if self._is_departed():
@@ -222,7 +227,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             # Zählerstände sind für einen archivierten Hamster irrelevant,
             # da _calculate() ab jetzt ohnehin nur noch self.data
             # unverändert zurückgibt.
-            snapshot = stored.get("frozen_snapshot") if stored else None
+            snapshot = stored.get("frozen_snapshot")
             if snapshot:
                 self.data = HamsterFitnessData(**snapshot)
             return
@@ -241,7 +246,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         expected_daily_start = _compute_window_start(dt_util.now(), DAILY_RESET_HOUR)
         stored_daily_start = (
             dt_util.parse_datetime(stored["baseline_window_start"])
-            if stored and stored.get("baseline_window_start")
+            if stored.get("baseline_window_start")
             else None
         )
         if not sensor_changed and stored_daily_start == expected_daily_start:
@@ -261,7 +266,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
         stored_night_start = (
             dt_util.parse_datetime(stored["night_window_start"])
-            if stored and stored.get("night_window_start")
+            if stored.get("night_window_start")
             else None
         )
         if not sensor_changed and stored_night_start == expected_night_start:
@@ -447,7 +452,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 dt_util.utcnow() - door_state.last_changed
             ).total_seconds() / 3600
 
-        options = self.config_entry.options
+        options = self._entry.options
         ideal_temp_min = options.get(OPTION_IDEAL_TEMP_MIN, DEFAULT_IDEAL_TEMP_MIN)
         ideal_temp_max = options.get(OPTION_IDEAL_TEMP_MAX, DEFAULT_IDEAL_TEMP_MAX)
         min_distance_km = options.get(OPTION_MIN_DISTANCE_KM, DEFAULT_MIN_DISTANCE_KM)

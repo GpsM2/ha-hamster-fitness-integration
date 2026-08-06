@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.core import CoreState, Event, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -35,7 +35,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     ship their own card, e.g. home-assistant-flightradar24).
     """
 
-    async def _register_frontend(_event=None) -> None:
+    async def _register_frontend(_event: Event | None = None) -> None:
         await JSModuleRegistration(hass).async_register()
 
     if hass.state is CoreState.running:
