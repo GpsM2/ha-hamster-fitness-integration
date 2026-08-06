@@ -27,6 +27,18 @@
       },
       "day_rest_duration": {
         "default": "mdi:power-sleep"
+      },
+      "score_activity": {
+        "default": "mdi:run"
+      },
+      "score_sleep": {
+        "default": "mdi:sleep"
+      },
+      "score_climate": {
+        "default": "mdi:thermometer-lines"
+      },
+      "score_care": {
+        "default": "mdi:broom"
       }
     },
     "date": {

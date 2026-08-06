@@ -93,16 +93,20 @@ async def test_low_distance_triggers_warning(hass: HomeAssistant) -> None:
 
 
 async def test_door_sensor_mirrors_source(hass: HomeAssistant) -> None:
-    """binary_sensor.<hamster>_door mirrors the configured door sensor."""
+    """binary_sensor.<hamster>_cage_door mirrors the configured door sensor.
+
+    Note the entity_id: Home Assistant derives it from the *name* ("Cage
+    door"), not from the translation_key ("door") the Python code uses.
+    """
     hass.states.async_set(WHEEL_SENSOR, "0")
     hass.states.async_set(TEMPERATURE_SENSOR, "22")
     hass.states.async_set(DOOR_SENSOR, "off")
 
     await _setup_entry(hass)
 
-    assert hass.states.get("binary_sensor.hamster_taco_door").state == "off"
+    assert hass.states.get("binary_sensor.hamster_taco_cage_door").state == "off"
 
     hass.states.async_set(DOOR_SENSOR, "on")
     await hass.async_block_till_done()
 
-    assert hass.states.get("binary_sensor.hamster_taco_door").state == "on"
+    assert hass.states.get("binary_sensor.hamster_taco_cage_door").state == "on"

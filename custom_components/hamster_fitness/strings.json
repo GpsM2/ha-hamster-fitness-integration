@@ -97,7 +97,7 @@
         "data": {
           "ideal_temp_min": "Ideal temperature (min)",
           "ideal_temp_max": "Ideal temperature (max)",
-          "min_distance_km": "Minimum daily distance",
+          "min_distance_km": "Minimum nightly distance",
           "warnings_enabled": "Send warning notifications",
           "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time",
@@ -109,7 +109,7 @@
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
           "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
-          "min_distance_km": "Below this daily distance, the health score drops sharply.",
+          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started.",
           "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent.",
@@ -152,6 +152,18 @@
       },
       "day_rest_duration": {
         "name": "Rest duration"
+      },
+      "score_activity": {
+        "name": "Activity score"
+      },
+      "score_sleep": {
+        "name": "Sleep score"
+      },
+      "score_climate": {
+        "name": "Climate score"
+      },
+      "score_care": {
+        "name": "Care score"
       }
     },
     "binary_sensor": {

@@ -212,7 +212,9 @@ class HamsterFitnessCard extends HTMLElement {
     if (!this._hass || !this.content || !this._config) return;
 
     const healthScore = this._entity("health_score");
-    const dailyDistance = this._entity("daily_distance");
+    // Bewusst KEINE Tagesdistanz mehr: sie fällt um 9 Uhr auf 0 zurück und
+    // sagt für sich genommen nichts über einen nachtaktiven Hamster aus -
+    // der Health-Score bewertet seit 0.3.0 ebenfalls die Nachtstrecke.
     const nightDistance = this._entity("night_distance");
     const lifetimeDistance = this._entity("lifetime_distance");
     const currentSpeed = this._entity("current_speed");
@@ -289,10 +291,6 @@ class HamsterFitnessCard extends HTMLElement {
       </div>
 
       <div class="hfc-stats">
-        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("daily_distance")}" tabindex="0" role="button">
-          <span class="hfc-stat-label">Heute</span>
-          <span class="hfc-stat-value">${this._fmt(dailyDistance && dailyDistance.state, 2, "km")}</span>
-        </div>
         <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("night_distance")}" tabindex="0" role="button">
           <span class="hfc-stat-label">Heute Nacht</span>
           <span class="hfc-stat-value">${this._fmt(nightDistance && nightDistance.state, 2, "km")}</span>

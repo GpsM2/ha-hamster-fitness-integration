@@ -55,6 +55,8 @@ OPTION_MIN_DISTANCE_KM: Final = "min_distance_km"
 OPTION_WARNINGS_ENABLED: Final = "warnings_enabled"
 OPTION_DAILY_SUMMARY_ENABLED: Final = "daily_summary_enabled"
 OPTION_NOTIFICATION_TIME: Final = "notification_time"
+OPTION_WEIGHT_REMINDER_ENABLED: Final = "weight_reminder_enabled"
+OPTION_WEIGHT_REMINDER_DAYS: Final = "weight_reminder_days"
 # Nur wirksam, wenn CONF_LIGHT_ENTITY gesetzt ist, siehe door_light.py.
 OPTION_LIGHT_BRIGHTNESS_PCT: Final = "light_brightness_pct"
 OPTION_LIGHT_TRANSITION_S: Final = "light_transition_s"
@@ -68,6 +70,10 @@ DEFAULT_MIN_DISTANCE_KM: Final[float] = 2.0
 DEFAULT_WARNINGS_ENABLED: Final = True
 DEFAULT_DAILY_SUMMARY_ENABLED: Final = True
 DEFAULT_NOTIFICATION_TIME: Final = "08:00:00"
+DEFAULT_WEIGHT_REMINDER_ENABLED: Final = False
+DEFAULT_WEIGHT_REMINDER_DAYS: Final[int] = 7
+MIN_WEIGHT_REMINDER_DAYS: Final[int] = 1
+MAX_WEIGHT_REMINDER_DAYS: Final[int] = 90
 DEFAULT_LIGHT_BRIGHTNESS_PCT: Final[int] = 100
 DEFAULT_LIGHT_TRANSITION_S: Final[float] = 0.0
 DEFAULT_LIGHT_TURN_OFF_ENABLED: Final = True
@@ -108,6 +114,21 @@ NIGHT_WINDOW_START_HOUR: Final[int] = 20
 # (z. B. Trinken, Putzen) unterbrechen die Session nicht.
 SESSION_END_GAP_MINUTES: Final[int] = 30
 
+# --- Schlafphasen-Metrik (score_sleep) ---
+# Hauptschlafphase eines dämmerungs-/nachtaktiven Hamsters. Störungen in
+# diesem Fenster (Deckel öffnen, dadurch geweckt werden und ins Rad
+# steigen) gelten als Stressfaktor und senken den Schlaf-Score, siehe
+# coordinator.py's _sleep_penalty(). Die Grenzen liegen bewusst innerhalb
+# des Tagesfensters (DAILY_RESET_HOUR = 9 Uhr), damit die Zähler genau
+# einmal pro Tag - kurz vor Beginn der Schlafphase - zurückgesetzt werden.
+SLEEP_PHASE_START_HOUR: Final[int] = 10
+SLEEP_PHASE_END_HOUR: Final[int] = 17
+
+# --- Score-Historie (Trend-Diagramm der Health-Score-Karte) ---
+# Wie viele abgeschlossene Tage an Health-Scores rollierend vorgehalten
+# werden (siehe coordinator.py's _record_daily_score()).
+SCORE_HISTORY_DAYS: Final[int] = 7
+
 # --- Storage ---
 STORAGE_VERSION: Final[int] = 1
 
@@ -138,7 +159,7 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "5",
+        "version": "6",
     },
     {
         "name": "Hamster Day & Night Card",

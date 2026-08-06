@@ -97,7 +97,7 @@
         "data": {
           "ideal_temp_min": "Ideal-Temperatur (min)",
           "ideal_temp_max": "Ideal-Temperatur (max)",
-          "min_distance_km": "Mindeststrecke pro Tag",
+          "min_distance_km": "Mindeststrecke pro Nacht",
           "warnings_enabled": "Warnungen senden",
           "daily_summary_enabled": "Tageszusammenfassung senden",
           "notification_time": "Uhrzeit der Tageszusammenfassung",
@@ -109,7 +109,7 @@
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
           "ideal_temp_max": "Obergrenze des idealen Käfig-Temperaturbereichs.",
-          "min_distance_km": "Unterhalb dieser Tagesstrecke sinkt der Health-Score deutlich.",
+          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat.",
           "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
           "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
           "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
@@ -152,6 +152,18 @@
       },
       "day_rest_duration": {
         "name": "Ruhedauer"
+      },
+      "score_activity": {
+        "name": "Aktivitäts-Score"
+      },
+      "score_sleep": {
+        "name": "Schlaf-Score"
+      },
+      "score_climate": {
+        "name": "Klima-Score"
+      },
+      "score_care": {
+        "name": "Pflege-Score"
       }
     },
     "binary_sensor": {
