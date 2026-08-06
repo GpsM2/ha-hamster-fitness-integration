@@ -134,6 +134,14 @@ items stay listed so the history stays traceable.
   swap kept only as a fallback. Card titles/ranking names now also prefer
   the device's own name over parsing it out of the entity_id, for the same
   reason
+- `diagnostics.py` added: lets you download a config entry's diagnostics
+  (Settings → Devices & Services → Hamster Fitness → device → Download
+  diagnostics) for bug reports, without having to copy state by hand.
+  Notification targets are redacted since they can be identifying; the
+  rest (sensor references, entity registry entries) isn't sensitive - the
+  first step of an ongoing pass to bring the integration closer to Home
+  Assistant's Quality Scale standards for a possible future Core
+  submission
 
 ## 🚧 Planned
 
