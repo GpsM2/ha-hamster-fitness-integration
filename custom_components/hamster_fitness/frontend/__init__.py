@@ -75,6 +75,9 @@ class JSModuleRegistration:
 
     async def _async_register_modules(self) -> None:
         """Create or version-bump this integration's Lovelace resource(s)."""
+        # Only reached via _async_wait_for_lovelace_resources() once it
+        # confirmed self.lovelace is set and its resources are loaded.
+        assert self.lovelace is not None
         existing = [
             resource
             for resource in self.lovelace.resources.async_items()

@@ -146,6 +146,9 @@ class HamsterFitnessDoorLight:
     # ------------------------------------------------------------------
 
     async def _async_turn_on(self) -> None:
+        # Only called from async_setup()/_async_handle_coordinator_update(),
+        # both gated on self._light_entity being set.
+        assert self._light_entity is not None
         data: dict[str, float | int | str] = {
             "entity_id": self._light_entity,
             "brightness_pct": self._brightness_pct,
@@ -155,6 +158,7 @@ class HamsterFitnessDoorLight:
         await self._async_call_light_service(SERVICE_TURN_ON, data)
 
     async def _async_turn_off(self) -> None:
+        assert self._light_entity is not None
         data: dict[str, float | int | str] = {"entity_id": self._light_entity}
         if self._transition > 0:
             data["transition"] = self._transition
