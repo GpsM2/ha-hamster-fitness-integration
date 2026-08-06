@@ -48,10 +48,13 @@ import {
   applyFur,
   coatColor,
   deviceDisplayName,
+  fmtNumber,
+  fmtWeekday,
   renderCardHeader,
   shade,
   siblingEntityId,
-} from "./hamster-fitness-shared.js?v=2";
+  t,
+} from "./hamster-fitness-shared.js?v=3";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -72,28 +75,26 @@ const DEFAULT_TOGGLES = {
 
 /**
  * The four pillars of health. `key` is the sibling entity's
- * translation_key; `tip` is the husbandry advice shown in the modal, and
- * `facts` pulls the concrete numbers behind the score out of that
- * entity's attributes so the modal explains itself rather than just
- * repeating a percentage.
+ * translation_key; `name`/`long`/`tip` are card translation keys (see
+ * hamster-fitness-shared.js), and `facts` pulls the concrete numbers
+ * behind the score out of that entity's attributes so the modal explains
+ * itself rather than just repeating a percentage. Fact labels are
+ * translation keys too, resolved when the modal is built.
  */
 const PILLARS = [
   {
     id: "activity",
     key: "score_activity",
     icon: "🏃",
-    name: "Aktivität",
-    long: "Aktivität & Ausdauer",
-    tip:
-      "Hamster verbergen Krankheit instinktiv so lange wie möglich. Ein plötzlicher Einbruch " +
-      "der nächtlichen Laufstrecke um mehr als 30 % ist oft das allererste Anzeichen – achte " +
-      "auf den Trend, nicht auf eine einzelne Nacht.",
+    name: "pillar.activity",
+    long: "pillar.activityLong",
+    tip: "pillar.activityTip",
     facts: (attrs, fmt) => [
-      ["Diese Nacht", fmt(attrs.night_distance_km, 2, "km")],
-      ["Letzte volle Nacht", fmt(attrs.last_completed_night_km, 2, "km")],
+      ["pillar.activityNight", fmt(attrs.night_distance_km, 2, "km")],
+      ["pillar.activityLast", fmt(attrs.last_completed_night_km, 2, "km")],
       [
-        "Ideal",
-        `${fmt(attrs.ideal_distance_min_km, 0, "")}–${fmt(attrs.ideal_distance_max_km, 0, "km")}`,
+        "pillar.activityIdeal",
+        `${fmt(attrs.ideal_distance_min_km, 0, "")}\u2013${fmt(attrs.ideal_distance_max_km, 0, "km")}`,
       ],
     ],
   },
@@ -101,18 +102,20 @@ const PILLARS = [
     id: "sleep",
     key: "score_sleep",
     icon: "😴",
-    name: "Schlaf",
-    long: "Schlaf & Ruhequalität",
-    tip:
-      "Hamster sind dämmerungs- und nachtaktiv. Wird ihre Hauptschlafphase (10:00–17:00 Uhr) " +
-      "durch Licht, Erschütterungen oder Käfigöffnungen gestört, entsteht chronischer Stress " +
-      "und das Immunsystem leidet.",
-    facts: (attrs, fmt) => [
-      ["Käfig geöffnet (Schlafzeit)", fmt(attrs.sleep_door_openings, 0, "×")],
-      ["Aufgewacht und gelaufen", fmt(attrs.sleep_activity_sessions, 0, "×")],
+    name: "pillar.sleep",
+    long: "pillar.sleepLong",
+    tip: "pillar.sleepTip",
+    facts: (attrs, fmt, hass) => [
+      ["pillar.sleepOpenings", fmt(attrs.sleep_door_openings, 0, "\u00d7")],
+      ["pillar.sleepWakeups", fmt(attrs.sleep_activity_sessions, 0, "\u00d7")],
       [
-        "Schlafphase",
-        `${fmt(attrs.sleep_phase_start_hour, 0, "")}–${fmt(attrs.sleep_phase_end_hour, 0, "Uhr")}`,
+        "pillar.sleepPhase",
+        // German wants a trailing "Uhr", English does not - so the range
+        // is one translatable string rather than glued together here.
+        t(hass, "pillar.sleepPhaseValue", {
+          from: fmt(attrs.sleep_phase_start_hour, 0, ""),
+          to: fmt(attrs.sleep_phase_end_hour, 0, ""),
+        }),
       ],
     ],
   },
@@ -120,30 +123,28 @@ const PILLARS = [
     id: "climate",
     key: "score_climate",
     icon: "🌡️",
-    name: "Klima",
-    long: "Klima & Umgebung",
-    tip:
-      "Ideal sind 18–22 °C bei 40–60 % Luftfeuchtigkeit. Unter 15 °C droht lebensgefährliche " +
-      "Kältestarre, über 24 °C Hitzschlag.",
+    name: "pillar.climate",
+    long: "pillar.climateLong",
+    tip: "pillar.climateTip",
     facts: (attrs, fmt) => [
-      ["Temperatur", fmt(attrs.temperature, 1, "°C")],
-      ["Luftfeuchtigkeit", fmt(attrs.humidity, 0, "%")],
+      ["pillar.climateTemperature", fmt(attrs.temperature, 1, "°C")],
+      ["pillar.climateHumidity", fmt(attrs.humidity, 0, "%")],
     ],
   },
   {
     id: "care",
     key: "score_care",
     icon: "🧹",
-    name: "Pflege",
-    long: "Pflege & Interaktion",
-    tip:
-      "Gemessen über den Deckel-/Türsensor: wie regelmäßig der Käfig zum Füttern und Reinigen " +
-      "geöffnet wird. Am besten 1–2 kurze Öffnungen am späten Abend; häufiges Öffnen tagsüber " +
-      "besser vermeiden.",
-    facts: (attrs, fmt) => [
-      ["Deckel zu seit", fmt(attrs.hours_door_closed, 0, "Std.")],
-      ["Deckel gerade", attrs.door_open ? "offen" : "geschlossen"],
-      ["Als vernachlässigt ab", fmt(attrs.neglect_threshold_hours, 0, "Std.")],
+    name: "pillar.care",
+    long: "pillar.careLong",
+    tip: "pillar.careTip",
+    facts: (attrs, fmt, hass) => [
+      ["pillar.careClosedFor", fmt(attrs.hours_door_closed, 0, "h")],
+      [
+        "pillar.careLidNow",
+        t(hass, attrs.door_open ? "pillar.careLidOpen" : "pillar.careLidClosed"),
+      ],
+      ["pillar.careNeglectFrom", fmt(attrs.neglect_threshold_hours, 0, "h")],
     ],
   },
 ];
@@ -174,7 +175,7 @@ const MOCK = {
   months: 9,
   speed: 3.4,
   pillars: { activity: 100, sleep: 80, climate: 100, care: 92 },
-  insight: "Alles im grünen Bereich – gestern Nacht 6,1 km gelaufen.",
+  insightKey: "health.insightMock",
   history: [
     { date: "2026-07-31", score: 74 },
     { date: "2026-08-01", score: 81 },
@@ -197,42 +198,42 @@ function scoreColor(score) {
 
 function scoreBadge(score) {
   if (score === null || Number.isNaN(Number(score))) {
-    return { label: "Unbekannt", color: "#8D99AE" };
+    return { key: "health.badgeUnknown", color: "#8D99AE" };
   }
   if (score < WARNING_SCORE_THRESHOLD) {
-    return { label: "Tierarzt prüfen", color: COLOR_BAD };
+    return { key: "health.badgeVet", color: COLOR_BAD };
   }
-  if (score < GOOD_SCORE_THRESHOLD) return { label: "Beobachten", color: COLOR_WATCH };
-  return { label: "Voll vital", color: COLOR_GOOD };
+  if (score < GOOD_SCORE_THRESHOLD) {
+    return { key: "health.badgeWatch", color: COLOR_WATCH };
+  }
+  return { key: "health.badgeVital", color: COLOR_GOOD };
 }
 
-/** "seit 9 Monaten bei dir", from the acquisition date. */
-function togetherSince(acquisitionDate) {
-  if (!acquisitionDate) return "Health Score";
+/** "with you for 9 months", from the acquisition date. */
+function togetherSince(hass, acquisitionDate) {
+  const fallback = t(hass, "health.fallbackSubtitle");
+  if (!acquisitionDate) return fallback;
   const start = new Date(acquisitionDate);
-  if (Number.isNaN(start.getTime())) return "Health Score";
+  if (Number.isNaN(start.getTime())) return fallback;
   const days = Math.floor((Date.now() - start.getTime()) / 86400000);
-  if (days < 0) return "Health Score";
-  if (days < 31) return `seit ${days} ${days === 1 ? "Tag" : "Tagen"} bei dir`;
+  if (days < 0) return fallback;
+  if (days < 31) return t(hass, "health.withYouDays", { count: days });
   const months = Math.floor(days / 30.44);
-  if (months < 24) {
-    return `seit ${months} ${months === 1 ? "Monat" : "Monaten"} bei dir`;
-  }
-  const years = Math.floor(months / 12);
-  return `seit ${years} Jahren bei dir`;
+  if (months < 24) return t(hass, "health.withYouMonths", { count: months });
+  return t(hass, "health.withYouYears", { count: Math.floor(months / 12) });
 }
 
 class HamsterFitnessCard extends HTMLElement {
   setConfig(config) {
     if (!config.entity) {
       throw new Error(
-        "hamster-fitness-card: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (endet auf _health_score)."
+        t(null, "common.needEntity", { card: "hamster-fitness-card" })
       );
     }
     const match = config.entity.match(ENTITY_PATTERN);
     if (!match) {
       throw new Error(
-        "hamster-fitness-card: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score)."
+        t(null, "common.wrongEntity", { card: "hamster-fitness-card" })
       );
     }
     this._config = { ...DEFAULT_TOGGLES, ...config };
@@ -345,11 +346,7 @@ class HamsterFitnessCard extends HTMLElement {
   }
 
   _fmt(value, decimals, unit) {
-    if (value === undefined || value === null || Number.isNaN(Number(value))) {
-      return "–";
-    }
-    const num = Number(value).toFixed(decimals).replace(".", ",");
-    return unit ? `${num} ${unit}` : num;
+    return fmtNumber(this._hass, value, decimals, unit);
   }
 
   _ring({ value, max, color, decimals, unit, label, entityId }) {
@@ -387,10 +384,10 @@ class HamsterFitnessCard extends HTMLElement {
     const pct = valid ? Math.min(100, Math.max(0, Number(value))) : 0;
     return `
       <div class="hfc-tile" data-pillar="${pillar.id}" tabindex="0" role="button"
-           aria-label="${pillar.long} – Details anzeigen">
+           aria-label="${t(this._hass, "health.detailsFor", { pillar: t(this._hass, pillar.long) })}">
         <div class="hfc-tile-top">
           <span class="hfc-tile-icon">${pillar.icon}</span>
-          <span class="hfc-tile-name">${pillar.name}</span>
+          <span class="hfc-tile-name">${t(this._hass, pillar.name)}</span>
           <span class="hfc-tile-value" style="color: ${color}">${valid ? Math.round(value) : "–"}</span>
         </div>
         <div class="hfc-tile-bar"><span style="width: ${pct}%; background: ${color}"></span></div>
@@ -402,10 +399,8 @@ class HamsterFitnessCard extends HTMLElement {
     if (!history.length) {
       return `
         <div class="hfc-trend">
-          <div class="hfc-section-label">7-Tage-Trend</div>
-          <div class="hfc-trend-empty">
-            Noch keine abgeschlossenen Tage – der erste Wert erscheint morgen früh um 9 Uhr.
-          </div>
+          <div class="hfc-section-label">${t(this._hass, "health.trend")}</div>
+          <div class="hfc-trend-empty">${t(this._hass, "health.trendEmpty")}</div>
         </div>
       `;
     }
@@ -417,20 +412,17 @@ class HamsterFitnessCard extends HTMLElement {
       delta === null
         ? ""
         : delta > 0
-          ? `<span class="hfc-delta hfc-delta-up">+${delta} ggü. Schnitt</span>`
+          ? `<span class="hfc-delta hfc-delta-up">${t(this._hass, "health.trendUp", { delta })}</span>`
           : delta < 0
-            ? `<span class="hfc-delta hfc-delta-down">${delta} ggü. Schnitt</span>`
-            : `<span class="hfc-delta">wie im Schnitt</span>`;
+            ? `<span class="hfc-delta hfc-delta-down">${t(this._hass, "health.trendDown", { delta })}</span>`
+            : `<span class="hfc-delta">${t(this._hass, "health.trendSame")}</span>`;
 
     const bars = history
       .map((item) => {
         const value = Number(item.score);
         const valid = !Number.isNaN(value);
         const height = valid ? Math.max(4, value) : 4;
-        const day = new Date(item.date);
-        const label = Number.isNaN(day.getTime())
-          ? "?"
-          : day.toLocaleDateString("de-DE", { weekday: "short" }).slice(0, 2);
+        const label = fmtWeekday(this._hass, item.date);
         return `
           <div class="hfc-bar-col" title="${item.date}: ${valid ? value : "?"}">
             <div class="hfc-bar-track">
@@ -445,8 +437,8 @@ class HamsterFitnessCard extends HTMLElement {
     return `
       <div class="hfc-trend">
         <div class="hfc-section-label">
-          7-Tage-Trend
-          <span class="hfc-trend-avg">Ø ${Math.round(avg)}</span>
+          ${t(this._hass, "health.trend")}
+          <span class="hfc-trend-avg">${t(this._hass, "health.trendAvg", { value: Math.round(avg) })}</span>
           ${deltaText}
         </div>
         <div class="hfc-bars">${bars}</div>
@@ -463,20 +455,20 @@ class HamsterFitnessCard extends HTMLElement {
     const attrs = state ? state.attributes : this._mockAttrs(pillar.id);
     const color = scoreColor(value);
     const facts = pillar
-      .facts(attrs, (v, d, u) => this._fmt(v, d, u))
+      .facts(attrs, (v, d, u) => this._fmt(v, d, u), this._hass)
       .map(
-        ([label, text]) =>
-          `<div class="hfc-fact"><span>${label}</span><strong>${text}</strong></div>`
+        ([labelKey, value]) =>
+          `<div class="hfc-fact"><span>${t(this._hass, labelKey)}</span><strong>${value}</strong></div>`
       )
       .join("");
 
     this._modalHost.innerHTML = `
       <div class="hfc-overlay">
-        <div class="hfc-modal" role="dialog" aria-modal="true" aria-label="${pillar.long}">
+        <div class="hfc-modal" role="dialog" aria-modal="true" aria-label="${t(this._hass, pillar.long)}">
           <div class="hfc-modal-head" style="background: ${color}">
             <span class="hfc-modal-icon">${pillar.icon}</span>
-            <span class="hfc-modal-title">${pillar.long}</span>
-            <button class="hfc-modal-close" data-close type="button" aria-label="Schließen">×</button>
+            <span class="hfc-modal-title">${t(this._hass, pillar.long)}</span>
+            <button class="hfc-modal-close" data-close type="button" aria-label="${t(this._hass, "health.close")}">×</button>
           </div>
           <div class="hfc-modal-body">
             <div class="hfc-modal-score" style="color: ${color}">
@@ -484,12 +476,12 @@ class HamsterFitnessCard extends HTMLElement {
             </div>
             <div class="hfc-facts">${facts}</div>
             <div class="hfc-tip">
-              <span class="hfc-tip-label">Gut zu wissen</span>
-              <p>${pillar.tip}</p>
+              <span class="hfc-tip-label">${t(this._hass, "health.tipLabel")}</span>
+              <p>${t(this._hass, pillar.tip)}</p>
             </div>
             ${
               state
-                ? `<button class="hfc-modal-link" data-close data-entity="${this._entityId(pillar.key)}" type="button">Verlauf öffnen</button>`
+                ? `<button class="hfc-modal-link" data-close data-entity="${this._entityId(pillar.key)}" type="button">${t(this._hass, "health.openHistory")}</button>`
                 : ""
             }
           </div>
@@ -550,10 +542,10 @@ class HamsterFitnessCard extends HTMLElement {
     const isDeparted =
       departureDate && departureDate.state && departureDate.state !== "unknown";
     const subtitle = isDeparted
-      ? "ausgezogen"
+      ? t(this._hass, "health.departed")
       : preview
-        ? `seit ${MOCK.months} Monaten bei dir`
-        : togetherSince(attrs.acquisition_date);
+        ? t(this._hass, "health.withYouMonths", { count: MOCK.months })
+        : togetherSince(this._hass, attrs.acquisition_date);
 
     this._bannerEl.style.background = `linear-gradient(135deg, ${shade(
       badge.color === "#8D99AE" ? "#8D99AE" : badge.color,
@@ -566,7 +558,7 @@ class HamsterFitnessCard extends HTMLElement {
       subtitle,
       badgeHtml: `<span class="hf-badge">
         <span class="hf-badge-dot" style="background: ${badge.color}"></span>
-        ${badge.label}
+        ${t(this._hass, badge.key)}
       </span>`,
     });
 
@@ -574,7 +566,7 @@ class HamsterFitnessCard extends HTMLElement {
     const warning = this._entity("warning");
     const warningOn = warning && warning.state === "on";
     const insight = preview
-      ? MOCK.insight
+      ? t(this._hass, MOCK.insightKey)
       : warningOn && warning.attributes.warning_reason
         ? warning.attributes.warning_reason
         : this._positiveInsight(attrs, scoreValid ? score : null);
@@ -586,7 +578,7 @@ class HamsterFitnessCard extends HTMLElement {
         color,
         decimals: 0,
         unit: "%",
-        label: "Health Score",
+        label: t(this._hass, "health.ringScore"),
         entityId: preview ? null : this._entityId("health_score"),
       })}
       ${
@@ -597,7 +589,7 @@ class HamsterFitnessCard extends HTMLElement {
               color: RING_COLOR_NEUTRAL,
               decimals: 1,
               unit: "km/h",
-              label: "Geschwindigkeit",
+              label: t(this._hass, "health.ringSpeed"),
               entityId: preview ? null : this._entityId("current_speed"),
             })
           : ""
@@ -622,7 +614,7 @@ class HamsterFitnessCard extends HTMLElement {
       : "";
 
     this._bodyEl.innerHTML = `
-      ${preview ? '<div class="hfc-preview-note">Vorschau mit Beispieldaten</div>' : ""}
+      ${preview ? `<div class="hfc-preview-note">${t(this._hass, "health.previewNote")}</div>` : ""}
       <div class="hfc-rings">${rings}</div>
       <div class="hfc-insight${warningOn ? " hfc-insight-warn" : ""}">
         <span class="hfc-insight-icon">${warningOn ? "⚠️" : "💡"}</span>
@@ -640,7 +632,7 @@ class HamsterFitnessCard extends HTMLElement {
    */
   _positiveInsight(attrs, score) {
     if (score !== null && score < GOOD_SCORE_THRESHOLD) {
-      return "Nichts akut Auffälliges, aber der Score liegt unter dem üblichen Niveau – die vier Säulen unten zeigen, woran es hängt.";
+      return t(this._hass, "health.insightMiddling");
     }
     const night = Number(
       attrs.night_distance_km >= attrs.last_completed_night_km
@@ -648,9 +640,11 @@ class HamsterFitnessCard extends HTMLElement {
         : attrs.last_completed_night_km
     );
     if (!Number.isNaN(night) && night > 0) {
-      return `Alles im grünen Bereich – zuletzt ${this._fmt(night, 2, "km")} in einer Nacht gelaufen.`;
+      return t(this._hass, "health.insightGood", {
+        distance: this._fmt(night, 2, "km"),
+      });
     }
-    return "Alles im grünen Bereich – keine Auffälligkeiten.";
+    return t(this._hass, "health.insightGoodPlain");
   }
 
   _capitalize(text) {
@@ -1034,9 +1028,8 @@ customElements.define("hamster-fitness-card", HamsterFitnessCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "hamster-fitness-card",
-  name: "Hamster Fitness: Health Score",
-  description:
-    "Health Score als Ring, verständlicher Hinweistext, die vier Säulen der Gesundheit zum Antippen und ein 7-Tage-Trend.",
+  name: t(null, "health.pickerName"),
+  description: t(null, "health.pickerDescription"),
 });
 
 const EDITOR_SCHEMA = [
@@ -1053,12 +1046,12 @@ const EDITOR_SCHEMA = [
 ];
 
 const EDITOR_LABELS = {
-  entity: "Health-Score-Sensor des Hamsters",
-  title: "Titel (optional)",
-  max_speed: "Skala des Geschwindigkeits-Rings (km/h)",
-  show_speed: "Geschwindigkeits-Ring anzeigen",
-  show_pillars: "Die vier Säulen anzeigen",
-  show_trend: "7-Tage-Trend anzeigen",
+  entity: "common.entityPicker",
+  title: "common.optionalTitle",
+  max_speed: "health.maxSpeed",
+  show_speed: "health.showSpeed",
+  show_pillars: "health.showPillars",
+  show_trend: "health.showTrend",
 };
 
 class HamsterFitnessCardEditor extends HTMLElement {
@@ -1077,7 +1070,10 @@ class HamsterFitnessCardEditor extends HTMLElement {
 
     if (!this._form) {
       this._form = document.createElement("ha-form");
-      this._form.computeLabel = (schema) => EDITOR_LABELS[schema.name] || schema.name;
+      this._form.computeLabel = (schema) =>
+        EDITOR_LABELS[schema.name]
+          ? t(this._hass, EDITOR_LABELS[schema.name])
+          : schema.name;
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this._config = ev.detail.value;
@@ -1169,7 +1165,7 @@ class HamsterFitnessRankingCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { title: "Hamster-Ranking" };
+    return { title: t(null, "ranking.title") };
   }
 
   _capitalize(text) {
@@ -1206,10 +1202,7 @@ class HamsterFitnessRankingCard extends HTMLElement {
 
     if (rows.length === 0) {
       this.content.innerHTML = `
-        <div class="hfc-error">
-          Keine Hamster-Fitness-Hamster gefunden (kein
-          sensor.hamster_&lt;name&gt;_lifetime_distance in diesem Home Assistant).
-        </div>
+        <div class="hfc-error">${t(this._hass, "ranking.empty")}</div>
       `;
       return;
     }
@@ -1218,7 +1211,7 @@ class HamsterFitnessRankingCard extends HTMLElement {
 
     this.content.innerHTML = `
       <div class="hfc-plain-header">
-        <span class="hfc-plain-title">🏆 ${this._config.title || "Hamster-Ranking"}</span>
+        <span class="hfc-plain-title">🏆 ${this._config.title || t(this._hass, "ranking.title")}</span>
       </div>
       <div class="hfc-ranking" style="padding: 0 12px 12px">
         ${rows
@@ -1227,7 +1220,7 @@ class HamsterFitnessRankingCard extends HTMLElement {
               <div class="hfc-rank-row hfc-clickable" data-entity="${row.entityId}" tabindex="0" role="button">
                 <span class="hfc-rank-medal">${medals[index] || `#${index + 1}`}</span>
                 <span class="hfc-rank-name">${row.name}${row.isDeparted ? " 🪦" : ""}</span>
-                <span class="hfc-rank-value">${row.distance.toFixed(1).replace(".", ",")} km</span>
+                <span class="hfc-rank-value">${fmtNumber(this._hass, row.distance, 1, "km")}</span>
               </div>
             `
           )
@@ -1241,13 +1234,12 @@ customElements.define("hamster-fitness-ranking-card", HamsterFitnessRankingCard)
 
 window.customCards.push({
   type: "hamster-fitness-ranking-card",
-  name: "Hamster Fitness: Ranking",
-  description:
-    "Vergleicht alle Hamster in diesem Home Assistant nach Lebenszeit-Distanz - erkennt sie automatisch, keine Konfiguration nötig.",
+  name: t(null, "ranking.pickerName"),
+  description: t(null, "ranking.pickerDescription"),
 });
 
 const RANKING_EDITOR_SCHEMA = [{ name: "title", selector: { text: {} } }];
-const RANKING_EDITOR_LABELS = { title: "Titel (optional)" };
+const RANKING_EDITOR_LABELS = { title: "common.optionalTitle" };
 
 class HamsterFitnessRankingCardEditor extends HTMLElement {
   setConfig(config) {
@@ -1265,7 +1257,10 @@ class HamsterFitnessRankingCardEditor extends HTMLElement {
 
     if (!this._form) {
       this._form = document.createElement("ha-form");
-      this._form.computeLabel = (schema) => RANKING_EDITOR_LABELS[schema.name] || schema.name;
+      this._form.computeLabel = (schema) =>
+        RANKING_EDITOR_LABELS[schema.name]
+          ? t(this._hass, RANKING_EDITOR_LABELS[schema.name])
+          : schema.name;
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this._config = ev.detail.value;

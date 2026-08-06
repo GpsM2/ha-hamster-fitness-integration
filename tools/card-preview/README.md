@@ -55,10 +55,16 @@ shared module without a version query or with one that disagrees with
 `SHARED_MODULE_VERSION` and the `?v=` in every card that imports it.**
 The test will tell you if you forget.
 
+## Languages
+
+The cards follow Home Assistant's language. `?lang=de` (the default) and
+`?lang=en` mock it, so both translations can be checked side by side
+without touching anything in Home Assistant — including the locale-driven
+number, date and weekday formatting.
+
 ## Limitations
 
 - `<ha-card>` is faked with plain CSS here; the real one brings Home
   Assistant's theme variables. Colours and spacing are close, not exact.
 - `<ha-form>` does not exist outside Home Assistant, so the card editors
   render empty. Their logic still has to be checked in a real dashboard.
-- Only German is mocked (`language: "de"`).

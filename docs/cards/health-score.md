@@ -71,3 +71,5 @@ show_trend: false
 - Sibling entities are found through the entity registry, not by guessing
   entity IDs, so the card works on a Home Assistant running in any
   language.
+- The card's own text follows `hass.language` (English and German), as do
+  number, date and weekday formatting.

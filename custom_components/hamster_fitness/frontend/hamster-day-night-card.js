@@ -37,9 +37,13 @@ import {
   applyFur,
   coatColor,
   deviceDisplayName,
+  fmtDuration,
+  fmtNumber,
+  fmtTime,
   renderCardHeader,
   siblingEntityId,
-} from "./hamster-fitness-shared.js?v=2";
+  t,
+} from "./hamster-fitness-shared.js?v=3";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -60,9 +64,9 @@ const DAY_GRADIENT_HORIZON = ["#F4A261", "#E9C46A"];
 const DAY_GRADIENT_MIDDAY = ["#4EA8DE", "#90E0EF"];
 const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
 
-const STATUS_ONLINE = { label: "Online", color: "#06D6A0" };
-const STATUS_OFFLINE = { label: "Offline", color: "#EF476F" };
-const STATUS_UNAVAILABLE = { label: "Nicht verfügbar", color: "#8D99AE" };
+const STATUS_ONLINE = { key: "common.online", color: "#06D6A0" };
+const STATUS_OFFLINE = { key: "common.offline", color: "#EF476F" };
+const STATUS_UNAVAILABLE = { key: "common.unavailable", color: "#8D99AE" };
 
 const DEFAULT_TOGGLES = {
   show_speed: true,
@@ -126,12 +130,12 @@ class HamsterDayNightCard extends HTMLElement {
   setConfig(config) {
     if (!config.entity) {
       throw new Error(
-        "hamster-day-night-card: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (endet auf _health_score)."
+        t(null, "common.needEntity", { card: "hamster-day-night-card" })
       );
     }
     if (!config.entity.match(ENTITY_PATTERN)) {
       throw new Error(
-        "hamster-day-night-card: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score)."
+        t(null, "common.wrongEntity", { card: "hamster-day-night-card" })
       );
     }
     this._config = { ...DEFAULT_TOGGLES, ...config };
@@ -175,7 +179,7 @@ class HamsterDayNightCard extends HTMLElement {
             ${renderCardHeader({
               logoSvg: LOGO_DUMBBELL_SVG,
               title: "",
-              subtitle: "Day &amp; Night",
+              subtitle: t(null, "dayNight.subtitle"),
               badgeHtml: `<span class="hf-badge">
                 <span class="hf-badge-dot"></span>
                 <span class="hdn-status-label"></span>
@@ -258,30 +262,6 @@ class HamsterDayNightCard extends HTMLElement {
   _entity(key) {
     if (!this._hass) return undefined;
     return this._hass.states[this._entityId(key)];
-  }
-
-  _fmt(value, decimals, unit) {
-    if (value === undefined || value === null || Number.isNaN(Number(value))) {
-      return "–";
-    }
-    const num = Number(value).toFixed(decimals).replace(".", ",");
-    return unit ? `${num} ${unit}` : num;
-  }
-
-  _fmtDuration(minutes) {
-    if (minutes === undefined || minutes === null || Number.isNaN(Number(minutes))) {
-      return "–";
-    }
-    const total = Math.max(0, Math.round(Number(minutes)));
-    const h = Math.floor(total / 60);
-    const m = total % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
-
-  _fmtClock(isoString) {
-    const parsed = new Date(isoString);
-    if (Number.isNaN(parsed.getTime())) return "–";
-    return parsed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
   }
 
   _backgroundGradient() {
@@ -498,23 +478,25 @@ class HamsterDayNightCard extends HTMLElement {
 
     let statusText;
     if (automation.state === "off") {
-      statusText = "Automatik aus";
+      statusText = t(this._hass, "dayNight.automationOff");
     } else if (paused) {
-      statusText = `Pause bis ${this._fmtClock(pausedUntil)}`;
+      statusText = t(this._hass, "dayNight.pausedUntil", {
+        time: fmtTime(this._hass, pausedUntil),
+      });
     } else {
-      statusText = lightOn ? "Licht an" : "Licht aus";
+      statusText = t(this._hass, lightOn ? "dayNight.lightOn" : "dayNight.lightOff");
     }
 
     const button =
       automation.state === "on" && !paused
-        ? `<button class="hdn-chip-button" data-action="pause-light" data-switch="${switchId}" type="button">30 Min. Pause</button>`
+        ? `<button class="hdn-chip-button" data-action="pause-light" data-switch="${switchId}" type="button">${t(this._hass, "dayNight.pauseButton")}</button>`
         : "";
 
     return `
       <div class="hdn-chip hdn-chip-wide${lightOn ? " hdn-chip-lit" : ""}">
         <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.light}"/></svg>
         <span class="hdn-chip-text">
-          <span class="hdn-chip-label hdn-clickable" data-entity="${switchId}" tabindex="0" role="button">Käfiglicht</span>
+          <span class="hdn-chip-label hdn-clickable" data-entity="${switchId}" tabindex="0" role="button">${t(this._hass, "dayNight.cageLight")}</span>
           <span class="hdn-chip-value">${statusText}</span>
         </span>
         ${button}
@@ -528,7 +510,9 @@ class HamsterDayNightCard extends HTMLElement {
     const healthScore = this._entity("health_score");
     if (!healthScore) {
       this._errorEl.hidden = false;
-      this._errorEl.innerHTML = `Entity "<strong>${this._config.entity}</strong>" nicht gefunden. Prüfe die Karten-Konfiguration.`;
+      this._errorEl.textContent = t(this._hass, "common.notFound", {
+        entity: this._config.entity,
+      });
       this._skyEl.hidden = true;
       return;
     }
@@ -559,8 +543,11 @@ class HamsterDayNightCard extends HTMLElement {
 
     const status = this._connectionStatus(this._entityId("current_speed"));
     this._statusDotEl.style.background = status.color;
-    this._statusLabelEl.textContent = isActive ? "Aktiv" : "Ruht";
-    this._statusLabelEl.title = status.label;
+    this._statusLabelEl.textContent = t(
+      this._hass,
+      isActive ? "dayNight.active" : "dayNight.resting"
+    );
+    this._statusLabelEl.title = t(this._hass, status.key);
 
     // Sky decoration and scene are only rebuilt when they actually change
     // mode - rebuilding them every update is what used to restart the
@@ -589,8 +576,8 @@ class HamsterDayNightCard extends HTMLElement {
       chips.push(
         this._chip({
           icon: ICONS.timer,
-          label: "Läuft seit",
-          value: this._fmtDuration(activeMinutes),
+          label: t(this._hass, "dayNight.runningFor"),
+          value: fmtDuration(this._hass, activeMinutes),
           entity: this._entityId("night_active_duration"),
         })
       );
@@ -599,8 +586,8 @@ class HamsterDayNightCard extends HTMLElement {
       chips.push(
         this._chip({
           icon: ICONS.timer,
-          label: "Ruht seit",
-          value: this._fmtDuration(dayRest && dayRest.state),
+          label: t(this._hass, "dayNight.restingFor"),
+          value: fmtDuration(this._hass, dayRest && dayRest.state),
           entity: this._entityId("day_rest_duration"),
         })
       );
@@ -609,8 +596,8 @@ class HamsterDayNightCard extends HTMLElement {
       chips.push(
         this._chip({
           icon: ICONS.speed,
-          label: "Geschwindigkeit",
-          value: this._fmt(currentSpeed && currentSpeed.state, 1, "km/h"),
+          label: t(this._hass, "dayNight.speed"),
+          value: fmtNumber(this._hass, currentSpeed && currentSpeed.state, 1, "km/h"),
           entity: this._entityId("current_speed"),
         })
       );
@@ -619,20 +606,20 @@ class HamsterDayNightCard extends HTMLElement {
       chips.push(
         this._chip({
           icon: ICONS.distance,
-          label: "Diese Nacht",
-          value: this._fmt(nightDistance && nightDistance.state, 2, "km"),
+          label: t(this._hass, "dayNight.thisNight"),
+          value: fmtNumber(this._hass, nightDistance && nightDistance.state, 2, "km"),
           entity: this._entityId("night_distance"),
         })
       );
     }
     if (this._config.show_climate) {
       const climate = humidity
-        ? `${this._fmt(temperature, 1, "°C")} · ${this._fmt(humidity.state, 0, "%")}`
-        : this._fmt(temperature, 1, "°C");
+        ? `${fmtNumber(this._hass, temperature, 1, "°C")} · ${fmtNumber(this._hass, humidity.state, 0, "%")}`
+        : fmtNumber(this._hass, temperature, 1, "°C");
       chips.push(
         this._chip({
           icon: ICONS.climate,
-          label: "Klima",
+          label: t(this._hass, "dayNight.climate"),
           value: climate,
           entity: this._entityId("health_score"),
         })
@@ -859,9 +846,8 @@ customElements.define("hamster-day-night-card", HamsterDayNightCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "hamster-day-night-card",
-  name: "Hamster Fitness: Day & Night",
-  description:
-    "Zeigt den Hamster animiert im Laufrad (aktiv) oder schlafend im Nest (ruhend), mit sonnenstand-abhängigem Himmel und den Messwerten direkt in der Szene.",
+  name: t(null, "dayNight.pickerName"),
+  description: t(null, "dayNight.pickerDescription"),
 });
 
 /**
@@ -883,15 +869,17 @@ const DAY_NIGHT_EDITOR_SCHEMA = [
   { name: "show_light", selector: { boolean: {} } },
 ];
 
+// Translation keys, resolved per render - the editor is opened long
+// after module load, so `hass` (and with it the user's language) exists.
 const DAY_NIGHT_EDITOR_LABELS = {
-  entity: "Health-Score-Sensor des Hamsters",
-  title: "Titel (optional)",
-  show_speed: "Geschwindigkeit anzeigen",
-  show_distance: "Nachtdistanz anzeigen",
-  show_active_duration: "Lauf-Dauer anzeigen",
-  show_rest_duration: "Ruhezeit anzeigen",
-  show_climate: "Temperatur/Luftfeuchtigkeit anzeigen",
-  show_light: "Käfiglicht anzeigen (mit Pause-Button)",
+  entity: "common.entityPicker",
+  title: "common.optionalTitle",
+  show_speed: "dayNight.showSpeed",
+  show_distance: "dayNight.showDistance",
+  show_active_duration: "dayNight.showActive",
+  show_rest_duration: "dayNight.showRest",
+  show_climate: "dayNight.showClimate",
+  show_light: "dayNight.showLight",
 };
 
 class HamsterDayNightCardEditor extends HTMLElement {
@@ -910,7 +898,10 @@ class HamsterDayNightCardEditor extends HTMLElement {
 
     if (!this._form) {
       this._form = document.createElement("ha-form");
-      this._form.computeLabel = (schema) => DAY_NIGHT_EDITOR_LABELS[schema.name] || schema.name;
+      this._form.computeLabel = (schema) =>
+        DAY_NIGHT_EDITOR_LABELS[schema.name]
+          ? t(this._hass, DAY_NIGHT_EDITOR_LABELS[schema.name])
+          : schema.name;
       this._form.addEventListener("value-changed", (ev) => {
         ev.stopPropagation();
         this._config = ev.detail.value;

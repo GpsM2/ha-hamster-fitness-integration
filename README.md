@@ -38,7 +38,8 @@ cards, and a cage light that switches itself on when you open the lid.
 - **Lifetime history**: when a hamster moves out or passes away, its
   whole record is archived permanently — it stays in the chronicle even
   if you later delete the integration entry.
-- **Four dashboard cards built in**, no extra downloads:
+- **Four dashboard cards built in**, no extra downloads, all following
+  Home Assistant's language (English and German):
   [Health Score](docs/cards/health-score.md) ·
   [Day & Night](docs/cards/day-and-night.md) ·
   [Ranking](docs/cards/ranking.md) ·

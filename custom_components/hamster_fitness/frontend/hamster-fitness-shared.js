@@ -1,14 +1,426 @@
 /**
  * Shared helpers for the Hamster Fitness card family
- * (hamster-fitness-card.js, hamster-day-night-card.js). Split out so the
- * entity/device lookup logic - fixed once already for non-English Home
- * Assistant installs (see siblingEntityId() below) - exists in exactly
- * one place instead of being duplicated across card files.
+ * (hamster-fitness-card.js, hamster-day-night-card.js,
+ * hamster-chronicle-card.js). Split out so the entity/device lookup logic
+ * - fixed once already for non-English Home Assistant installs (see
+ * siblingEntityId() below) - exists in exactly one place instead of being
+ * duplicated across card files.
+ *
+ * IMPORTANT: this module is NOT a Lovelace resource. The cards import it
+ * by relative URL with an explicit `?v=` (see SHARED_MODULE_VERSION in
+ * const.py). Any change here means bumping that version *and* the query
+ * in every importer - otherwise browsers keep an older copy, the import
+ * fails, and every card silently stops registering. That is not
+ * hypothetical; it happened in 0.3.0-beta.1.
+ * tests/test_frontend_resources.py enforces it.
  */
 
 export const HAMSTER_PREFIX = /^hamster_/;
 
 export const DEFAULT_FUR = "#D48C46";
+
+/**
+ * Card text, in the two languages this integration ships.
+ *
+ * These deliberately do NOT come from strings.json. Home Assistant only
+ * loads a fixed set of translation categories into the frontend (entity
+ * names, config flow, services, ...), and card labels fit none of them;
+ * `hass.localize` therefore cannot reach a custom category. Python-side
+ * runtime text solves the same problem the other way round, through
+ * runtime_text.py - see its module docstring.
+ *
+ * English is the source and the fallback: an unknown language, or a key
+ * missing from a translation, falls back to the English string.
+ */
+const STRINGS = {
+  en: {
+    // Shared
+    "common.online": "Online",
+    "common.offline": "Offline",
+    "common.unavailable": "Unavailable",
+    "common.notFound":
+      'Entity "{entity}" not found. Check the card configuration.',
+    "common.optionalTitle": "Title (optional)",
+    "common.entityPicker": "The hamster's health score sensor",
+    "common.needEntity":
+      "{card}: 'entity' is missing - please pick a hamster's health score sensor (ends in _health_score).",
+    "common.wrongEntity":
+      "{card}: 'entity' must be a hamster's health score sensor (the entity ID ends in _health_score).",
+
+    // Day & Night card
+    "dayNight.subtitle": "Day &amp; Night",
+    "dayNight.active": "Active",
+    "dayNight.resting": "Resting",
+    "dayNight.runningFor": "Running for",
+    "dayNight.restingFor": "Resting for",
+    "dayNight.speed": "Speed",
+    "dayNight.thisNight": "This night",
+    "dayNight.climate": "Climate",
+    "dayNight.cageLight": "Cage light",
+    "dayNight.lightOn": "Light on",
+    "dayNight.lightOff": "Light off",
+    "dayNight.automationOff": "Automation off",
+    "dayNight.pausedUntil": "Paused until {time}",
+    "dayNight.pauseButton": "Pause 30 min",
+    "dayNight.pickerName": "Hamster Fitness: Day & Night",
+    "dayNight.pickerDescription":
+      "The hamster animated in its wheel while active, or asleep in its nest while resting - under a sky that follows the sun, with the readings inside the scene.",
+    "dayNight.showSpeed": "Show speed",
+    "dayNight.showDistance": "Show night distance",
+    "dayNight.showActive": "Show running time",
+    "dayNight.showRest": "Show resting time",
+    "dayNight.showClimate": "Show temperature/humidity",
+    "dayNight.showLight": "Show cage light (with pause button)",
+
+    // Health score card
+    "health.badgeVital": "Fully fit",
+    "health.badgeWatch": "Keep an eye on it",
+    "health.badgeVet": "See a vet",
+    "health.badgeUnknown": "Unknown",
+    "health.fallbackSubtitle": "Health Score",
+    "health.departed": "moved out",
+    "health.withYouDays": "with you for {count} day",
+    "health.withYouDays_plural": "with you for {count} days",
+    "health.withYouMonths": "with you for {count} month",
+    "health.withYouMonths_plural": "with you for {count} months",
+    "health.withYouYears": "with you for {count} years",
+    "health.ringScore": "Health Score",
+    "health.ringSpeed": "Speed",
+    "health.previewNote": "Preview with sample data",
+    "health.insightGood":
+      "All good - last full night of running: {distance}.",
+    "health.insightGoodPlain": "All good - nothing out of the ordinary.",
+    "health.insightMiddling":
+      "Nothing acutely wrong, but the score is below its usual level - the four pillars below show where it comes from.",
+    "health.insightMock": "All good - ran 6.1 km last night.",
+    "health.trend": "7-day trend",
+    "health.trendAvg": "avg {value}",
+    "health.trendUp": "+{delta} vs. average",
+    "health.trendDown": "{delta} vs. average",
+    "health.trendSame": "same as average",
+    "health.trendEmpty":
+      "No completed days yet - the first value appears tomorrow at 9 AM.",
+    "health.tipLabel": "Worth knowing",
+    "health.openHistory": "Open history",
+    "health.close": "Close",
+    "health.detailsFor": "{pillar} - show details",
+    "health.pickerName": "Hamster Fitness: Health Score",
+    "health.pickerDescription":
+      "Health score as a ring, a plain-language insight, the four pillars of health to tap through, and a 7-day trend.",
+    "health.maxSpeed": "Scale of the speed ring (km/h)",
+    "health.showSpeed": "Show speed ring",
+    "health.showPillars": "Show the four pillars",
+    "health.showTrend": "Show 7-day trend",
+
+    // Pillars
+    "pillar.activity": "Activity",
+    "pillar.activityLong": "Activity & stamina",
+    "pillar.activityTip":
+      "Hamsters instinctively hide illness for as long as they can. A sudden drop of more than 30% in nightly running distance is often the very first sign - watch the trend, not a single night.",
+    "pillar.activityNight": "This night",
+    "pillar.activityLast": "Last full night",
+    "pillar.activityIdeal": "Ideal",
+    "pillar.sleep": "Sleep",
+    "pillar.sleepLong": "Sleep & rest quality",
+    "pillar.sleepTip":
+      "Hamsters are crepuscular and nocturnal. Disturbing their main sleep phase (10:00-17:00) with light, vibration or cage openings causes chronic stress and weakens the immune system.",
+    "pillar.sleepOpenings": "Cage opened (sleeping hours)",
+    "pillar.sleepWakeups": "Woke up and ran",
+    "pillar.sleepPhase": "Sleep phase",
+    "pillar.sleepPhaseValue": "{from}–{to}",
+    "pillar.climate": "Climate",
+    "pillar.climateLong": "Climate & environment",
+    "pillar.climateTip":
+      "Ideal is 18-22 °C at 40-60% humidity. Below 15 °C there is a risk of life-threatening torpor, above 24 °C of heat stroke.",
+    "pillar.climateTemperature": "Temperature",
+    "pillar.climateHumidity": "Humidity",
+    "pillar.care": "Care",
+    "pillar.careLong": "Care & interaction",
+    "pillar.careTip":
+      "Measured via the lid/door sensor: how regularly the cage is opened for feeding and cleaning. One or two short openings in the late evening are best; frequent opening during the day is better avoided.",
+    "pillar.careClosedFor": "Lid shut for",
+    "pillar.careLidNow": "Lid right now",
+    "pillar.careLidOpen": "open",
+    "pillar.careLidClosed": "closed",
+    "pillar.careNeglectFrom": "Counts as neglected from",
+
+    // Ranking card
+    "ranking.title": "Hamster ranking",
+    "ranking.empty":
+      "No Hamster Fitness hamsters found (no sensor.hamster_<name>_lifetime_distance in this Home Assistant).",
+    "ranking.pickerName": "Hamster Fitness: Ranking",
+    "ranking.pickerDescription":
+      "Compares every hamster in this Home Assistant by lifetime distance - found automatically, no configuration needed.",
+
+    // Chronicle card
+    "chronicle.title": "Hamster chronicle",
+    "chronicle.subtitle": "Overview",
+    "chronicle.count": "{count} hamster",
+    "chronicle.count_plural": "{count} hamsters",
+    "chronicle.since": "since {date}",
+    "chronicle.unknownPeriod": "Period unknown",
+    "chronicle.movedOut": "moved out",
+    "chronicle.archived": "Archive",
+    "chronicle.empty":
+      "No hamsters yet. As soon as one is set up it appears here - and stays in the chronicle after it moves out.",
+    "chronicle.archiveFailed":
+      "The lifetime archive could not be loaded - only currently configured hamsters are shown.",
+    "chronicle.columns": "Stats to show",
+    "chronicle.colDistance": "Lifetime distance",
+    "chronicle.colTopSpeed": "Top speed",
+    "chronicle.colDays": "Days with you",
+    "chronicle.colScore": "Health Score",
+    "chronicle.pickerName": "Hamster Fitness: Chronicle",
+    "chronicle.pickerDescription":
+      "Every hamster in this Home Assistant at a glance - current and long departed, with their dates and the stats you choose.",
+
+    // Breeds (mirrors const.py's BREEDS)
+    "breed.golden": "Syrian / golden hamster",
+    "breed.teddy": "Teddy bear hamster",
+    "breed.winter_white": "Winter white dwarf hamster",
+    "breed.campbell": "Campbell's dwarf hamster",
+    "breed.roborovski": "Roborovski dwarf hamster",
+    "breed.chinese": "Chinese hamster",
+    "breed.other": "Other",
+  },
+
+  de: {
+    "common.offline": "Offline",
+    "common.unavailable": "Nicht verfügbar",
+    "common.notFound":
+      'Entity "{entity}" nicht gefunden. Prüfe die Karten-Konfiguration.',
+    "common.optionalTitle": "Titel (optional)",
+    "common.entityPicker": "Health-Score-Sensor des Hamsters",
+    "common.needEntity":
+      "{card}: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (endet auf _health_score).",
+    "common.wrongEntity":
+      "{card}: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score).",
+
+    "dayNight.active": "Aktiv",
+    "dayNight.resting": "Ruht",
+    "dayNight.runningFor": "Läuft seit",
+    "dayNight.restingFor": "Ruht seit",
+    "dayNight.speed": "Geschwindigkeit",
+    "dayNight.thisNight": "Diese Nacht",
+    "dayNight.climate": "Klima",
+    "dayNight.cageLight": "Käfiglicht",
+    "dayNight.lightOn": "Licht an",
+    "dayNight.lightOff": "Licht aus",
+    "dayNight.automationOff": "Automatik aus",
+    "dayNight.pausedUntil": "Pause bis {time}",
+    "dayNight.pauseButton": "30 Min. Pause",
+    "dayNight.pickerDescription":
+      "Zeigt den Hamster animiert im Laufrad (aktiv) oder schlafend im Nest (ruhend), mit sonnenstand-abhängigem Himmel und den Messwerten direkt in der Szene.",
+    "dayNight.showSpeed": "Geschwindigkeit anzeigen",
+    "dayNight.showDistance": "Nachtdistanz anzeigen",
+    "dayNight.showActive": "Lauf-Dauer anzeigen",
+    "dayNight.showRest": "Ruhezeit anzeigen",
+    "dayNight.showClimate": "Temperatur/Luftfeuchtigkeit anzeigen",
+    "dayNight.showLight": "Käfiglicht anzeigen (mit Pause-Button)",
+
+    "health.badgeVital": "Voll vital",
+    "health.badgeWatch": "Beobachten",
+    "health.badgeVet": "Tierarzt prüfen",
+    "health.badgeUnknown": "Unbekannt",
+    "health.departed": "ausgezogen",
+    "health.withYouDays": "seit {count} Tag bei dir",
+    "health.withYouDays_plural": "seit {count} Tagen bei dir",
+    "health.withYouMonths": "seit {count} Monat bei dir",
+    "health.withYouMonths_plural": "seit {count} Monaten bei dir",
+    "health.withYouYears": "seit {count} Jahren bei dir",
+    "health.ringSpeed": "Geschwindigkeit",
+    "health.previewNote": "Vorschau mit Beispieldaten",
+    "health.insightGood":
+      "Alles im grünen Bereich - zuletzt {distance} in einer Nacht gelaufen.",
+    "health.insightGoodPlain":
+      "Alles im grünen Bereich - keine Auffälligkeiten.",
+    "health.insightMiddling":
+      "Nichts akut Auffälliges, aber der Score liegt unter dem üblichen Niveau - die vier Säulen unten zeigen, woran es hängt.",
+    "health.insightMock":
+      "Alles im grünen Bereich - gestern Nacht 6,1 km gelaufen.",
+    "health.trend": "7-Tage-Trend",
+    "health.trendAvg": "Ø {value}",
+    "health.trendUp": "+{delta} ggü. Schnitt",
+    "health.trendDown": "{delta} ggü. Schnitt",
+    "health.trendSame": "wie im Schnitt",
+    "health.trendEmpty":
+      "Noch keine abgeschlossenen Tage - der erste Wert erscheint morgen früh um 9 Uhr.",
+    "health.tipLabel": "Gut zu wissen",
+    "health.openHistory": "Verlauf öffnen",
+    "health.close": "Schließen",
+    "health.detailsFor": "{pillar} - Details anzeigen",
+    "health.pickerDescription":
+      "Health Score als Ring, verständlicher Hinweistext, die vier Säulen der Gesundheit zum Antippen und ein 7-Tage-Trend.",
+    "health.maxSpeed": "Skala des Geschwindigkeits-Rings (km/h)",
+    "health.showSpeed": "Geschwindigkeits-Ring anzeigen",
+    "health.showPillars": "Die vier Säulen anzeigen",
+    "health.showTrend": "7-Tage-Trend anzeigen",
+
+    "pillar.activity": "Aktivität",
+    "pillar.activityLong": "Aktivität & Ausdauer",
+    "pillar.activityTip":
+      "Hamster verbergen Krankheit instinktiv so lange wie möglich. Ein plötzlicher Einbruch der nächtlichen Laufstrecke um mehr als 30 % ist oft das allererste Anzeichen - achte auf den Trend, nicht auf eine einzelne Nacht.",
+    "pillar.activityNight": "Diese Nacht",
+    "pillar.activityLast": "Letzte volle Nacht",
+    "pillar.activityIdeal": "Ideal",
+    "pillar.sleep": "Schlaf",
+    "pillar.sleepLong": "Schlaf & Ruhequalität",
+    "pillar.sleepTip":
+      "Hamster sind dämmerungs- und nachtaktiv. Wird ihre Hauptschlafphase (10:00-17:00 Uhr) durch Licht, Erschütterungen oder Käfigöffnungen gestört, entsteht chronischer Stress und das Immunsystem leidet.",
+    "pillar.sleepOpenings": "Käfig geöffnet (Schlafzeit)",
+    "pillar.sleepWakeups": "Aufgewacht und gelaufen",
+    "pillar.sleepPhase": "Schlafphase",
+    "pillar.sleepPhaseValue": "{from}–{to} Uhr",
+    "pillar.climate": "Klima",
+    "pillar.climateLong": "Klima & Umgebung",
+    "pillar.climateTip":
+      "Ideal sind 18-22 °C bei 40-60 % Luftfeuchtigkeit. Unter 15 °C droht lebensgefährliche Kältestarre, über 24 °C Hitzschlag.",
+    "pillar.climateTemperature": "Temperatur",
+    "pillar.climateHumidity": "Luftfeuchtigkeit",
+    "pillar.care": "Pflege",
+    "pillar.careLong": "Pflege & Interaktion",
+    "pillar.careTip":
+      "Gemessen über den Deckel-/Türsensor: wie regelmäßig der Käfig zum Füttern und Reinigen geöffnet wird. Am besten 1-2 kurze Öffnungen am späten Abend; häufiges Öffnen tagsüber besser vermeiden.",
+    "pillar.careClosedFor": "Deckel zu seit",
+    "pillar.careLidNow": "Deckel gerade",
+    "pillar.careLidOpen": "offen",
+    "pillar.careLidClosed": "geschlossen",
+    "pillar.careNeglectFrom": "Als vernachlässigt ab",
+
+    "ranking.title": "Hamster-Ranking",
+    "ranking.empty":
+      "Keine Hamster-Fitness-Hamster gefunden (kein sensor.hamster_<name>_lifetime_distance in diesem Home Assistant).",
+    "ranking.pickerDescription":
+      "Vergleicht alle Hamster in diesem Home Assistant nach Lebenszeit-Distanz - erkennt sie automatisch, keine Konfiguration nötig.",
+
+    "chronicle.title": "Hamster-Chronik",
+    "chronicle.subtitle": "Gesamtübersicht",
+    "chronicle.count": "{count} Hamster",
+    "chronicle.count_plural": "{count} Hamster",
+    "chronicle.since": "seit {date}",
+    "chronicle.unknownPeriod": "Zeitraum unbekannt",
+    "chronicle.movedOut": "ausgezogen",
+    "chronicle.archived": "Archiv",
+    "chronicle.empty":
+      "Noch keine Hamster gefunden. Sobald ein Hamster eingerichtet ist, taucht er hier auf - und bleibt auch nach dem Auszug in der Chronik.",
+    "chronicle.archiveFailed":
+      "Das Lebenslauf-Archiv konnte nicht geladen werden - es werden nur aktuell eingerichtete Hamster angezeigt.",
+    "chronicle.columns": "Angezeigte Kennzahlen",
+    "chronicle.colDistance": "Gesamtdistanz",
+    "chronicle.colTopSpeed": "Topspeed",
+    "chronicle.colDays": "Tage bei dir",
+    "chronicle.colScore": "Health Score",
+    "chronicle.pickerName": "Hamster Fitness: Chronik",
+    "chronicle.pickerDescription":
+      "Alle Hamster dieses Home Assistant auf einen Blick - aktuelle und längst ausgezogene, mit Zeitraum und wählbaren Kennzahlen.",
+
+    "breed.golden": "Goldhamster (Syrer)",
+    "breed.teddy": "Teddyhamster",
+    "breed.winter_white": "Dsungarischer Zwerghamster",
+    "breed.campbell": "Campbell-Zwerghamster",
+    "breed.roborovski": "Roborowski-Zwerghamster",
+    "breed.chinese": "Chinesischer Zwerghamster",
+    "breed.other": "Sonstige",
+  },
+};
+
+/**
+ * The active language, as a bare code ("de" from "de-DE").
+ *
+ * `hass` is not always there: `setConfig()` runs before it is assigned,
+ * and the card picker entries are built at module load. The browser's own
+ * language is the sensible stand-in for those - better than defaulting a
+ * German user to English on the one screen where something went wrong.
+ */
+export function languageOf(hass) {
+  const raw =
+    (hass && (hass.language || (hass.locale && hass.locale.language))) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en";
+  return String(raw).toLowerCase().split("-")[0];
+}
+
+/** Full locale tag for Intl formatting ("de-DE" stays "de-DE"). */
+export function localeOf(hass) {
+  return (
+    (hass && (hass.language || (hass.locale && hass.locale.language))) ||
+    (typeof navigator !== "undefined" && navigator.language) ||
+    "en"
+  );
+}
+
+/**
+ * Translated card text. `count` triggers plural selection via the
+ * `<key>_plural` variant; every placeholder is `{name}`.
+ */
+export function t(hass, key, vars = {}) {
+  const lang = languageOf(hass);
+  const table = STRINGS[lang] || {};
+  let lookup = key;
+  if (vars.count !== undefined && vars.count !== 1) {
+    const plural = `${key}_plural`;
+    if (table[plural] || STRINGS.en[plural]) lookup = plural;
+  }
+  let text = table[lookup];
+  if (text === undefined) text = STRINGS.en[lookup];
+  if (text === undefined) text = STRINGS.en[key];
+  if (text === undefined) return key;
+  return text.replace(/\{(\w+)\}/g, (match, name) =>
+    vars[name] === undefined ? match : String(vars[name])
+  );
+}
+
+/** Number in the active locale, so decimals aren't hardcoded to a comma. */
+export function fmtNumber(hass, value, decimals, unit) {
+  if (value === undefined || value === null || Number.isNaN(Number(value))) {
+    return "–";
+  }
+  const text = Number(value).toLocaleString(localeOf(hass), {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return unit ? `${text} ${unit}` : text;
+}
+
+/** "1h 15m" / "45m" - compact enough to fit in a chip in any language. */
+export function fmtDuration(hass, minutes) {
+  if (minutes === undefined || minutes === null || Number.isNaN(Number(minutes))) {
+    return "–";
+  }
+  const total = Math.max(0, Math.round(Number(minutes)));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  return hours > 0 ? `${hours}h ${rest}m` : `${rest}m`;
+}
+
+export function fmtTime(hass, isoString) {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) return "–";
+  return parsed.toLocaleTimeString(localeOf(hass), {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function fmtDate(hass, isoString) {
+  if (!isoString) return null;
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString(localeOf(hass), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** Two-letter weekday for the trend chart's axis. */
+export function fmtWeekday(hass, isoString) {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) return "?";
+  return parsed
+    .toLocaleDateString(localeOf(hass), { weekday: "short" })
+    .slice(0, 2);
+}
 
 /**
  * The card header, shared verbatim by the Day & Night and health-score
