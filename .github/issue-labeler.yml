@@ -1,0 +1,24 @@
+# Config for github/issue-labeler (see .github/workflows/issue-labeler.yml).
+#
+# Each label maps to a list of regex patterns. IMPORTANT: if a label has
+# several array entries, ALL of them must match for the label to be
+# applied (AND, not OR) - that's why each label below uses a single
+# slash-delimited /pattern/flags regex with alternation (|) instead, which
+# gives OR semantics for the keywords. The trailing "i" flag makes matching
+# case-insensitive. Keywords are kept bilingual (EN/DE) since issues may
+# come in either language.
+#
+# The generic word "sensor" (DE and EN) is deliberately left out of
+# "hardware" - it also appears constantly in normal integration reports
+# ("temperature sensor won't select", "door sensor unavailable") and would
+# over-match. TCRT5000/ESPHome/wiring terms already identify hardware
+# reports specifically enough.
+
+hardware:
+  - '/esphome|d1[ -]?mini|esp8266|esp32|tcrt5000|wiring|verkabelung|soldering|löten|photo ?sensor|opto ?sensor|lichtschranke/i'
+
+integration:
+  - '/config flow|reconfigure|hacs|auto[- ]?discovery|automatische erkennung|\bentit(y|ies|ät(en)?)\b|lovelace|custom_components|config entry|options flow/i'
+
+health-score:
+  - '/algorithm(us)?|health[ -]?score|gesundheit(swert)?|laufstrecke|distanz|distance|umdrehung(en)?|rotation(en)?|penalty|punktabzug|warnschwelle|warning threshold/i'

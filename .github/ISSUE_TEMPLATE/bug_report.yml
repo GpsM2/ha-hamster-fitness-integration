@@ -1,0 +1,98 @@
+name: Bug report
+description: Report something that isn't working as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in as much
+        detail as you can - it makes this much faster to track down.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Where does the problem show up?
+      options:
+        - Hardware / wiring (ESP board, TCRT5000 sensor, ...)
+        - ESPHome firmware (hamster-wheel-sensor.yaml)
+        - Home Assistant integration (config flow, entities, setup)
+        - Sensors / calculated values (health score, distance, speed, ...)
+        - Lovelace cards (hamster-fitness-card / ranking card)
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: integration-version
+    attributes:
+      label: Hamster Fitness version
+      description: See Settings → Devices & Services → Hamster Fitness, or manifest.json.
+      placeholder: e.g. 0.2.4
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: e.g. 2026.3.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How is the integration installed?
+      options:
+        - HACS
+        - Manually (copied into custom_components)
+        - Not sure
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or error messages
+      description: Copy/paste from Settings → System → Logs, if any. This gets formatted as code automatically.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I restarted Home Assistant completely (not just reloaded) and hard-refreshed the browser before reporting this.
+          required: false
+        - label: I checked the README's "If something looks wrong after an update" section.
+          required: false
