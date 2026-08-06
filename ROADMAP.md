@@ -120,6 +120,20 @@ items stay listed so the history stays traceable.
   `number.set_value`, so the two values don't have to be kept in sync by
   hand. Previously they were completely independent, with no way to link
   them
+- Bugfix: both cards guessed sibling entity_ids (daily_distance,
+  night_distance, current_speed, etc.) by swapping the `_health_score`/
+  `_lifetime_distance` suffix of an entity_id string. This silently broke
+  on any non-English Home Assistant install: entity_id is generated once,
+  from the *translated* name active when the entity was first created
+  (e.g. `sensor.hamster_taco_tagesdistanz` on a German instance), not from
+  the English name in the code - so the guessed id never matched, leaving
+  distances/speed blank ("-") and the ranking card unable to find hamsters
+  at all. Both cards now look entities up through the entity/device
+  registry instead (same device_id, matched by `translation_key`, a fixed
+  English string set in Python that never changes), with the old suffix-
+  swap kept only as a fallback. Card titles/ranking names now also prefer
+  the device's own name over parsing it out of the entity_id, for the same
+  reason
 
 ## 🚧 Planned
 

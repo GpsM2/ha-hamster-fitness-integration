@@ -1,6 +1,6 @@
 # Hamster Fitness
 
-[![Version](https://img.shields.io/badge/version-0.2.3-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.2.4-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)

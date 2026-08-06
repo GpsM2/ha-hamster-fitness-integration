@@ -14,16 +14,23 @@
  *
  * The other entities (daily_distance, night_distance, lifetime_distance,
  * current_speed, max_speed_tonight, humidity, warning, door, weight,
- * departure_date) are derived from `entity` by swapping its `_health_score`
- * suffix - see coordinator.py's hamster_device_info() for the naming
- * convention this relies on.
+ * departure_date) are found via the entity/device registry: same
+ * device_id as `entity`, matched by translation_key (see siblingEntityId()
+ * below). translation_key is a fixed English string set in Python and
+ * never changes, unlike entity_id - which Home Assistant generates once
+ * from the *translated* name active when the entity was first created, so
+ * it can end up in German, French, etc. instead of English. If registry
+ * data isn't available for some reason, this falls back to swapping
+ * `entity`'s `_health_score` suffix, which only works when entity_id
+ * happens to be English.
  *
  * The entity_id itself only needs to END in "_health_score" - it does NOT
  * have to start with "hamster_". New hamsters get that prefix (see
  * hamster_device_info()), but entities created before that naming change
  * keep their original entity_id (e.g. sensor.taco_health_score) unless
  * manually renamed - Home Assistant never renames entity_ids on its own.
- * A leading "hamster_" is only stripped for the card's display title.
+ * The card's title prefers the device's own name (also never translated)
+ * over parsing the entity_id.
  */
 
 const WARNING_SCORE_THRESHOLD = 50;
@@ -34,6 +41,43 @@ const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 const HAMSTER_PREFIX = /^hamster_/;
 
 const RING_COLOR_NEUTRAL = "#00b8a9";
+
+/**
+ * Finds a sibling entity on the same device by its translation_key.
+ * translation_key is a fixed English string set in the integration's
+ * Python code (e.g. "daily_distance") and never changes - unlike
+ * entity_id, which Home Assistant generates once from the *translated*
+ * name active when the entity was first created, so it can end up in
+ * German, French, etc. instead of English. Returns null if the entity/
+ * device registry data isn't available yet or there's no match.
+ */
+function siblingEntityId(hass, entityId, translationKey) {
+  const entities = hass && hass.entities;
+  const self = entities && entities[entityId];
+  const deviceId = self && self.device_id;
+  if (!deviceId) return null;
+  for (const [id, entry] of Object.entries(entities)) {
+    if (entry.device_id === deviceId && entry.translation_key === translationKey) {
+      return id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolves the display title from the device's own name, which is set
+ * once from the hamster's actual name and never translated (see
+ * hamster_device_info() in coordinator.py) - unlike the entity_id slug,
+ * which may be in any language.
+ */
+function deviceDisplayName(hass, entityId) {
+  const entities = hass && hass.entities;
+  const devices = hass && hass.devices;
+  const self = entities && entities[entityId];
+  const device = self && devices && devices[self.device_id];
+  const name = device && (device.name_by_user || device.name);
+  return name ? name.replace(/^Hamster\s+/, "") : null;
+}
 
 class HamsterFitnessCard extends HTMLElement {
   setConfig(config) {
@@ -105,13 +149,16 @@ class HamsterFitnessCard extends HTMLElement {
     return { entity: match || "sensor.hamster_taco_health_score" };
   }
 
-  _entityId(suffix) {
-    return this._config.entity.replace(HEALTH_SCORE_SUFFIX, suffix);
+  _entityId(key) {
+    return (
+      siblingEntityId(this._hass, this._config.entity, key) ||
+      this._config.entity.replace(HEALTH_SCORE_SUFFIX, `_${key}`)
+    );
   }
 
-  _entity(suffix) {
+  _entity(key) {
     if (!this._hass) return undefined;
-    return this._hass.states[this._entityId(suffix)];
+    return this._hass.states[this._entityId(key)];
   }
 
   _fmt(value, decimals, unit) {
@@ -174,17 +221,17 @@ class HamsterFitnessCard extends HTMLElement {
   _render() {
     if (!this._hass || !this.content || !this._config) return;
 
-    const healthScore = this._entity("_health_score");
-    const dailyDistance = this._entity("_daily_distance");
-    const nightDistance = this._entity("_night_distance");
-    const lifetimeDistance = this._entity("_lifetime_distance");
-    const currentSpeed = this._entity("_current_speed");
-    const maxSpeedTonight = this._entity("_max_speed_tonight");
-    const humidity = this._entity("_humidity");
-    const warning = this._entity("_warning");
-    const door = this._entity("_door");
-    const weight = this._entity("_weight");
-    const departureDate = this._entity("_departure_date");
+    const healthScore = this._entity("health_score");
+    const dailyDistance = this._entity("daily_distance");
+    const nightDistance = this._entity("night_distance");
+    const lifetimeDistance = this._entity("lifetime_distance");
+    const currentSpeed = this._entity("current_speed");
+    const maxSpeedTonight = this._entity("max_speed_tonight");
+    const humidity = this._entity("humidity");
+    const warning = this._entity("warning");
+    const door = this._entity("door");
+    const weight = this._entity("weight");
+    const departureDate = this._entity("departure_date");
 
     if (!healthScore) {
       this.content.innerHTML = `
@@ -200,7 +247,10 @@ class HamsterFitnessCard extends HTMLElement {
     const scoreValid = !Number.isNaN(score);
     const scoreColor = this._scoreColor(scoreValid ? score : null);
     const temperature = healthScore.attributes.temperature;
-    const title = this._config.title || this._capitalize(this._hamster);
+    const title =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._capitalize(this._hamster);
     const isDeparted = departureDate && departureDate.state && departureDate.state !== "unknown";
     const warningOn = warning && warning.state === "on";
     const doorOpen = door && door.state === "on";
@@ -212,7 +262,7 @@ class HamsterFitnessCard extends HTMLElement {
       decimals: 0,
       unit: "%",
       label: "Health Score",
-      entityId: this._entityId("_health_score"),
+      entityId: this._entityId("health_score"),
     });
 
     const speedRing = this._ring({
@@ -222,7 +272,7 @@ class HamsterFitnessCard extends HTMLElement {
       decimals: 1,
       unit: "km/h",
       label: "Geschwindigkeit",
-      entityId: currentSpeed ? this._entityId("_current_speed") : null,
+      entityId: currentSpeed ? this._entityId("current_speed") : null,
     });
 
     this.content.innerHTML = `
@@ -242,40 +292,40 @@ class HamsterFitnessCard extends HTMLElement {
         ${speedRing}
       </div>
 
-      <div class="hfc-breakdown hfc-clickable" data-entity="${this._entityId("_health_score")}" tabindex="0" role="button">
+      <div class="hfc-breakdown hfc-clickable" data-entity="${this._entityId("health_score")}" tabindex="0" role="button">
         ${this._breakdownItem("🏃", "Bewegung", healthScore.attributes.distance_penalty)}
         ${this._breakdownItem("🌡️", "Temperatur", healthScore.attributes.temperature_penalty)}
         ${this._breakdownItem("🧹", "Pflege", healthScore.attributes.care_penalty)}
       </div>
 
       <div class="hfc-stats">
-        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_daily_distance")}" tabindex="0" role="button">
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("daily_distance")}" tabindex="0" role="button">
           <span class="hfc-stat-label">Heute</span>
           <span class="hfc-stat-value">${this._fmt(dailyDistance && dailyDistance.state, 2, "km")}</span>
         </div>
-        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_night_distance")}" tabindex="0" role="button">
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("night_distance")}" tabindex="0" role="button">
           <span class="hfc-stat-label">Heute Nacht</span>
           <span class="hfc-stat-value">${this._fmt(nightDistance && nightDistance.state, 2, "km")}</span>
         </div>
-        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_lifetime_distance")}" tabindex="0" role="button">
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("lifetime_distance")}" tabindex="0" role="button">
           <span class="hfc-stat-label">Insgesamt</span>
           <span class="hfc-stat-value">${this._fmt(lifetimeDistance && lifetimeDistance.state, 1, "km")}</span>
         </div>
         ${
           maxSpeedTonight
-            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_max_speed_tonight")}" tabindex="0" role="button">
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("max_speed_tonight")}" tabindex="0" role="button">
                  <span class="hfc-stat-label">Max. heute Nacht</span>
                  <span class="hfc-stat-value">${this._fmt(maxSpeedTonight.state, 1, "km/h")}</span>
                </div>`
             : ""
         }
-        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_health_score")}" tabindex="0" role="button">
+        <div class="hfc-stat hfc-clickable" data-entity="${this._entityId("health_score")}" tabindex="0" role="button">
           <span class="hfc-stat-label">Temperatur</span>
           <span class="hfc-stat-value">${this._fmt(temperature, 1, "°C")}</span>
         </div>
         ${
           humidity
-            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_humidity")}" tabindex="0" role="button">
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("humidity")}" tabindex="0" role="button">
                  <span class="hfc-stat-label">Luftfeuchtigkeit</span>
                  <span class="hfc-stat-value">${this._fmt(humidity.state, 0, "%")}</span>
                </div>`
@@ -283,7 +333,7 @@ class HamsterFitnessCard extends HTMLElement {
         }
         ${
           weight && weight.state && weight.state !== "unknown"
-            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("_weight")}" tabindex="0" role="button">
+            ? `<div class="hfc-stat hfc-clickable" data-entity="${this._entityId("weight")}" tabindex="0" role="button">
                  <span class="hfc-stat-label">Gewicht</span>
                  <span class="hfc-stat-value">${this._fmt(weight.state, 0, "g")}</span>
                </div>`
@@ -293,7 +343,7 @@ class HamsterFitnessCard extends HTMLElement {
 
       ${
         door
-          ? `<div class="hfc-footer hfc-clickable" data-entity="${this._entityId("_door")}" tabindex="0" role="button">
+          ? `<div class="hfc-footer hfc-clickable" data-entity="${this._entityId("door")}" tabindex="0" role="button">
                <span class="hfc-door ${doorOpen ? "hfc-door-open" : "hfc-door-closed"}">
                  ${doorOpen ? "🚪 Käfig offen" : "🚪 Käfig geschlossen"}
                </span>
@@ -580,12 +630,14 @@ customElements.define("hamster-fitness-card-editor", HamsterFitnessCardEditor);
  * Hamster Fitness Ranking Card
  *
  * Compares all hamster_fitness hamsters found in this Home Assistant by
- * lifetime distance - no config needed, entities are auto-discovered by
- * matching any sensor.<name>_lifetime_distance (the entity_id only needs
- * to END in that suffix, a leading "hamster_" is optional - see the note
- * on ENTITY_PATTERN above). Since a departed hamster's lifetime_distance
- * stays frozen (see coordinator.py), retired hamsters remain part of the
- * ranking automatically.
+ * lifetime distance - no config needed, entities are auto-discovered via
+ * the entity registry (platform "hamster_fitness", translation_key
+ * "lifetime_distance" - see siblingEntityId() above the main card class),
+ * so this works regardless of what language entity_ids ended up in.
+ * LIFETIME_DISTANCE_PATTERN is only used afterwards, as a fallback for
+ * deriving a display name if the device registry lookup fails. Since a
+ * departed hamster's lifetime_distance stays frozen (see coordinator.py),
+ * retired hamsters remain part of the ranking automatically.
  *
  * Config:
  *   type: custom:hamster-fitness-ranking-card
@@ -653,20 +705,24 @@ class HamsterFitnessRankingCard extends HTMLElement {
   _render() {
     if (!this._hass || !this.content) return;
 
-    const rows = Object.keys(this._hass.states)
-      .map((id) => ({ id, match: id.match(LIFETIME_DISTANCE_PATTERN) }))
-      .filter(({ match }) => match)
-      .map(({ id, match }) => {
+    const entities = this._hass.entities || {};
+    const rows = Object.entries(entities)
+      .filter(
+        ([, entry]) =>
+          entry.platform === "hamster_fitness" &&
+          entry.translation_key === "lifetime_distance"
+      )
+      .map(([id]) => {
         const state = this._hass.states[id];
-        const distance = Number(state.state);
-        const departureId = id.replace("_lifetime_distance", "_departure_date");
-        const departure = this._hass.states[departureId];
+        const distance = state ? Number(state.state) : NaN;
+        const departureId = siblingEntityId(this._hass, id, "departure_date");
+        const departure = departureId && this._hass.states[departureId];
         const isDeparted = departure && departure.state && departure.state !== "unknown";
-        const slug = match[1].replace(HAMSTER_PREFIX, "");
+        const match = id.match(LIFETIME_DISTANCE_PATTERN);
+        const slug = match ? match[1].replace(HAMSTER_PREFIX, "") : id;
         return {
           entityId: id,
-          slug,
-          name: this._capitalize(slug),
+          name: deviceDisplayName(this._hass, id) || this._capitalize(slug),
           distance,
           isDeparted,
         };
