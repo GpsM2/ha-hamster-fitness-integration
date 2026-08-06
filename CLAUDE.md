@@ -60,6 +60,26 @@ ins Hardware-Repo.
   `config_flow.py` und die Sensor-Plattform.
 - Code sollte `ruff` und `mypy` sauber durchlaufen, bevor er gemergt wird.
 
+## Tests unter Windows
+
+`pytest tests/` läuft auf einer Windows-Maschine nur dank zweier eng
+begrenzter, in `tests/conftest.py` dokumentierter Ausnahmen: asyncio
+braucht dort einen AF_INET-Socketpair für seine Self-Pipe (Sockets werden
+deshalb wieder erlaubt, aber auf Loopback beschränkt), und der
+HTTP-Server-Accept-Task überlebt das Teardown. Beide greifen nur bei
+`sys.platform == "win32"`.
+
+Ebenfalls dort: ein Shim für `OptionsFlowWithReload`. Die neueste
+installierbare Version von `pytest-homeassistant-custom-component` pinnt
+noch Home Assistant 2025.1.4, `manifest.json` verlangt aber 2026.3.0 -
+derselbe Grund, weshalb `mypy` genau einen Fehler zu dieser Klasse
+meldet. Beides verschwindet von selbst, sobald die Testbibliothek
+nachzieht; nicht durch Produktionscode "reparieren".
+
+Ein autouse-Fixture entlädt nach jedem Test alle Config-Entries. Das ist
+kein Kosmetikschritt - ohne das bleiben die per `entry.async_on_unload()`
+registrierten Timer scharf und verdecken echte Fehler.
+
 ## Workflow
 
 - Code-Änderungen nicht direkt auf `main` committen. Für jede
