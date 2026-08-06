@@ -1,6 +1,6 @@
 """Notification logic for the Hamster Fitness integration.
 
-Two independent, options-gated notification flows:
+Three independent, options-gated notification flows:
 
 - A daily summary sent at the user-configured local time
   (`OPTION_NOTIFICATION_TIME`), comparing the current night-window
@@ -13,6 +13,11 @@ Two independent, options-gated notification flows:
   coordinator's data (the same condition that drives
   binary_sensor.<hamster>_warning), each with its own per-reason
   cooldown to avoid spam. Gated by `OPTION_WARNINGS_ENABLED`.
+- A weigh-in reminder, checked at the same daily time, that only fires
+  when the weight is actually overdue - i.e. no new value has been
+  entered for `OPTION_WEIGHT_REMINDER_DAYS` days. Whoever weighs their
+  hamster regularly never sees it. Gated by
+  `OPTION_WEIGHT_REMINDER_ENABLED` (off by default).
 
 Every message is sent with the hamster's name as the notification title
 (`title`) and the actual text as `message`, so both flows can be toggled
@@ -29,6 +34,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, time, timedelta
+from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_change
@@ -41,12 +47,16 @@ from .const import (
     DEFAULT_DAILY_SUMMARY_ENABLED,
     DEFAULT_NOTIFICATION_TIME,
     DEFAULT_WARNINGS_ENABLED,
+    DEFAULT_WEIGHT_REMINDER_DAYS,
+    DEFAULT_WEIGHT_REMINDER_ENABLED,
     DOMAIN,
     NOTIFY_DOMAIN,
     NOTIFY_SERVICE_SEND_MESSAGE,
     OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_NOTIFICATION_TIME,
     OPTION_WARNINGS_ENABLED,
+    OPTION_WEIGHT_REMINDER_DAYS,
+    OPTION_WEIGHT_REMINDER_ENABLED,
     STORAGE_VERSION,
     WARNING_NOTIFICATION_COOLDOWN_HOURS,
 )
@@ -74,12 +84,16 @@ class HamsterFitnessNotifier:
         self._hamster_name: str = entry.data[CONF_HAMSTER_NAME]
         self._targets: list[str] = entry.data.get(CONF_NOTIFY_SERVICES, [])
 
-        self._store: Store[dict[str, float]] = Store(
+        self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}_{entry.entry_id}_notifier"
         )
         # Nachtfenster-Distanz beim letzten Versand der Tageszusammenfassung
         # - der Vergleichswert für "mehr/weniger als gestern".
         self._last_night_km: float = 0.0
+        # Wann zuletzt ans Wiegen erinnert wurde. Verhindert, dass die
+        # Erinnerung ab dem Fälligkeitstag jeden Tag aufs Neue kommt,
+        # solange niemand ein Gewicht einträgt.
+        self._last_weight_reminder_at: datetime | None = None
 
         self._last_sent: dict[str, datetime] = {}  # warning code -> UTC timestamp
         self._previous_reason_codes: set[str] = set()
@@ -94,13 +108,19 @@ class HamsterFitnessNotifier:
         stored = await self._store.async_load()
         if stored:
             self._last_night_km = stored.get("last_night_km", 0.0)
+            reminder_raw = stored.get("last_weight_reminder_at")
+            self._last_weight_reminder_at = (
+                dt_util.parse_datetime(reminder_raw) if reminder_raw else None
+            )
 
-        if self._daily_summary_enabled:
+        # Both time-based flows share one timer at the same local time -
+        # registering two identical ones would only mean two wake-ups.
+        if self._daily_summary_enabled or self._weight_reminder_enabled:
             summary_time = self._summary_time
             self._entry.async_on_unload(
                 async_track_time_change(
                     self._hass,
-                    self._async_handle_summary_time,
+                    self._async_handle_daily_time,
                     hour=summary_time.hour,
                     minute=summary_time.minute,
                     second=summary_time.second,
@@ -108,8 +128,8 @@ class HamsterFitnessNotifier:
             )
         else:
             _LOGGER.debug(
-                "Hamster Fitness (%s): Tageszusammenfassung deaktiviert, "
-                "kein Listener registriert",
+                "Hamster Fitness (%s): Tageszusammenfassung und "
+                "Wiege-Erinnerung deaktiviert, kein Listener registriert",
                 self._hamster_name,
             )
 
@@ -149,6 +169,21 @@ class HamsterFitnessNotifier:
         )
 
     @property
+    def _weight_reminder_enabled(self) -> bool:
+        return bool(
+            self._entry.options.get(
+                OPTION_WEIGHT_REMINDER_ENABLED, DEFAULT_WEIGHT_REMINDER_ENABLED
+            )
+        )
+
+    @property
+    def _weight_reminder_interval(self) -> timedelta:
+        days = self._entry.options.get(
+            OPTION_WEIGHT_REMINDER_DAYS, DEFAULT_WEIGHT_REMINDER_DAYS
+        )
+        return timedelta(days=days)
+
+    @property
     def _summary_time(self) -> time:
         raw = self._entry.options.get(
             OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
@@ -164,7 +199,15 @@ class HamsterFitnessNotifier:
     # ------------------------------------------------------------------
 
     @callback
-    def _async_handle_summary_time(self, now: datetime) -> None:
+    def _async_handle_daily_time(self, now: datetime) -> None:
+        """Run both time-based flows at the configured local time."""
+        if self._daily_summary_enabled:
+            self._async_send_daily_summary()
+        if self._weight_reminder_enabled:
+            self._async_check_weight_reminder()
+
+    @callback
+    def _async_send_daily_summary(self) -> None:
         """Send the daily summary at the configured local time.
 
         Compares the night-window distance so far (since
@@ -195,6 +238,41 @@ class HamsterFitnessNotifier:
             comparison=comparison,
         )
         self._hass.async_create_task(self._async_send_summary(message, tonight_km))
+
+    # ------------------------------------------------------------------
+    # Wiege-Erinnerung (nur wenn überfällig)
+    # ------------------------------------------------------------------
+
+    @callback
+    def _async_check_weight_reminder(self) -> None:
+        """Remind about weighing, but only if it is actually overdue.
+
+        Two conditions, both required: no weight entered for a full
+        interval (never having weighed at all counts as overdue), and no
+        reminder sent within the last interval either - otherwise an
+        ignored reminder would repeat every single day.
+        """
+        now = dt_util.utcnow()
+        interval = self._weight_reminder_interval
+        last_weighed = self._coordinator.weight_last_set_at
+
+        if last_weighed is not None and now - last_weighed < interval:
+            return
+        if (
+            self._last_weight_reminder_at is not None
+            and now - self._last_weight_reminder_at < interval
+        ):
+            return
+
+        if last_weighed is None:
+            message = render_message(self._hass, "notify.weight_reminder_never")
+        else:
+            message = render_message(
+                self._hass,
+                "notify.weight_reminder",
+                days=str((now - last_weighed).days),
+            )
+        self._hass.async_create_task(self._async_send_weight_reminder(message, now))
 
     # ------------------------------------------------------------------
     # Kritische Warnungen (sofort, mit Cooldown pro Warngrund)
@@ -233,7 +311,26 @@ class HamsterFitnessNotifier:
         new comparison baseline for tomorrow's summary."""
         await self._async_send(message)
         self._last_night_km = tonight_km
-        await self._store.async_save({"last_night_km": self._last_night_km})
+        await self._async_save()
+
+    async def _async_send_weight_reminder(self, message: str, now: datetime) -> None:
+        """Send the weigh-in reminder and start its cooldown."""
+        await self._async_send(message)
+        self._last_weight_reminder_at = now
+        await self._async_save()
+
+    async def _async_save(self) -> None:
+        """Persist both flows' bookkeeping in one go."""
+        await self._store.async_save(
+            {
+                "last_night_km": self._last_night_km,
+                "last_weight_reminder_at": (
+                    self._last_weight_reminder_at.isoformat()
+                    if self._last_weight_reminder_at
+                    else None
+                ),
+            }
+        )
 
     async def _async_send(self, message: str) -> None:
         """Send `message` to every notify entity chosen during setup.

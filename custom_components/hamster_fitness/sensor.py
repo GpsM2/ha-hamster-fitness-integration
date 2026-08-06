@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -17,11 +19,15 @@ from .const import (
     CONF_SPEED_SENSOR,
     IDEAL_DISTANCE_MAX_KM,
     IDEAL_DISTANCE_MIN_KM,
+    NEGLECT_THRESHOLD_HOURS,
+    SLEEP_PHASE_END_HOUR,
+    SLEEP_PHASE_START_HOUR,
 )
 from .coordinator import (
     HamsterFitnessConfigEntry,
     HamsterFitnessCoordinator,
     hamster_device_info,
+    hamster_profile,
 )
 
 
@@ -39,6 +45,10 @@ async def async_setup_entry(
         HamsterLifetimeDistanceSensor(coordinator, entry),
         HamsterNightActiveDurationSensor(coordinator, entry),
         HamsterDayRestDurationSensor(coordinator, entry),
+        HamsterActivityScoreSensor(coordinator, entry),
+        HamsterSleepScoreSensor(coordinator, entry),
+        HamsterClimateScoreSensor(coordinator, entry),
+        HamsterCareScoreSensor(coordinator, entry),
     ]
     # Nur anlegen, wenn beim Einrichten ein entsprechender Quell-Sensor
     # ausgewählt wurde - siehe CONF_HUMIDITY_SENSOR/CONF_SPEED_SENSOR in
@@ -82,6 +92,9 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
     ) -> None:
         """Initialize the health-score sensor."""
         super().__init__(coordinator, entry, "health_score")
+        # Static config, so reading it once is enough - a Reconfigure
+        # reloads the whole entry and rebuilds this entity anyway.
+        self._profile = hamster_profile(entry)
 
     @property
     def native_value(self) -> int:
@@ -89,16 +102,27 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
         return self.coordinator.data.health_score
 
     @property
-    def extra_state_attributes(self) -> dict[str, float | str | None]:
-        """Expose the score breakdown for transparency/debugging."""
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the score breakdown and the hamster's profile.
+
+        `score_history` backs the health-score card's 7-day trend chart
+        and the profile fields (coat colour, acquisition date) let the
+        cards tint the illustration and work out "with you for X months",
+        all without a second entity to look up.
+        """
         data = self.coordinator.data
         return {
+            **self._profile,
+            "night_distance_km": data.night_distance_km,
+            "last_completed_night_km": data.last_completed_night_km,
             "daily_distance_km": data.daily_distance_km,
             "temperature": data.temperature,
             "hours_door_closed": data.hours_door_closed,
             "distance_penalty": data.distance_penalty,
             "temperature_penalty": data.temperature_penalty,
             "care_penalty": data.care_penalty,
+            "sleep_penalty": data.sleep_penalty,
+            "score_history": data.score_history,
         }
 
 
@@ -212,6 +236,126 @@ class HamsterDayRestDurationSensor(HamsterFitnessSensorBase):
     def native_value(self) -> float:
         """Return the current rest period's elapsed time in minutes (0 if active)."""
         return self.coordinator.data.day_rest_duration_min
+
+
+class HamsterPillarScoreBase(HamsterFitnessSensorBase):
+    """Base class for the four "pillars of health" sub-scores.
+
+    Each pillar rates one aspect on its own 0-100 scale (100 = nothing
+    wrong), scaled against that aspect's own maximum penalty - see
+    `_pillar_score()` in coordinator.py. They deliberately do NOT add up
+    to `health_score`, which weighs the same penalties against each other
+    on a shared 100-point budget; the pillars exist so a single weak area
+    is readable at a glance (and usable in automations/history) instead of
+    being averaged away.
+    """
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+
+class HamsterActivityScoreSensor(HamsterPillarScoreBase):
+    """Pillar 1: how much the hamster ran during the relevant night."""
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the activity-score sensor."""
+        super().__init__(coordinator, entry, "score_activity")
+
+    @property
+    def native_value(self) -> int:
+        """Return the activity pillar score (0-100)."""
+        return self.coordinator.data.score_activity
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the distance figures this pillar is derived from."""
+        data = self.coordinator.data
+        return {
+            "night_distance_km": data.night_distance_km,
+            "last_completed_night_km": data.last_completed_night_km,
+            "ideal_distance_min_km": IDEAL_DISTANCE_MIN_KM,
+            "ideal_distance_max_km": IDEAL_DISTANCE_MAX_KM,
+        }
+
+
+class HamsterSleepScoreSensor(HamsterPillarScoreBase):
+    """Pillar 2: how undisturbed the main sleep phase stayed.
+
+    Counts cage openings and run sessions started between
+    SLEEP_PHASE_START_HOUR and SLEEP_PHASE_END_HOUR - see
+    `_sleep_penalty()` in coordinator.py. Resets daily at
+    DAILY_RESET_HOUR.
+    """
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the sleep-score sensor."""
+        super().__init__(coordinator, entry, "score_sleep")
+
+    @property
+    def native_value(self) -> int:
+        """Return the sleep pillar score (0-100)."""
+        return self.coordinator.data.score_sleep
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the raw disturbance counts behind this pillar."""
+        data = self.coordinator.data
+        return {
+            "sleep_door_openings": data.sleep_door_openings,
+            "sleep_activity_sessions": data.sleep_activity_sessions,
+            "sleep_phase_start_hour": SLEEP_PHASE_START_HOUR,
+            "sleep_phase_end_hour": SLEEP_PHASE_END_HOUR,
+        }
+
+
+class HamsterClimateScoreSensor(HamsterPillarScoreBase):
+    """Pillar 3: how close the cage climate stays to the ideal range."""
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the climate-score sensor."""
+        super().__init__(coordinator, entry, "score_climate")
+
+    @property
+    def native_value(self) -> int:
+        """Return the climate pillar score (0-100)."""
+        return self.coordinator.data.score_climate
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the current climate readings behind this pillar."""
+        data = self.coordinator.data
+        return {"temperature": data.temperature, "humidity": data.humidity}
+
+
+class HamsterCareScoreSensor(HamsterPillarScoreBase):
+    """Pillar 4: how regularly the cage is opened for feeding/cleaning."""
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the care-score sensor."""
+        super().__init__(coordinator, entry, "score_care")
+
+    @property
+    def native_value(self) -> int:
+        """Return the care pillar score (0-100)."""
+        return self.coordinator.data.score_care
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the door figures behind this pillar."""
+        data = self.coordinator.data
+        return {
+            "hours_door_closed": data.hours_door_closed,
+            "door_open": data.door_open,
+            "neglect_threshold_hours": NEGLECT_THRESHOLD_HOURS,
+        }
 
 
 class HamsterHumiditySensor(HamsterFitnessSensorBase):

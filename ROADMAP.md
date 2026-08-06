@@ -192,161 +192,96 @@ items stay listed so the history stays traceable.
   secret in each repo - the default `GITHUB_TOKEN` can't write across
   repos, so this doesn't work automatically yet).
 
-## 🚧 Planned
+- **0.3.0 — the roadmap batch of 2026-08-06.** One release covering all of
+  the items previously listed under "Planned":
+  - *Bugfix:* the health score dropped every morning at 9 AM even after a
+    great night, because the distance penalty read `daily_distance_km`,
+    which resets at `DAILY_RESET_HOUR`. It now uses the nightly distance -
+    and specifically the higher of the running night and the last
+    completed one (new persisted `last_completed_night_km`), so the same
+    cliff doesn't simply reappear at `NIGHT_WINDOW_START_HOUR`. The
+    daytime value is no longer shown on the health-score card; the sensor
+    itself stays for history and automations.
+  - *Bugfix:* the Day & Night wheel stuttered. Two separate causes:
+    `_render()` rebuilt the whole card on every `hass` update (restarting
+    the CSS animation), and rewriting `animation-duration` on a running
+    CSS animation resets it to 0deg - which the constantly-updating speed
+    sensor triggered over and over. The DOM is now patched in place and
+    the rotation runs through the Web Animations API, where a speed change
+    only adjusts `playbackRate`. The wheel also parks when the speed hits
+    0 mid-session and resumes from the same position.
+  - **Four pillars of health** as their own sensors
+    (`sensor.<hamster>_activity_score` / `_sleep_score` / `_climate_score` /
+    `_care_score`), each scaled against its own maximum penalty so 0-100
+    means the same thing on every pillar. Sleep is a brand-new metric:
+    cage openings and wake-up runs during the 10:00-17:00 main sleep
+    phase, weighted into the overall score at 15%.
+  - **Cage-light automation made visible and controllable**: a
+    `switch.<hamster>_light_automation` entity plus a
+    `hamster_fitness.pause_light_automation` action (30 minutes by
+    default, re-arms itself). Registered as an *entity* service so
+    targeting stays correct with several hamsters. Both the switch state
+    and a running pause survive a restart.
+  - **Weigh-in reminder**, opt-in, that only fires when weighing is
+    actually overdue - and then waits a full interval instead of nagging
+    daily. Goes by a timestamp the coordinator keeps, not the number
+    entity's `last_changed`, which RestoreEntity resets on every restart.
+  - **Hamster profile**: breed (translated list plus free text for
+    "Other") and one of four coat colours, stored as symbolic keys so the
+    list stays translatable and colours can be re-tuned later. Surfaced as
+    attributes on the health-score sensor, which is what lets the cards
+    tint the illustration per hamster.
+  - **Lifetime archive** (`hamster_fitness_history_lifedata` in
+    `.storage`): written when a departure date takes effect, and
+    deliberately NOT keyed by entry_id - it has to outlive the config
+    entry being deleted. Exposed to the frontend through a new
+    `hamster_fitness/history` WebSocket command, since archived hamsters
+    have no entities left to read.
+  - **Card redesign** following the provided mockup
+    (`design/mockup-day-night-card.png`): one illustrated scene with the
+    readings as pill chips inside it, sun/moon corner, bigger typography,
+    inline status chip. The header is now shared verbatim between the
+    Day & Night and health-score cards (extracted into
+    `hamster-fitness-shared.js`) so the two cannot drift apart.
+  - **Health-score card rebuilt**: banner header with a dynamic "seit X
+    Monaten bei dir" subtitle and a status badge (Voll vital / Beobachten
+    / Tierarzt prüfen), score ring, a plain-language Smart Insight, the
+    four pillars as a tappable 2x2 grid opening detail dialogs with the
+    real numbers and a husbandry tip each, and a 7-day trend chart fed by
+    a rolling score history the coordinator now keeps. Renders from demo
+    data in the dashboard editor instead of erroring.
+  - **Fourth card, "Hamster Fitness: Chronik"**: every hamster that ever
+    lived here, live ones from the entity registry and deleted ones from
+    the archive, each in its own coat colour with breed, dates and
+    configurable stat columns.
+  - **Multi-hamster operation tested**, not just assumed: entity ids,
+    per-entry storage keys, per-hamster profiles, light pauses and
+    departure freezing all covered by `tests/test_multi_hamster.py`.
+  - **The test suite runs on Windows for the first time.** Two blockers,
+    both worked around narrowly and only on `win32`: asyncio's self-pipe
+    needs a socket (re-enabled for loopback only), and the HTTP server's
+    accept task lingers past teardown. Config entries are now unloaded
+    after every test - which immediately surfaced three real problems: a
+    timer missing `cancel_on_shutdown`, a test asserting an entity id that
+    never existed (`binary_sensor.<name>_door` is `_cage_door`), and a
+    test asserting an error branch the NumberSelector makes unreachable.
+  - **README split** into a short overview plus one page per card under
+    `docs/cards/`.
 
-_When work on this batch (everything below, added 2026-08-06) actually
-starts: bump `manifest.json`'s version to `0.3.0` (explicit user
-instruction, overrides the usual patch-only bump rule for this batch),
-and put together one coherent plan covering all of it before implementing
-- not a grab-bag of unrelated changes._
+## 🚧 Planned
 
 - Enable branch protection on `main` (block force-push/deletion, ideally
   require PR review) once the repo goes public - GitHub only offers this
   for private repos on paid plans, so it's on hold until then.
-
-### Bugfix: health score drops at the 9 AM reset despite an active night
-
-Reported: right at `DAILY_RESET_HOUR` (9 AM), `daily_distance_km` resets to
-~0, which immediately triggers the `too_little_exercise` penalty even if
-the hamster ran a lot overnight - the score visibly drops even though
-nothing bad actually happened. The health score's distance penalty should
-be based on the current/most recently completed *night* (`night_distance_km`,
-already tracked separately) instead of - or blended with -
-`daily_distance_km`, since that's what actually reflects a hamster's
-nocturnal activity. The daytime value is not interesting on its own and
-should no longer be shown on the main card. Needs a closer look at how
-`_distance_penalty()` in `coordinator.py` picks its input once this is
-tackled, and how "the current/most recently completed night" is defined
-right after a fresh `NIGHT_WINDOW_START_HOUR` reset.
-
-### Bugfix: Day & Night wheel animation stutters/flickers, doesn't track speed live
-
-The wheel's `@keyframes spinWheel` animation restarts from 0deg on every
-`_render()` (every `hass` update rebuilds the card's innerHTML from
-scratch), which reads as stutter/flicker instead of one smooth spin. Needs
-rework so the rotation continues seamlessly across re-renders (e.g. track
-elapsed rotation and set the starting `transform` accordingly, or move the
-spin to a persisted DOM node that isn't torn down each render). Separately,
-the wheel should react live to the actual current speed - including
-coming to a visible stop mid-session if speed drops to 0, even while
-`night_active_duration` is still counting (a session can have the hamster
-motionless for a bit without timing out, per the 30-minute grace period).
-
-### Card redesign: playful style, data embedded in the scene
-
-Redesign both cards to be more playful/illustrated, moving the data rows
-into the scene itself instead of a separate section at the card's foot -
-a mockup was provided as the layout/style reference, saved at
-`design/mockup-day-night-card.png`. Key cues from the mockup to match:
-data readouts overlaid directly on the illustrated scene (not a separate
-stats grid), rounded pill-style info chips, larger/friendlier typography,
-a small connection-status chip inline in the scene rather than a footer
-row.
-
-### Day & Night card: light automation control
-
-Add a button on the card to pause the cage-light automation for 30 minutes
-(auto re-enables afterward), plus show the light's current on/off status
-when a light entity is connected. Needs a new coordinator-side "pause
-until" mechanism for `door_light.py`'s automation (temporarily skip
-turn-on/off while paused) and a way for the card to trigger it (a new
-service the card calls, most likely) and read the light's live state.
-
-### Weight-reminder push notification
-
-Let the user opt in to a periodic push reminder to weigh the hamster (on
-the kitchen scale, entered into `number.<hamster>_weight`), toggleable
-independently in the options menu - same pattern as the existing
-warnings/daily-summary toggles in `notify.py`.
-
-### Dynamic hamster profile & color customization
-
-- At setup (config flow) and via Reconfigure, let the user pick a hamster
-  breed/type (e.g. Golden Hamster, Winter White Dwarf, Roborovski, ...)
-  in addition to the existing name/acquisition date/wheel diameter.
-- Let the user pick a main coat color from 4 predefined swatches:
-  Golden-brown `#D48C46`, Silver-grey `#8A929A`, Cream/sand `#E8D3A7`,
-  Black/dark `#333333`.
-- The hamster illustration/logo becomes a dynamic SVG whose `fill`
-  color(s) (or a CSS custom property) are driven by the selected hex
-  value, instead of the fixed color palette the current logos use.
-
-### Lifetime history archive on departure (`history_lifedata.json`)
-
-When a departure date is set (hamster passed away or moved out), archive
-that hamster's profile into a durable history file (e.g.
-`config/hamster_fitness/history_lifedata.json` via `Store`, matching the
-existing per-entry storage pattern) before/alongside freezing its live
-snapshot. Should persist: name, breed/type, color hex, acquisition date,
-departure date, and aggregated lifetime stats (total distance, top speed,
-active days, etc.). This becomes the data source for the new overview card
-below.
-
-### 4th Lovelace card: "Hamster Chronicle & Overview"
-
-A new card listing every hamster that ever existed in this Home Assistant
-- both currently active ones and archived ones from the history file above
- - each with its move-in/move-out dates and an icon/logo in its own coat
-color. Which stat columns are shown should be configurable (checkboxes),
-similar to the Day & Night card's `show_*` toggles.
-
-### Multi-hamster parallel operation - test & harden
-
-Explicitly test and confirm that running several hamster config entries
-side by side stays fully isolated: entity IDs, `Store` storage keys
-(already per-`entry_id`, e.g. `hamster_fitness_<entry_id>_baseline` -
-worth double-checking this holds for every new storage key added by the
-items above too), and dashboard cards (translation_key-based sibling
-lookup already handles this, per the entity-registry rework earlier this
-project) all need to keep working without cross-talk between hamsters.
-
-### `hamster-fitness-card` (health score) redesign
-
-Overhaul to match the Day & Night card's visual language and add richer,
-more actionable detail:
-
-- **Header**: same outer layout/spacing/typography as the Day & Night
-  card's header (keep the current header SVG icon). Subtitle changes to a
-  dynamic "seit X Monaten bei dir" derived from `acquisition_date`. Add a
-  status badge (top right): 🟢 "Voll vital" / 🟡 "Beobachten" / 🔴
-  "Tierarzt prüfen", thresholded off the health score.
-- **Hero**: keep the central health-score ring (0-100, color-coded), add a
-  highlighted "Smart Insight" box below it for the dynamic problem-
-  description text (already available via `warning_reason`/the
-  `messages` translation category).
-- **Interactive 2x2 grid** ("4 pillars of health"), each tile opens a
-  modal (`ha-dialog` or a custom shadow-DOM overlay) with detail + a care
-  tip:
-  - 🏃 Activity & endurance: "Hamsters instinctively hide illness as long
-    as possible. A sudden >30% drop in nightly running distance is often
-    the very first sign of one - watch the trend, not just one night."
-  - 😴 Sleep & rest quality: "Hamsters are crepuscular/nocturnal.
-    Disturbing their main sleep phase (10:00-17:00) with light, vibration,
-    or cage openings causes chronic stress and weakens the immune system."
-  - 🌡️ Climate & environment: "Ideal range is 18-22°C, 40-60% humidity.
-    Below 15°C risks life-threatening torpor; above 24°C risks heat
-    stroke."
-  - 🧹 Care & interaction: measured via the door/lid sensor - tracks how
-    regularly the cage is opened for feeding/cleaning. Best is 1-2 short
-    openings in the late evening; avoid frequent daytime opening (ties
-    into the "too much daytime opening" scoring item above).
-  - These four map naturally onto new per-pillar score sensors
-    (`sensor.hamster_<name>_score_activity/_sleep/_climate/_care` in the
-    request) worth evaluating against the existing single combined
-    `distance_penalty`/`temperature_penalty`/`care_penalty` breakdown -
-    may become new sensors, or the modal content might just read the
-    existing breakdown attributes instead of needing new entities.
-- **Trend section**: comparison readouts (e.g. "5.4 km (+0.6 km vs. 7-day
-  avg)", "Climate 100% in range") plus a 7-day bar chart of daily scores
-  at the bottom of the card. Needs the coordinator to start keeping a
-  short rolling history of daily scores somewhere (not currently tracked
-  beyond `previous_day_distance_km`).
-- Technical notes carried over from the request: plain
-  LitElement/HTMLElement web component (no new build tooling), full
-  mock-data fallback for the dashboard editor preview, header CSS classes
-  kept identical to `hamster-day-night-card.js`'s.
-- Consider splitting `README.md` into a short top-level overview plus one
-  doc per card, now that there'll be four cards with real depth each.
+- Card localisation. Python-side text (config flow, entity names, warning
+  and notification messages) follows Home Assistant's language, but the
+  four Lovelace cards still carry hardcoded German labels. Worth moving
+  them through the same `strings.json` mechanism, or at least an
+  English/German switch, before the repo goes public.
+- The 7-day trend records the score standing at `DAILY_RESET_HOUR`, i.e.
+  one snapshot per day rather than a daily average. Fine as a trend, but
+  a day that dipped and recovered looks unremarkable - worth revisiting
+  if the chart turns out to be misleading in practice.
 
 ## 🔍 To investigate
 

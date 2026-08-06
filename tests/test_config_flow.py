@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hamster_fitness.const import (
@@ -70,15 +71,22 @@ async def test_user_flow_rejects_blank_name(hass: HomeAssistant) -> None:
 
 
 async def test_user_flow_rejects_zero_diameter(hass: HomeAssistant) -> None:
-    """A wheel diameter of 0 is rejected with invalid_diameter."""
+    """A wheel diameter of 0 never makes it past the schema.
+
+    The step's own `invalid_diameter` check is a belt-and-braces fallback
+    that can't actually be reached through the UI: the field is a
+    NumberSelector with min=MIN_WHEEL_DIAMETER_CM, so voluptuous rejects
+    anything smaller first. This test pins down where the rejection
+    really happens, rather than asserting an error string the user will
+    never see.
+    """
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {**BASIC_INPUT, CONF_WHEEL_DIAMETER: 0}
-    )
-    assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {CONF_WHEEL_DIAMETER: "invalid_diameter"}
+    with pytest.raises(InvalidData):
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], {**BASIC_INPUT, CONF_WHEEL_DIAMETER: 0}
+        )
 
 
 async def test_sensors_step_rejects_non_numeric_wheel_sensor(

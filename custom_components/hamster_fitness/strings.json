@@ -7,11 +7,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Acquisition date",
+          "breed": "Breed",
+          "breed_other": "Breed (if \"Other\")",
+          "coat_color": "Coat colour",
           "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
+          "breed": "Purely descriptive - it shows up on the cards and never affects the health score.",
+          "breed_other": "Only used when the breed above is set to \"Other\" - e.g. a mix or a breed missing from the list.",
+          "coat_color": "Tints the illustrated hamster on the dashboard cards. Pick whichever comes closest.",
           "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
@@ -45,11 +51,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Acquisition date",
+          "breed": "Breed",
+          "breed_other": "Breed (if \"Other\")",
+          "coat_color": "Coat colour",
           "wheel_diameter": "Wheel diameter"
         },
         "data_description": {
           "hamster_name": "The name of your hamster. Used as the device name.",
           "acquisition_date": "The date your hamster moved in with you.",
+          "breed": "Purely descriptive - it shows up on the cards and never affects the health score.",
+          "breed_other": "Only used when the breed above is set to \"Other\" - e.g. a mix or a breed missing from the list.",
+          "coat_color": "Tints the illustrated hamster on the dashboard cards. Pick whichever comes closest.",
           "wheel_diameter": "Diameter of the running wheel, as usually stated on the packaging or product page. If you're also using an ESPHome device for the wheel sensor, enter the same value there too."
         }
       },
@@ -82,7 +94,8 @@
       "invalid_name": "Please enter a name for your hamster.",
       "invalid_diameter": "Wheel diameter must be greater than 0.",
       "not_numeric": "The selected wheel sensor's current state is not a number.",
-      "entity_not_found": "This entity could not be found. Please pick it again."
+      "entity_not_found": "This entity could not be found. Please pick it again.",
+      "breed_required": "Please name the breed, or pick one from the list instead of \"Other\"."
     },
     "abort": {
       "already_configured": "A hamster with this name has already been configured.",
@@ -97,10 +110,12 @@
         "data": {
           "ideal_temp_min": "Ideal temperature (min)",
           "ideal_temp_max": "Ideal temperature (max)",
-          "min_distance_km": "Minimum daily distance",
+          "min_distance_km": "Minimum nightly distance",
           "warnings_enabled": "Send warning notifications",
           "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time",
+          "weight_reminder_enabled": "Remind me to weigh the hamster",
+          "weight_reminder_days": "Weigh-in interval",
           "light_brightness_pct": "Cage light brightness",
           "light_transition_s": "Cage light transition time",
           "light_turn_off_enabled": "Turn cage light off automatically",
@@ -109,10 +124,12 @@
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
           "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
-          "min_distance_km": "Below this daily distance, the health score drops sharply.",
+          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started.",
           "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent.",
+          "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
+          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
           "light_brightness_pct": "Only relevant if a cage light was selected in the sensors step. Brightness the light is set to when the cage opens.",
           "light_transition_s": "Only relevant if a cage light was selected. Fade duration for both turning on and off, in seconds. 0 switches instantly.",
           "light_turn_off_enabled": "Only relevant if a cage light was selected. Turn off automatically when the cage closes. Turn off if something else (e.g. an automation) should control when the light goes off.",
@@ -152,6 +169,18 @@
       },
       "day_rest_duration": {
         "name": "Rest duration"
+      },
+      "score_activity": {
+        "name": "Activity score"
+      },
+      "score_sleep": {
+        "name": "Sleep score"
+      },
+      "score_climate": {
+        "name": "Climate score"
+      },
+      "score_care": {
+        "name": "Care score"
       }
     },
     "binary_sensor": {
@@ -181,6 +210,11 @@
       "weight": {
         "name": "Weight"
       }
+    },
+    "switch": {
+      "light_automation": {
+        "name": "Light automation"
+      }
     }
   },
   "messages": {
@@ -195,7 +229,42 @@
       "daily_summary": "Ran {distance} km last night! {comparison}",
       "more_than_yesterday": "That's {delta} m more than yesterday.",
       "less_than_yesterday": "That's {delta} m less than yesterday.",
-      "same_as_yesterday": "That's the same as yesterday."
+      "same_as_yesterday": "That's the same as yesterday.",
+      "weight_reminder": "It's been {days} days since the last weigh-in.",
+      "weight_reminder_never": "No weight recorded yet - time for a first weigh-in?"
+    }
+  },
+  "services": {
+    "pause_light_automation": {
+      "name": "Pause light automation",
+      "description": "Temporarily stops the cage-light automation from reacting to the cage door, then re-arms it by itself. Handy while cleaning the cage, so the light doesn't flick on and off with every lift of the lid.",
+      "fields": {
+        "duration_minutes": {
+          "name": "Duration",
+          "description": "How long the automation stays paused. Calling this again replaces a running pause instead of stacking another one on top."
+        }
+      }
+    }
+  },
+  "selector": {
+    "breed": {
+      "options": {
+        "golden": "Syrian / golden hamster",
+        "teddy": "Teddy bear hamster",
+        "winter_white": "Winter white dwarf hamster",
+        "campbell": "Campbell's dwarf hamster",
+        "roborovski": "Roborovski dwarf hamster",
+        "chinese": "Chinese hamster",
+        "other": "Other"
+      }
+    },
+    "coat_color": {
+      "options": {
+        "golden_brown": "Golden brown",
+        "silver_grey": "Silver grey",
+        "cream_sand": "Cream / sand",
+        "black": "Black / dark"
+      }
     }
   }
 }

@@ -7,11 +7,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Einzugsdatum",
+          "breed": "Rasse",
+          "breed_other": "Rasse (bei \"Sonstige\")",
+          "coat_color": "Fellfarbe",
           "wheel_diameter": "Raddurchmesser"
         },
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
+          "breed": "Rein beschreibend - taucht auf den Karten auf und hat keinerlei Einfluss auf den Health-Score.",
+          "breed_other": "Wird nur ausgewertet, wenn oben \"Sonstige\" ausgewählt ist - z. B. bei Mischlingen oder einer Rasse, die in der Liste fehlt.",
+          "coat_color": "Färbt den illustrierten Hamster auf den Dashboard-Karten ein. Nimm einfach den Ton, der am ehesten passt.",
           "wheel_diameter": "Durchmesser des Laufrads, wie er üblicherweise auf der Verpackung oder im Produktangebot steht. Falls du für den Rad-Sensor zusätzlich ein ESPHome-Gerät nutzt, trag dort denselben Wert ein."
         }
       },
@@ -45,11 +51,17 @@
         "data": {
           "hamster_name": "Name",
           "acquisition_date": "Einzugsdatum",
+          "breed": "Rasse",
+          "breed_other": "Rasse (bei \"Sonstige\")",
+          "coat_color": "Fellfarbe",
           "wheel_diameter": "Raddurchmesser"
         },
         "data_description": {
           "hamster_name": "Der Name deines Hamsters. Wird als Gerätename verwendet.",
           "acquisition_date": "Das Datum, an dem dein Hamster bei dir eingezogen ist.",
+          "breed": "Rein beschreibend - taucht auf den Karten auf und hat keinerlei Einfluss auf den Health-Score.",
+          "breed_other": "Wird nur ausgewertet, wenn oben \"Sonstige\" ausgewählt ist - z. B. bei Mischlingen oder einer Rasse, die in der Liste fehlt.",
+          "coat_color": "Färbt den illustrierten Hamster auf den Dashboard-Karten ein. Nimm einfach den Ton, der am ehesten passt.",
           "wheel_diameter": "Durchmesser des Laufrads, wie er üblicherweise auf der Verpackung oder im Produktangebot steht. Falls du für den Rad-Sensor zusätzlich ein ESPHome-Gerät nutzt, trag dort denselben Wert ein."
         }
       },
@@ -82,7 +94,8 @@
       "invalid_name": "Bitte gib einen Namen für deinen Hamster ein.",
       "invalid_diameter": "Der Raddurchmesser muss größer als 0 sein.",
       "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl.",
-      "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen."
+      "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen.",
+      "breed_required": "Bitte die Rasse benennen - oder oben statt \"Sonstige\" eine aus der Liste wählen."
     },
     "abort": {
       "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert.",
@@ -97,10 +110,12 @@
         "data": {
           "ideal_temp_min": "Ideal-Temperatur (min)",
           "ideal_temp_max": "Ideal-Temperatur (max)",
-          "min_distance_km": "Mindeststrecke pro Tag",
+          "min_distance_km": "Mindeststrecke pro Nacht",
           "warnings_enabled": "Warnungen senden",
           "daily_summary_enabled": "Tageszusammenfassung senden",
           "notification_time": "Uhrzeit der Tageszusammenfassung",
+          "weight_reminder_enabled": "Ans Wiegen erinnern",
+          "weight_reminder_days": "Wiege-Intervall",
           "light_brightness_pct": "Helligkeit der Käfigbeleuchtung",
           "light_transition_s": "Übergangszeit der Käfigbeleuchtung",
           "light_turn_off_enabled": "Käfigbeleuchtung automatisch ausschalten",
@@ -109,10 +124,12 @@
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
           "ideal_temp_max": "Obergrenze des idealen Käfig-Temperaturbereichs.",
-          "min_distance_km": "Unterhalb dieser Tagesstrecke sinkt der Health-Score deutlich.",
+          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat.",
           "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
           "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
           "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
+          "weight_reminder_enabled": "Meldet sich nur, wenn das Wiegen wirklich überfällig ist - wer regelmäßig einen neuen Wert einträgt, bekommt diese Erinnerung nie. Versand zur oben eingestellten Uhrzeit der Tageszusammenfassung.",
+          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird.",
           "light_brightness_pct": "Nur relevant, wenn im Schritt 'Quell-Sensoren' eine Käfigbeleuchtung ausgewählt wurde. Helligkeit, auf die das Licht beim Öffnen des Käfigs gesetzt wird.",
           "light_transition_s": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Überblendzeit beim Ein- und Ausschalten, in Sekunden. 0 schaltet sofort.",
           "light_turn_off_enabled": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Beim Schließen des Käfigs automatisch ausschalten. Deaktivieren, wenn etwas anderes (z. B. eine Automatisierung) das Ausschalten übernehmen soll.",
@@ -152,6 +169,18 @@
       },
       "day_rest_duration": {
         "name": "Ruhedauer"
+      },
+      "score_activity": {
+        "name": "Aktivitäts-Score"
+      },
+      "score_sleep": {
+        "name": "Schlaf-Score"
+      },
+      "score_climate": {
+        "name": "Klima-Score"
+      },
+      "score_care": {
+        "name": "Pflege-Score"
       }
     },
     "binary_sensor": {
@@ -181,6 +210,11 @@
       "weight": {
         "name": "Gewicht"
       }
+    },
+    "switch": {
+      "light_automation": {
+        "name": "Licht-Automatik"
+      }
     }
   },
   "messages": {
@@ -195,7 +229,42 @@
       "daily_summary": "Heute Nacht {distance} km gelaufen! {comparison}",
       "more_than_yesterday": "Das sind {delta} m mehr als gestern.",
       "less_than_yesterday": "Das sind {delta} m weniger als gestern.",
-      "same_as_yesterday": "Das ist genauso viel wie gestern."
+      "same_as_yesterday": "Das ist genauso viel wie gestern.",
+      "weight_reminder": "Seit {days} Tagen wurde nicht mehr gewogen.",
+      "weight_reminder_never": "Noch kein Gewicht eingetragen - Zeit fürs erste Wiegen?"
+    }
+  },
+  "services": {
+    "pause_light_automation": {
+      "name": "Licht-Automatik pausieren",
+      "description": "Hält die Käfiglicht-Automatik vorübergehend davon ab, auf den Deckel zu reagieren, und schaltet sie danach von selbst wieder scharf. Praktisch beim Käfigreinigen, damit das Licht nicht bei jedem Anheben des Deckels an- und ausgeht.",
+      "fields": {
+        "duration_minutes": {
+          "name": "Dauer",
+          "description": "Wie lange die Automatik pausiert bleibt. Ein erneuter Aufruf ersetzt eine laufende Pause, statt eine zweite obendrauf zu legen."
+        }
+      }
+    }
+  },
+  "selector": {
+    "breed": {
+      "options": {
+        "golden": "Goldhamster (Syrer)",
+        "teddy": "Teddyhamster",
+        "winter_white": "Dsungarischer Zwerghamster",
+        "campbell": "Campbell-Zwerghamster",
+        "roborovski": "Roborowski-Zwerghamster",
+        "chinese": "Chinesischer Zwerghamster",
+        "other": "Sonstige"
+      }
+    },
+    "coat_color": {
+      "options": {
+        "golden_brown": "Goldbraun",
+        "silver_grey": "Silbergrau",
+        "cream_sand": "Creme / Sand",
+        "black": "Schwarz / Dunkel"
+      }
     }
   }
 }

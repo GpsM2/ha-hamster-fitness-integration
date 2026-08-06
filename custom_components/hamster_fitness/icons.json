@@ -27,6 +27,18 @@
       },
       "day_rest_duration": {
         "default": "mdi:power-sleep"
+      },
+      "score_activity": {
+        "default": "mdi:run"
+      },
+      "score_sleep": {
+        "default": "mdi:sleep"
+      },
+      "score_climate": {
+        "default": "mdi:thermometer-lines"
+      },
+      "score_care": {
+        "default": "mdi:broom"
       }
     },
     "date": {
@@ -38,6 +50,19 @@
       "weight": {
         "default": "mdi:scale-bathroom"
       }
+    },
+    "switch": {
+      "light_automation": {
+        "default": "mdi:lightbulb-auto",
+        "state": {
+          "off": "mdi:lightbulb-auto-outline"
+        }
+      }
+    }
+  },
+  "services": {
+    "pause_light_automation": {
+      "service": "mdi:pause-circle-outline"
     }
   }
 }
