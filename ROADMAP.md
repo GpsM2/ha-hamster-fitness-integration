@@ -134,6 +134,11 @@ items stay listed so the history stays traceable.
   swap kept only as a fallback. Card titles/ranking names now also prefer
   the device's own name over parsing it out of the entity_id, for the same
   reason
+- Config flow now also checks that `temperature_sensor`/`door_sensor`
+  actually exist in Home Assistant before creating or updating the entry
+  (new `entity_not_found` error), the same defensive spirit as the
+  existing wheel-sensor numeric check - covers the rare case of an entity
+  disappearing between rendering the form and submitting it
 
 ## 🚧 Planned
 

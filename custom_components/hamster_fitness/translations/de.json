@@ -81,7 +81,8 @@
     "error": {
       "invalid_name": "Bitte gib einen Namen für deinen Hamster ein.",
       "invalid_diameter": "Der Raddurchmesser muss größer als 0 sein.",
-      "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl."
+      "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl.",
+      "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen."
     },
     "abort": {
       "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert.",
