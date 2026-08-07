@@ -237,6 +237,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         # Abgeschlossene Tages-Scores für das Trend-Diagramm der Karte.
         self._score_history: list[dict[str, Any]] = []
+        # Laufende Summe/Anzahl der Score-Stichproben des aktuellen Tages.
+        # Abgetastet wird im Minutentakt (siehe
+        # _async_handle_periodic_update), nicht bei jedem Sensor-Event -
+        # sonst zöge ein laufender Hamster, der viele Events auslöst, den
+        # Tagesschnitt zu seinen aktiven Phasen hin.
+        self._score_sum_today: float = 0.0
+        self._score_samples_today: int = 0
 
         # Käfiglicht-Automatik: dauerhafter Schalterzustand plus optionale,
         # von selbst auslaufende Pause (siehe door_light.py und die
@@ -355,6 +362,8 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._sleep_door_openings = stored.get("sleep_door_openings", 0)
             self._sleep_activity_sessions = stored.get("sleep_activity_sessions", 0)
             self._score_history = stored.get("score_history", [])
+            self._score_sum_today = stored.get("score_sum_today", 0.0)
+            self._score_samples_today = stored.get("score_samples_today", 0)
             self._light_automation_enabled = stored.get(
                 "light_automation_enabled", True
             )
@@ -470,6 +479,8 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "sleep_door_openings": self._sleep_door_openings,
                 "sleep_activity_sessions": self._sleep_activity_sessions,
                 "score_history": self._score_history,
+                "score_sum_today": self._score_sum_today,
+                "score_samples_today": self._score_samples_today,
                 "light_automation_enabled": self._light_automation_enabled,
                 "light_pause_until": (
                     self._light_pause_until.isoformat()
@@ -514,16 +525,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         recalculation), so its `daily_distance_km` becomes the new
         "yesterday" reference.
 
-        The same moment closes out the day for the score trend:
-        DAILY_RESET_HOUR sits right after the hamster's nightly activity
-        phase has ended, so the score standing here is the most
-        meaningful single number for "how did the day that just ended
-        go". It also lands just before the sleep phase begins, which is
-        why the sleep-disturbance counters are cleared here too.
+        The same moment closes out the day for the score trend, using
+        the day's *average* score rather than whatever it happened to
+        read at this instant - a day that dipped badly and recovered
+        before 9 AM would otherwise look untroubled. It also lands just
+        before the sleep phase begins, which is why the
+        sleep-disturbance counters are cleared here too.
         """
         if self.data is not None:
             self._previous_day_distance_km = self.data.daily_distance_km
-            self._record_daily_score(self.data.health_score)
+            self._record_daily_score(self._closing_day_score())
+        self._score_sum_today = 0.0
+        self._score_samples_today = 0
         self._sleep_door_openings = 0
         self._sleep_activity_sessions = 0
         self._baseline_count = self._current_wheel_count() or 0.0
@@ -532,6 +545,30 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
+
+    def _closing_day_score(self) -> int:
+        """Average score across the day that is just ending.
+
+        Falls back to the current score if nothing was sampled - Home
+        Assistant having been down for the whole window. A snapshot is a
+        poorer number than an average, but it beats recording nothing.
+        """
+        if self._score_samples_today == 0:
+            return self.data.health_score
+        return round(self._score_sum_today / self._score_samples_today)
+
+    @callback
+    def _sample_score(self) -> None:
+        """Add the current score to today's running average.
+
+        Skipped for a departed hamster: its snapshot is frozen, so
+        sampling would just pad the history with a value that can no
+        longer change.
+        """
+        if self._is_departed():
+            return
+        self._score_sum_today += self.data.health_score
+        self._score_samples_today += 1
 
     def _record_daily_score(self, score: int) -> None:
         """Append `score` to the rolling SCORE_HISTORY_DAYS-day history.
@@ -570,8 +607,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
     @callback
     def _async_handle_periodic_update(self, now: datetime) -> None:
-        """Recompute every minute, mainly to keep session/rest durations live."""
+        """Recompute every minute, mainly to keep session/rest durations live.
+
+        Doubles as the sampling tick for the daily score average: an
+        evenly spaced sample every minute, independent of how much the
+        source sensors happen to be firing.
+        """
         self.async_set_updated_data(self._calculate())
+        self._sample_score()
 
     # ------------------------------------------------------------------
     # Gewicht (siehe number.py und die Wiege-Erinnerung in notify.py)
