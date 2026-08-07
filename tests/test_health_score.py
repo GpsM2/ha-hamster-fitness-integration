@@ -148,6 +148,98 @@ async def test_cold_cage_only_drags_down_the_climate_pillar(
     assert entry.runtime_data.data.health_score < 100
 
 
+async def test_trend_records_the_day_average_not_a_snapshot(
+    hass: HomeAssistant,
+) -> None:
+    """A day that dipped and recovered must not look untroubled.
+
+    The whole point of averaging: recording only the score standing at
+    the reset hour would hide a bad afternoon entirely.
+    """
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+
+    # A day spent mostly in trouble, recovered right before the reset.
+    for score in (100, 40, 40, 40):
+        coordinator._score_sum_today += score
+        coordinator._score_samples_today += 1
+    assert coordinator.data.health_score == 100  # the snapshot looks fine
+
+    coordinator._async_handle_daily_reset(dt_util.now())
+    await hass.async_block_till_done()
+
+    recorded = coordinator._score_history[-1]["score"]
+    assert recorded == 55, "expected the average of 100/40/40/40, not the snapshot"
+
+
+async def test_day_average_resets_after_being_recorded(hass: HomeAssistant) -> None:
+    """Yesterday's samples must not bleed into today's average."""
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+
+    coordinator._score_sum_today = 300.0
+    coordinator._score_samples_today = 4
+
+    coordinator._async_handle_daily_reset(dt_util.now())
+    await hass.async_block_till_done()
+
+    assert coordinator._score_sum_today == 0.0
+    assert coordinator._score_samples_today == 0
+
+
+async def test_day_average_falls_back_to_the_current_score(
+    hass: HomeAssistant,
+) -> None:
+    """No samples at all - Home Assistant was down - still records something."""
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+    assert coordinator._score_samples_today == 0
+
+    coordinator._async_handle_daily_reset(dt_util.now())
+    await hass.async_block_till_done()
+
+    assert coordinator._score_history[-1]["score"] == 100
+
+
+async def test_periodic_tick_samples_the_score(hass: HomeAssistant) -> None:
+    """The per-minute timer is what feeds the average.
+
+    Deliberately not the source-sensor events: a running hamster fires
+    far more of those than a sleeping one, which would drag the daily
+    average towards whatever the score was during activity.
+    """
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+    before = coordinator._score_samples_today
+
+    coordinator._async_handle_periodic_update(dt_util.now())
+    await hass.async_block_till_done()
+    assert coordinator._score_samples_today == before + 1
+
+    # A flurry of sensor events must not add samples of its own.
+    for count in ("8000", "8100", "8200"):
+        hass.states.async_set(WHEEL_SENSOR, count)
+    await hass.async_block_till_done()
+    assert coordinator._score_samples_today == before + 1
+
+
+async def test_departed_hamster_stops_sampling(hass: HomeAssistant) -> None:
+    """A frozen snapshot shouldn't keep padding the history."""
+    from datetime import date
+
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+
+    await coordinator.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+    before = coordinator._score_samples_today
+
+    coordinator._async_handle_periodic_update(dt_util.now())
+    await hass.async_block_till_done()
+
+    assert coordinator._score_samples_today == before
+
+
 async def test_score_history_keeps_one_entry_per_day(hass: HomeAssistant) -> None:
     """Re-recording the same day overwrites instead of duplicating."""
     entry = await _good_night(hass)

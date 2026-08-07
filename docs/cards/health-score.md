@@ -39,10 +39,19 @@ Tapping a tile opens a detail dialog with the concrete numbers behind
 that score and a short husbandry note explaining why it matters. Escape
 or the × closes it.
 
-**7-day trend** — a bar chart of the daily scores the integration
-records each morning at 9 AM (right after the hamster's active phase
-ends), with today compared against that average. Before the first full
-day has passed it says so rather than drawing an empty chart.
+**7-day trend** — a bar chart of the last seven days, each bar the
+**average** score across that day, closed out at 9 AM (right after the
+hamster's active phase ends). Today's score is compared against the
+average of those bars.
+
+The average matters: recording only whatever the score happened to read
+at 9 AM would hide a day that dipped badly and recovered just before the
+reset. Samples are taken once a minute, evenly, rather than on sensor
+events — a running hamster fires far more of those than a sleeping one,
+which would tilt the day towards its active hours.
+
+Before the first full day has passed the card says so rather than
+drawing an empty chart.
 
 ## Options
 
