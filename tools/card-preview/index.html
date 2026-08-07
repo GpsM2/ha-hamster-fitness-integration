@@ -71,6 +71,7 @@ try {
   await import(`${FRONTEND}/hamster-fitness-card.js`);
   await import(`${FRONTEND}/hamster-day-night-card.js`);
   await import(`${FRONTEND}/hamster-chronicle-card.js`);
+  await import(`${FRONTEND}/hamster-weight-card.js`);
 } catch (err) {
   status.className = "fail";
   status.textContent =
@@ -83,6 +84,7 @@ const expected = [
   "hamster-fitness-ranking-card",
   "hamster-day-night-card",
   "hamster-chronicle-card",
+  "hamster-weight-card",
 ];
 const missing = expected.filter((name) => !customElements.get(name));
 if (missing.length) {
@@ -314,6 +316,39 @@ place(
 
 section("Ranking");
 place(makeCard("hamster-fitness-ranking-card", {}, chronicleHass()), "wide");
+
+// --- Wiege-Karte ------------------------------------------------------
+
+function weightHass(grams, lastWeighedDaysAgo) {
+  const hass = baseHass({ night: false, active: false, speed: 0, lightOn: false });
+  const id = "number.hamster_taco_weight";
+  hass.states[id] = {
+    state: grams === null ? "unknown" : String(grams),
+    attributes: {
+      min: 0,
+      max: 2000,
+      step: 1,
+      last_weighed_at:
+        lastWeighedDaysAgo === null
+          ? null
+          : new Date(Date.now() - lastWeighedDaysAgo * 86400000).toISOString(),
+    },
+  };
+  hass.entities[id] = { device_id: "d1", translation_key: "weight" };
+  return hass;
+}
+
+section("Wiegen");
+grid(
+  [
+    ["Leichter Zwerghamster (32 g)", [32, 2]],
+    ["Kräftiger Goldhamster (168 g)", [168, 0]],
+    ["Noch nie gewogen", [null, null]],
+  ],
+  ([grams, days]) =>
+    makeCard("hamster-weight-card", { entity: "sensor.hamster_taco_health_score" },
+      weightHass(grams, days))
+);
 </script>
 </body>
 </html>

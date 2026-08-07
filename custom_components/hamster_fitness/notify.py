@@ -36,7 +36,9 @@ import logging
 from datetime import datetime, time, timedelta
 from typing import Any
 
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
@@ -288,6 +290,19 @@ class HamsterFitnessNotifier:
             )
         self._hass.async_create_task(self._async_send_weight_reminder(message, now))
 
+    def _weight_entity_id(self) -> str | None:
+        """Resolve this hamster's weight entity, for the reminder's deep link.
+
+        Looked up through the registry by unique_id rather than guessed
+        from the hamster's name - entity_ids are generated once from the
+        *translated* entity name, so guessing breaks on any non-English
+        installation.
+        """
+        registry = er.async_get(self._hass)
+        return registry.async_get_entity_id(
+            Platform.NUMBER, DOMAIN, f"{self._entry.entry_id}_weight"
+        )
+
     # ------------------------------------------------------------------
     # Kritische Warnungen (sofort, mit Cooldown pro Warngrund)
     # ------------------------------------------------------------------
@@ -328,8 +343,25 @@ class HamsterFitnessNotifier:
         await self._async_save()
 
     async def _async_send_weight_reminder(self, message: str, now: datetime) -> None:
-        """Send the weigh-in reminder and start its cooldown."""
-        await self._async_send(message)
+        """Send the weigh-in reminder and start its cooldown.
+
+        Unlike the other messages this one carries a deep link, so
+        tapping the notification opens the weight entity straight away
+        instead of dumping the user on their dashboard's front page with
+        no hint of what to do next.
+        """
+        weight_entity = self._weight_entity_id()
+        await self._async_send(
+            message,
+            # clickAction is the Android companion app's key, url is
+            # iOS's; sending both means one payload works on either.
+            data={
+                "clickAction": f"entityId:{weight_entity}",
+                "url": f"entityId:{weight_entity}",
+            }
+            if weight_entity
+            else None,
+        )
         self._last_weight_reminder_at = now
         await self._async_save()
 
@@ -346,12 +378,20 @@ class HamsterFitnessNotifier:
             }
         )
 
-    async def _async_send(self, message: str) -> None:
+    async def _async_send(self, message: str, data: dict[str, Any] | None = None) -> None:
         """Send `message` to every notify entity chosen during setup.
 
         The hamster's name is sent as `title` (rendered as the
         notification heading on targets that support it, e.g. the mobile
         app), so `message` itself never needs to repeat it.
+
+        `data` carries companion-app extras such as a tap target. The
+        modern `notify.send_message` entity action accepts only message
+        and title, so anything with `data` has to go through the legacy
+        per-device service (`notify.mobile_app_<device>`), which the
+        mobile app registers alongside its entity. Where no such service
+        exists - a notify target that isn't the companion app - the
+        message still goes out, just without the extras.
         """
         if not self._targets:
             _LOGGER.warning(
@@ -361,16 +401,33 @@ class HamsterFitnessNotifier:
                 message,
             )
             return
-        try:
-            await self._hass.services.async_call(
-                NOTIFY_DOMAIN,
+
+        plain: list[str] = []
+        for target in self._targets:
+            legacy_service = target.split(".", 1)[-1]
+            if data and self._hass.services.has_service(NOTIFY_DOMAIN, legacy_service):
+                await self._async_call_notify(
+                    legacy_service,
+                    {"title": self._hamster_name, "message": message, "data": data},
+                )
+            else:
+                plain.append(target)
+
+        if plain:
+            await self._async_call_notify(
                 NOTIFY_SERVICE_SEND_MESSAGE,
                 {
-                    "entity_id": self._targets,
+                    "entity_id": plain,
                     "title": self._hamster_name,
                     "message": message,
                 },
-                blocking=True,
+            )
+
+    async def _async_call_notify(self, service: str, payload: dict[str, Any]) -> None:
+        """Call one notify service, swallowing failures."""
+        try:
+            await self._hass.services.async_call(
+                NOTIFY_DOMAIN, service, payload, blocking=True
             )
         except Exception:  # noqa: BLE001 - ein Notify-Fehler darf HA nicht crashen
             _LOGGER.exception(

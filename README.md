@@ -14,7 +14,7 @@
 
 Hamster Fitness is a free add-on for Home Assistant. It watches your
 hamster's running wheel, cage climate, and cage door, and turns that into
-one health score you can actually act on — plus alerts, four dashboard
+one health score you can actually act on — plus alerts, five dashboard
 cards, and a cage light that switches itself on when you open the lid.
 
 ## Features
@@ -42,12 +42,13 @@ cards, and a cage light that switches itself on when you open the lid.
 - **Boarding mode**: away at a foster home or the vet? Flip one switch
   and scoring, warnings and reminders pause until it's back, without
   archiving anything.
-- **Four dashboard cards built in**, no extra downloads, all following
+- **Five dashboard cards built in**, no extra downloads, all following
   Home Assistant's language (English and German):
   [Health Score](docs/cards/health-score.md) ·
   [Day & Night](docs/cards/day-and-night.md) ·
   [Ranking](docs/cards/ranking.md) ·
-  [Chronicle](docs/cards/chronicle.md)
+  [Chronicle](docs/cards/chronicle.md) ·
+  [Weighing](docs/cards/weighing.md)
 - **Keeps the wheel diameter in sync** with your sensor device, so you
   never type the same number into two places.
 
@@ -114,6 +115,7 @@ configure it:
 | [Hamster Fitness: Day & Night](docs/cards/day-and-night.md) | The illustrated live view |
 | [Hamster Fitness: Ranking](docs/cards/ranking.md) | All hamsters by lifetime distance |
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
+| [Hamster Fitness: Weighing](docs/cards/weighing.md) | Entering the weight, on a balance scale |
 
 ### If something looks wrong after an update
 

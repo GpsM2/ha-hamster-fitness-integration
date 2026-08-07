@@ -144,6 +144,19 @@ const STRINGS = {
     "pillar.careLidClosed": "closed",
     "pillar.careNeglectFrom": "Counts as neglected from",
 
+    // Weighing card
+    "weight.subtitle": "Weigh-in",
+    "weight.pickerName": "Hamster Fitness: Weighing",
+    "weight.pickerDescription":
+      "Enter your hamster's weight on an illustrated balance scale - counterweights stack up and the hamster gets rounder as the number rises.",
+    "weight.weighedToday": "Weighed today",
+    "weight.weighedDaysAgo": "Weighed {count} day ago",
+    "weight.weighedDaysAgo_plural": "Weighed {count} days ago",
+    "weight.neverWeighed": "Not weighed yet - tap the buttons to record a first value.",
+    "weight.scaleMin": "Scale low end (g)",
+    "weight.scaleMax": "Scale high end (g)",
+    "weight.step": "Grams per tap",
+
     // Ranking card
     "ranking.title": "Hamster ranking",
     "ranking.subtitle": "By distance run",
@@ -291,6 +304,18 @@ const STRINGS = {
     "pillar.careLidOpen": "offen",
     "pillar.careLidClosed": "geschlossen",
     "pillar.careNeglectFrom": "Als vernachlässigt ab",
+
+    "weight.subtitle": "Wiegen",
+    "weight.weighedToday": "Heute gewogen",
+    "weight.weighedDaysAgo": "Vor {count} Tag gewogen",
+    "weight.weighedDaysAgo_plural": "Vor {count} Tagen gewogen",
+    "weight.neverWeighed": "Noch nicht gewogen - über die Tasten einen ersten Wert eintragen.",
+    "weight.pickerName": "Hamster Fitness: Wiegen",
+    "weight.pickerDescription":
+      "Gewicht des Hamsters auf einer illustrierten Balkenwaage eintragen - mit steigendem Wert stapeln sich die Gegengewichte und der Hamster wird runder.",
+    "weight.scaleMin": "Skala unten (g)",
+    "weight.scaleMax": "Skala oben (g)",
+    "weight.step": "Gramm pro Tastendruck",
 
     "ranking.title": "Hamster-Ranking",
     "ranking.subtitle": "Nach gelaufener Strecke",
