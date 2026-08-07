@@ -302,11 +302,15 @@ items stay listed so the history stays traceable.
   in the English table, a German-only key is treated as a typo, and an
   umlaut outside the table fails the build.
 
+- `v0.3.0` confirmed working on a real Home Assistant instance overnight
+  by the maintainer, including the previously-unverified areas (config
+  flow, notifications, wheel animation). Also confirms the distance
+  calculation is correct against the ESP's own numbers - the diameter
+  field fix mentioned above resolved it for good, no further discrepancy
+  observed.
+
 ## 🚧 Planned
 
-- Enable branch protection on `main` (block force-push/deletion, ideally
-  require PR review) once the repo goes public - GitHub only offers this
-  for private repos on paid plans, so it's on hold until then.
 - The 7-day trend records the score standing at `DAILY_RESET_HOUR`, i.e.
   one snapshot per day rather than a daily average. Fine as a trend, but
   a day that dipped and recovered looks unremarkable - worth revisiting
@@ -358,11 +362,4 @@ or similar) to group it and collapse it by default.
 
 ## 🔍 To investigate
 
-### Distance calculation seemed high compared to the ESP's own numbers
-
-The most likely cause (circumference field instead of a diameter field,
-see above) is structurally fixed now that both sides ask for the same
-diameter value. After updating, check/re-enter the value once via
-Reconfigure (it's now read as a diameter) - if the discrepancy is still
-there afterwards, something else was the cause and would need a fresh
-look based on actual sensor readings.
+Nothing open right now.
