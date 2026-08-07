@@ -1,4 +1,4 @@
-# Hamster Fitness: Weighing
+# Hamster Fitness: Track Weight
 
 An input for your hamster's weight that's worth looking at — the hamster
 sits on an old-fashioned two-pan balance, counterweights stack up on the
@@ -24,7 +24,12 @@ a lot at a glance.
   number climbs. It's drawn in the hamster's own coat colour.
 - The **current weight**, tappable to open the entity's history.
 - **−5 / −1 / +1 / +5 gram buttons** (the step is configurable), writing
-  straight to `number.<hamster>_weight`.
+  straight to `number.<hamster>_weight`, plus a **✎ button** to type a
+  number instead when the steps would take too long.
+- With **nothing recorded yet**, the buttons are replaced by an input
+  field outright — climbing from zero to a Syrian hamster's ~100 g one
+  tap at a time is no way to enter a first value. Enter saves, Escape
+  backs out.
 - **When it was last weighed** — "Weighed 2 days ago" — so an overdue
   weigh-in is obvious without opening anything.
 

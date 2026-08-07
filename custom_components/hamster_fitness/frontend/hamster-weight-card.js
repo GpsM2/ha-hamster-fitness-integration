@@ -1,5 +1,5 @@
 /**
- * Hamster Fitness: Weighing
+ * Hamster Fitness: Track Weight
  *
  * An input for `number.<hamster>_weight` that looks like something you'd
  * want to use: the hamster sits on an old-fashioned two-pan balance,
@@ -10,6 +10,11 @@
  *
  * Weighing is the one thing this integration cannot measure by itself,
  * so it has always been a bare number box behind a more-info dialog.
+ *
+ * With no value recorded the +/- buttons give way to a plain input
+ * field: climbing from zero to a Syrian hamster's ~100 g one tap at a
+ * time is no way to enter a first weight. The field stays reachable
+ * afterwards behind the pencil button.
  *
  * Config:
  *   type: custom:hamster-weight-card
@@ -35,7 +40,7 @@ import {
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=5";
+} from "./hamster-fitness-shared.js?v=6";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -129,6 +134,18 @@ class HamsterWeightCard extends HTMLElement {
         this._nudge(Number(step.dataset.step));
         return;
       }
+      if (ev.target.closest("[data-action='edit']")) {
+        this._setEditing(true);
+        return;
+      }
+      if (ev.target.closest("[data-action='cancel']")) {
+        this._setEditing(false);
+        return;
+      }
+      if (ev.target.closest("[data-action='save']")) {
+        this._commitInput();
+        return;
+      }
       const target = ev.target.closest("[data-entity]");
       if (target) {
         this.dispatchEvent(
@@ -140,6 +157,49 @@ class HamsterWeightCard extends HTMLElement {
         );
       }
     });
+
+    // Enter saves, Escape backs out - the shortcuts anyone typing a
+    // number into a field will reach for without being told.
+    this._root.addEventListener("keydown", (ev) => {
+      if (!ev.target.matches(".hwc-input")) return;
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        this._commitInput();
+      } else if (ev.key === "Escape") {
+        ev.preventDefault();
+        this._setEditing(false);
+      }
+    });
+  }
+
+  _setEditing(editing) {
+    this._editing = editing;
+    this._render();
+    if (editing) {
+      const input = this.querySelector(".hwc-input");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  }
+
+  /** Writes whatever is in the input field, if it's a usable number. */
+  _commitInput() {
+    const input = this.querySelector(".hwc-input");
+    const weight = this._entity("weight");
+    if (!input || !weight || !this._hass) return;
+
+    const value = Number(input.value);
+    if (input.value === "" || Number.isNaN(value)) return;
+
+    const min = Number(weight.attributes.min ?? 0);
+    const max = Number(weight.attributes.max ?? 2000);
+    this._hass.callService("number", "set_value", {
+      entity_id: this._entityId("weight"),
+      value: Math.min(max, Math.max(min, value)),
+    });
+    this._setEditing(false);
   }
 
   _entityId(key) {
@@ -303,18 +363,48 @@ class HamsterWeightCard extends HTMLElement {
             }</span>
     `;
 
-    const step = Number(this._config.step) || 1;
-    const buttons = [-step * 5, -step, step, step * 5]
-      .map(
-        (delta) => `
-          <button class="hwc-step${Math.abs(delta) > step ? " hwc-step-big" : ""}"
-                  data-step="${delta}" type="button">
-            ${delta > 0 ? "+" : "−"}${Math.abs(delta)}
-          </button>
-        `
-      )
-      .join("");
-    this._controlsEl.innerHTML = buttons;
+    // Nothing recorded yet means the +/- buttons would have to climb all
+    // the way from zero - roughly a hundred taps for a Syrian hamster.
+    // So the first value is typed, and typing stays reachable afterwards.
+    const editing = this._editing || !hasWeight;
+
+    if (editing) {
+      const min = Number(weight.attributes.min ?? 0);
+      const max = Number(weight.attributes.max ?? 2000);
+      this._controlsEl.innerHTML = `
+        <input class="hwc-input" type="number" inputmode="numeric"
+               min="${min}" max="${max}" step="${weight.attributes.step ?? 1}"
+               value="${hasWeight ? grams : ""}"
+               aria-label="${t(this._hass, "weight.enterWeight")}"
+               placeholder="${t(this._hass, "weight.enterWeight")}">
+        <button class="hwc-step hwc-primary" data-action="save" type="button">
+          ${t(this._hass, "weight.save")}
+        </button>
+        ${
+          hasWeight
+            ? `<button class="hwc-step hwc-step-big" data-action="cancel" type="button">
+                 ${t(this._hass, "weight.cancel")}
+               </button>`
+            : ""
+        }
+      `;
+    } else {
+      const step = Number(this._config.step) || 1;
+      this._controlsEl.innerHTML =
+        [-step * 5, -step, step, step * 5]
+          .map(
+            (delta) => `
+              <button class="hwc-step${Math.abs(delta) > step ? " hwc-step-big" : ""}"
+                      data-step="${delta}" type="button">
+                ${delta > 0 ? "+" : "−"}${Math.abs(delta)}
+              </button>
+            `
+          )
+          .join("") +
+        `<button class="hwc-step hwc-step-big" data-action="edit" type="button"
+                 title="${t(this._hass, "weight.typeIt")}"
+                 aria-label="${t(this._hass, "weight.typeIt")}">✎</button>`;
+    }
 
     this._noteEl.innerHTML = hasWeight
       ? `<span>${
@@ -429,6 +519,38 @@ HamsterWeightCard.styles = `
   .hwc-step-big {
     opacity: 0.85;
     font-size: 0.85em;
+  }
+  .hwc-primary {
+    background: var(--primary-color, #03a9f4);
+    border-color: var(--primary-color, #03a9f4);
+    color: #fff;
+  }
+  .hwc-input {
+    width: 110px;
+    padding: 10px 12px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    border-radius: 12px;
+    background: var(--card-background-color, #fff);
+    color: var(--primary-text-color);
+    font-family: inherit;
+    font-size: 1.05em;
+    font-weight: 700;
+    text-align: center;
+  }
+  .hwc-input:focus {
+    outline: 2px solid var(--primary-color, #03a9f4);
+    outline-offset: 1px;
+  }
+  /* The spinners duplicate the +/- buttons and only make the field
+     narrower, so they go. */
+  .hwc-input::-webkit-outer-spin-button,
+  .hwc-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .hwc-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
   .hwc-note {
     margin-top: 12px;
