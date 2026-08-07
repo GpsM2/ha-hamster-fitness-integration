@@ -146,6 +146,11 @@ const STRINGS = {
 
     // Ranking card
     "ranking.title": "Hamster ranking",
+    "ranking.subtitle": "By distance run",
+    "ranking.total": "Total",
+    "ranking.perDay": "Per day",
+    "ranking.count": "{count} hamster",
+    "ranking.count_plural": "{count} hamsters",
     "ranking.empty":
       "No Hamster Fitness hamsters found (no sensor.hamster_<name>_lifetime_distance in this Home Assistant).",
     "ranking.pickerName": "Hamster Fitness: Ranking",
@@ -288,6 +293,11 @@ const STRINGS = {
     "pillar.careNeglectFrom": "Als vernachlässigt ab",
 
     "ranking.title": "Hamster-Ranking",
+    "ranking.subtitle": "Nach gelaufener Strecke",
+    "ranking.total": "Gesamt",
+    "ranking.perDay": "Pro Tag",
+    "ranking.count": "{count} Hamster",
+    "ranking.count_plural": "{count} Hamster",
     "ranking.empty":
       "Keine Hamster-Fitness-Hamster gefunden (kein sensor.hamster_<name>_lifetime_distance in diesem Home Assistant).",
     "ranking.pickerDescription":
@@ -504,6 +514,19 @@ export const HEADER_STYLES = `
     }
   }
 `;
+
+/**
+ * Whole days between two ISO dates, counting to today when `toIso` is
+ * empty. Used for "days with you" - the chronicle shows it as a column,
+ * the ranking divides lifetime distance by it.
+ */
+export function daysBetween(fromIso, toIso) {
+  if (!fromIso) return null;
+  const from = new Date(fromIso);
+  const to = toIso ? new Date(toIso) : new Date();
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000));
+}
 
 /** Lightens (amount > 0) or darkens (amount < 0) a hex colour. */
 export function shade(hex, amount) {

@@ -43,18 +43,21 @@
  */
 
 import {
+  DEFAULT_FUR,
   HAMSTER_PREFIX,
   HEADER_STYLES,
   applyFur,
   coatColor,
+  daysBetween,
   deviceDisplayName,
   fmtNumber,
   fmtWeekday,
+  isValidHex,
   renderCardHeader,
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=3";
+} from "./hamster-fitness-shared.js?v=4";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -973,16 +976,33 @@ HamsterFitnessCard.styles = `
   }
 
   /* Ranking card (same bundle, see below) */
+  .hfc-rank-banner {
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #8B5A2B, #C19A6B);
+  }
+  .hfc-rank-body {
+    padding: 10px 12px 14px;
+  }
   .hfc-ranking {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
   }
   .hfc-rank-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 6px;
+    padding: 8px;
+    border-radius: 12px;
+    transition: background-color 0.15s ease;
+  }
+  .hfc-rank-row:hover,
+  .hfc-rank-row:focus-visible {
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+    outline: none;
+  }
+  .hfc-rank-past {
+    opacity: 0.72;
   }
   .hfc-rank-medal {
     font-size: 1.2em;
@@ -990,24 +1010,57 @@ HamsterFitnessCard.styles = `
     text-align: center;
     flex-shrink: 0;
   }
+  .hfc-rank-mark {
+    display: flex;
+    flex-shrink: 0;
+  }
   .hfc-rank-name {
     flex: 1;
-    color: var(--primary-text-color);
-  }
-  .hfc-rank-value {
-    font-weight: 600;
-    color: var(--primary-text-color);
-  }
-  .hfc-plain-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 14px 16px 6px;
-  }
-  .hfc-plain-title {
-    font-size: 1.1em;
+    min-width: 0;
     font-weight: 700;
     color: var(--primary-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hfc-rank-stats {
+    display: flex;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .hfc-rank-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.15;
+  }
+  .hfc-rank-stat-label {
+    font-size: 0.62em;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hfc-rank-stat-value {
+    font-size: 0.98em;
+    font-weight: 700;
+    color: var(--primary-text-color);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 460px) {
+    .hfc-rank-row {
+      flex-wrap: wrap;
+    }
+    .hfc-rank-stats {
+      width: 100%;
+      justify-content: flex-start;
+      gap: 16px;
+      padding-left: 64px;
+    }
+    .hfc-rank-stat {
+      align-items: flex-start;
+    }
   }
 
   @media (max-width: 400px) {
@@ -1116,17 +1169,51 @@ customElements.define("hamster-fitness-card-editor", HamsterFitnessCardEditor);
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
+// Per-row hamster silhouette, tinted with that hamster's coat colour -
+// same mark the chronicle card uses, so the two list-style cards read as
+// one family.
+const RANKING_HAMSTER_MARK = `
+<svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true">
+  <ellipse cx="24" cy="30" rx="14" ry="11" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1.2"/>
+  <ellipse cx="15" cy="34" rx="4" ry="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <ellipse cx="33" cy="34" rx="4" ry="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="24" cy="17" r="9.5" fill="var(--row-fur-light)" stroke="var(--row-fur-dark)" stroke-width="1.2"/>
+  <circle cx="17" cy="10" r="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="31" cy="10" r="2.8" fill="var(--row-fur)" stroke="var(--row-fur-dark)" stroke-width="1"/>
+  <circle cx="20" cy="16" r="1.4" fill="#3a2a1a"/>
+  <circle cx="28" cy="16" r="1.4" fill="#3a2a1a"/>
+  <ellipse cx="24" cy="20" rx="2.2" ry="1.6" fill="#f4d9c6"/>
+</svg>
+`;
+
+// Trophy, in the same flat illustration style as the other cards' logos.
+const LOGO_TROPHY = `
+<svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">
+  <path d="M14 8h20v10a10 10 0 0 1-20 0V8Z" fill="#FFD166" stroke="#B8860B" stroke-width="1.5"/>
+  <path d="M14 11H9a6 6 0 0 0 6 6" fill="none" stroke="#B8860B" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M34 11h5a6 6 0 0 1-6 6" fill="none" stroke="#B8860B" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="21" y="27" width="6" height="7" fill="#B8860B"/>
+  <rect x="15" y="34" width="18" height="5" rx="2" fill="#FFD166" stroke="#B8860B" stroke-width="1.5"/>
+  <circle cx="24" cy="15" r="3.5" fill="#fff" opacity="0.5"/>
+</svg>
+`;
+
 class HamsterFitnessRankingCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     if (!this.content) {
       this.innerHTML = `
         <ha-card>
-          <div class="hfc-root"></div>
+          <div class="hfc-root">
+            <div class="hfc-rank-banner"></div>
+            <div class="hfc-rank-body"></div>
+          </div>
         </ha-card>
         <style>${HamsterFitnessCard.styles}</style>
       `;
       this.content = this.querySelector(".hfc-root");
+      this._bannerEl = this.querySelector(".hfc-rank-banner");
+      this._bodyEl = this.querySelector(".hfc-rank-body");
       const openMoreInfo = (target) => {
         this.dispatchEvent(
           new CustomEvent("hass-more-info", {
@@ -1187,21 +1274,43 @@ class HamsterFitnessRankingCard extends HTMLElement {
         const distance = state ? Number(state.state) : NaN;
         const departureId = siblingEntityId(this._hass, id, "departure_date");
         const departure = departureId && this._hass.states[departureId];
-        const isDeparted = departure && departure.state && departure.state !== "unknown";
+        const departureDate =
+          departure && departure.state && departure.state !== "unknown"
+            ? departure.state
+            : null;
+        // The profile (acquisition date, coat colour) lives on the
+        // health-score sensor - see hamster_profile() in coordinator.py.
+        const scoreId = siblingEntityId(this._hass, id, "health_score");
+        const score = scoreId && this._hass.states[scoreId];
+        const attrs = (score && score.attributes) || {};
         const match = id.match(LIFETIME_DISTANCE_PATTERN);
         const slug = match ? match[1].replace(HAMSTER_PREFIX, "") : id;
+
+        // Distance per day is measured over the hamster's whole stay, so
+        // a long-departed hamster stays comparable with a current one -
+        // ranking by total alone just rewards whoever lived longest.
+        const days = daysBetween(attrs.acquisition_date, departureDate);
         return {
           entityId: id,
           name: deviceDisplayName(this._hass, id) || this._capitalize(slug),
           distance,
-          isDeparted,
+          perDay: days && days > 0 ? distance / days : null,
+          coatHex: isValidHex(attrs.coat_color_hex) ? attrs.coat_color_hex : DEFAULT_FUR,
+          isDeparted: !!departureDate,
         };
       })
       .filter((row) => !Number.isNaN(row.distance))
       .sort((a, b) => b.distance - a.distance);
 
+    this._bannerEl.innerHTML = renderCardHeader({
+      logoSvg: LOGO_TROPHY,
+      title: (this._config.title || t(this._hass, "ranking.title")).toUpperCase(),
+      subtitle: t(this._hass, "ranking.subtitle"),
+      badgeHtml: `<span class="hf-badge">${t(this._hass, "ranking.count", { count: rows.length })}</span>`,
+    });
+
     if (rows.length === 0) {
-      this.content.innerHTML = `
+      this._bodyEl.innerHTML = `
         <div class="hfc-error">${t(this._hass, "ranking.empty")}</div>
       `;
       return;
@@ -1209,18 +1318,29 @@ class HamsterFitnessRankingCard extends HTMLElement {
 
     const medals = ["🥇", "🥈", "🥉"];
 
-    this.content.innerHTML = `
-      <div class="hfc-plain-header">
-        <span class="hfc-plain-title">🏆 ${this._config.title || t(this._hass, "ranking.title")}</span>
-      </div>
-      <div class="hfc-ranking" style="padding: 0 12px 12px">
+    this._bodyEl.innerHTML = `
+      <div class="hfc-ranking">
         ${rows
           .map(
             (row, index) => `
-              <div class="hfc-rank-row hfc-clickable" data-entity="${row.entityId}" tabindex="0" role="button">
+              <div class="hfc-rank-row hfc-clickable${row.isDeparted ? " hfc-rank-past" : ""}"
+                   style="--row-fur: ${row.coatHex}; --row-fur-light: ${shade(row.coatHex, 0.18)}; --row-fur-dark: ${shade(row.coatHex, -0.4)}"
+                   data-entity="${row.entityId}" tabindex="0" role="button">
                 <span class="hfc-rank-medal">${medals[index] || `#${index + 1}`}</span>
+                <span class="hfc-rank-mark">${RANKING_HAMSTER_MARK}</span>
                 <span class="hfc-rank-name">${row.name}${row.isDeparted ? " 🪦" : ""}</span>
-                <span class="hfc-rank-value">${fmtNumber(this._hass, row.distance, 1, "km")}</span>
+                <span class="hfc-rank-stats">
+                  <span class="hfc-rank-stat">
+                    <span class="hfc-rank-stat-label">${t(this._hass, "ranking.total")}</span>
+                    <span class="hfc-rank-stat-value">${fmtNumber(this._hass, row.distance, 1, "km")}</span>
+                  </span>
+                  <span class="hfc-rank-stat">
+                    <span class="hfc-rank-stat-label">${t(this._hass, "ranking.perDay")}</span>
+                    <span class="hfc-rank-stat-value">${
+                      row.perDay === null ? "–" : fmtNumber(this._hass, row.perDay, 2, "km")
+                    }</span>
+                  </span>
+                </span>
               </div>
             `
           )
