@@ -43,7 +43,7 @@ import {
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=7";
+} from "./hamster-fitness-shared.js?v=8";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -411,7 +411,7 @@ class HamsterDayNightCard extends HTMLElement {
 
   _moonSvg() {
     return `
-      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden="true">
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin slice" aria-hidden="true">
         <circle cx="26" cy="30" r="1.7" fill="#fff" opacity="0.85"/>
         <circle cx="64" cy="16" r="1.1" fill="#fff" opacity="0.6"/>
         <circle cx="104" cy="34" r="1.5" fill="#fff" opacity="0.75"/>
@@ -427,7 +427,7 @@ class HamsterDayNightCard extends HTMLElement {
 
   _sunSvg() {
     return `
-      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden="true">
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin slice" aria-hidden="true">
         <g class="hdn-sun">
           <circle cx="266" cy="32" r="16" fill="#FFD166"/>
           <g stroke="#FFD166" stroke-width="3" stroke-linecap="round" opacity="0.85">
@@ -450,10 +450,11 @@ class HamsterDayNightCard extends HTMLElement {
     `;
   }
 
-  _chip({ icon, label, value, entity, tone }) {
+  _chip({ icon, label, value, entity, tone, badge }) {
+    const wide = badge ? " hdn-chip-wide" : "";
     const attrs = entity
-      ? `data-entity="${entity}" tabindex="0" role="button" class="hdn-chip hdn-clickable${tone ? ` hdn-chip-${tone}` : ""}"`
-      : `class="hdn-chip${tone ? ` hdn-chip-${tone}` : ""}"`;
+      ? `data-entity="${entity}" tabindex="0" role="button" class="hdn-chip hdn-clickable${wide}${tone ? ` hdn-chip-${tone}` : ""}"`
+      : `class="hdn-chip${wide}${tone ? ` hdn-chip-${tone}` : ""}"`;
     return `
       <div ${attrs}>
         <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${icon}"/></svg>
@@ -461,6 +462,7 @@ class HamsterDayNightCard extends HTMLElement {
           <span class="hdn-chip-label">${label}</span>
           <span class="hdn-chip-value">${value}</span>
         </span>
+        ${badge ? `<span class="hdn-chip-badge">${badge}</span>` : ""}
       </div>
     `;
   }
@@ -583,12 +585,18 @@ class HamsterDayNightCard extends HTMLElement {
       );
     }
     if (this._config.show_rest_duration && !isActive) {
+      // An open lid belongs next to the rest timer: opening it is exactly
+      // what interrupts the hamster's rest, and disturbances during the
+      // main sleep phase are what the sleep pillar scores.
+      const door = this._entity("door");
       chips.push(
         this._chip({
           icon: ICONS.timer,
           label: t(this._hass, "dayNight.restingFor"),
           value: fmtDuration(this._hass, dayRest && dayRest.state),
           entity: this._entityId("day_rest_duration"),
+          badge:
+            door && door.state === "on" ? t(this._hass, "dayNight.lidOpen") : "",
         })
       );
     }
@@ -616,12 +624,19 @@ class HamsterDayNightCard extends HTMLElement {
       const climate = humidity
         ? `${fmtNumber(this._hass, temperature, 1, "°C")} · ${fmtNumber(this._hass, humidity.state, 0, "%")}`
         : fmtNumber(this._hass, temperature, 1, "°C");
+      // Tapping this chip used to open the health score, because the
+      // card renders the temperature from an attribute and had no
+      // reference to the sensor behind it. The coordinator now publishes
+      // the configured source entity, so the tap lands on the thermometer
+      // whose reading is actually being shown.
       chips.push(
         this._chip({
           icon: ICONS.climate,
           label: t(this._hass, "dayNight.climate"),
           value: climate,
-          entity: this._entityId("health_score"),
+          entity:
+            healthScore.attributes.temperature_entity ||
+            this._entityId("health_score"),
         })
       );
     }
@@ -660,10 +675,16 @@ HamsterDayNightCard.styles = `
     overflow: hidden;
     transition: background 0.8s ease;
   }
+  /* The decoration SVG scales uniformly (preserveAspectRatio="xMaxYMin
+     slice"), so its own aspect ratio no longer has to match this box -
+     it covers the box and crops whatever hangs over on the left. The
+     sun and the moon sit at the right edge of the viewBox, which is why
+     the anchor is xMax: they stay put at any card width. */
   .hdn-decor {
     position: absolute;
     inset: 0 0 auto 0;
     height: 130px;
+    overflow: hidden;
     pointer-events: none;
   }
   .hdn-decor-svg {
@@ -678,6 +699,18 @@ HamsterDayNightCard.styles = `
   @keyframes sunPulse {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
+  }
+  /* The other cards seat their header on a solid banner. This one sits
+     straight on the live sky - gradient, stars, a sun - so it gets its
+     own frosted strip instead, bled out to the card edges with negative
+     margins that cancel .hdn-sky's padding. Without it the white title
+     has nothing but a text-shadow between it and a bright noon sky. */
+  .hdn-sky .hf-header {
+    margin: -14px -16px 12px;
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
   .hdn-body {
     position: relative;
@@ -740,6 +773,20 @@ HamsterDayNightCard.styles = `
   }
   .hdn-chip-lit .hdn-chip-icon {
     fill: #FFD166;
+  }
+  /* Same shape as the pause button, but purely informational - amber
+     rather than neutral, and not focusable, since there is nothing to
+     press. */
+  .hdn-chip-badge {
+    margin-left: auto;
+    border: 1px solid rgba(255, 209, 102, 0.55);
+    background: rgba(255, 209, 102, 0.22);
+    color: #FFD166;
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.7em;
+    font-weight: 700;
+    white-space: nowrap;
   }
   .hdn-chip-button {
     margin-left: auto;

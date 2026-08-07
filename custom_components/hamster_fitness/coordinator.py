@@ -1241,6 +1241,25 @@ def hamster_profile(entry: HamsterFitnessConfigEntry) -> dict[str, str | None]:
     }
 
 
+def hamster_source_entities(
+    entry: HamsterFitnessConfigEntry,
+) -> dict[str, str | None]:
+    """The user's own sensors this hamster was set up with.
+
+    The cards render temperature and humidity from attributes, so tapping
+    those values had nowhere to go: the card knows the number but not
+    which entity it came from, and fell back to opening the health score.
+    Publishing the ids lets a chip deep-link to the sensor actually
+    behind the reading.
+
+    Optional pickers stay None when they were never filled in.
+    """
+    return {
+        "temperature_entity": entry.data.get(CONF_TEMPERATURE_SENSOR),
+        "humidity_entity": entry.data.get(CONF_HUMIDITY_SENSOR) or None,
+    }
+
+
 def hamster_weight_profile(
     entry: HamsterFitnessConfigEntry,
 ) -> dict[str, float | None]:
