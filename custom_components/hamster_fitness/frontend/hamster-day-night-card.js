@@ -224,8 +224,17 @@ class HamsterDayNightCard extends HTMLElement {
         this._pauseLight(pauseButton.dataset.switch);
         return;
       }
+      // Order matters: the light chip's label carries data-entity and
+      // sits inside the chip body that carries data-action. Matching the
+      // label first is what keeps it opening more-info instead of
+      // flipping the lamp.
       const target = ev.target.closest("[data-entity]");
-      if (target) openMoreInfo(target);
+      if (target) {
+        openMoreInfo(target);
+        return;
+      }
+      const lightToggle = ev.target.closest("[data-action='toggle-light']");
+      if (lightToggle) this._toggleLight(lightToggle.dataset.light);
     });
     this._root.addEventListener("keydown", (ev) => {
       if (ev.key !== "Enter" && ev.key !== " ") return;
@@ -236,10 +245,35 @@ class HamsterDayNightCard extends HTMLElement {
         return;
       }
       const target = ev.target.closest("[data-entity]");
-      if (!target) return;
+      if (target) {
+        ev.preventDefault();
+        openMoreInfo(target);
+        return;
+      }
+      const lightToggle = ev.target.closest("[data-action='toggle-light']");
+      if (!lightToggle) return;
       ev.preventDefault();
-      openMoreInfo(target);
+      this._toggleLight(lightToggle.dataset.light);
     });
+  }
+
+  /**
+   * Toggles the cage light itself, not the automation switch.
+   *
+   * The automation decides when the light *should* be on; this is the
+   * manual override you reach for when you just want light in the cage
+   * now. Toggling the automation instead would silently change the rule
+   * rather than the lamp.
+   */
+  _toggleLight(lightEntityId) {
+    if (!this._hass || !lightEntityId) return;
+    const light = this._hass.states[lightEntityId];
+    if (!light) return;
+    this._hass.callService(
+      "light",
+      light.state === "on" ? "turn_off" : "turn_on",
+      { entity_id: lightEntityId }
+    );
   }
 
   _pauseLight(switchEntityId) {
@@ -494,8 +528,18 @@ class HamsterDayNightCard extends HTMLElement {
         ? `<button class="hdn-chip-button" data-action="pause-light" data-switch="${switchId}" type="button">${t(this._hass, "dayNight.pauseButton")}</button>`
         : "";
 
+    // The chip body toggles the lamp; the label still opens the
+    // automation's more-info dialog, and the pause button still pauses.
+    // Three targets in one chip, so each one is matched before the
+    // generic handler in _ensureSkeleton().
+    const toggleAttrs = light
+      ? `data-action="toggle-light" data-light="${lightId}" tabindex="0" role="button"
+         aria-pressed="${lightOn ? "true" : "false"}"`
+      : "";
+
     return `
-      <div class="hdn-chip hdn-chip-wide${lightOn ? " hdn-chip-lit" : ""}">
+      <div class="hdn-chip hdn-chip-wide${lightOn ? " hdn-chip-lit" : ""}${light ? " hdn-clickable" : ""}"
+           ${toggleAttrs}>
         <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.light}"/></svg>
         <span class="hdn-chip-text">
           <span class="hdn-chip-label hdn-clickable" data-entity="${switchId}" tabindex="0" role="button">${t(this._hass, "dayNight.cageLight")}</span>
