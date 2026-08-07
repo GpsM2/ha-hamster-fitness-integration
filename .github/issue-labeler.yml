@@ -13,6 +13,18 @@
 # ("temperature sensor won't select", "door sensor unavailable") and would
 # over-match. TCRT5000/ESPHome/wiring terms already identify hardware
 # reports specifically enough.
+#
+# ---------------------------------------------------------------------
+# ADDING A NEW LOVELACE CARD? Three things have to happen together:
+#   1. create a `card: <name>` label in the repo
+#      (gh label create "card: <name>" --color ... --description ...)
+#   2. add a `card: <name>:` block below, matching its custom element
+#      name, its JS filename, and whatever people would plausibly call it
+#      in prose - in both English and German
+#   3. list it in docs/cards/ and the README table
+# Otherwise issues about that card land unlabelled and get lost among the
+# generic `integration` ones.
+# ---------------------------------------------------------------------
 
 hardware:
   - '/esphome|d1[ -]?mini|esp8266|esp32|tcrt5000|wiring|verkabelung|soldering|löten|photo ?sensor|opto ?sensor|lichtschranke/i'
@@ -22,3 +34,20 @@ integration:
 
 health-score:
   - '/algorithm(us)?|health[ -]?score|gesundheit(swert)?|laufstrecke|distanz|distance|umdrehung(en)?|rotation(en)?|penalty|punktabzug|warnschwelle|warning threshold/i'
+
+# --- One label per bundled Lovelace card ------------------------------
+# Matched on the custom element name, the JS filename, and the card's
+# display name as a human would write it. Kept deliberately specific so a
+# generic "the card is broken" report doesn't get tagged with all of them.
+
+'card: health-score':
+  - '/hamster-fitness-card|health[ -]?score[ -]?card|karte.{0,20}health[ -]?score|health[ -]?score.{0,20}(card|karte)|säulen|pillars|smart insight|trend[ -]?(chart|diagramm)|4[ -]?säulen/i'
+
+'card: day-night':
+  - '/hamster-day-night-card|day ?& ?night|day[ -]?and[ -]?night|tag ?& ?nacht|laufrad[ -]?animation|wheel animation|nest[ -]?szene|schlafszene/i'
+
+'card: ranking':
+  - '/hamster-fitness-ranking-card|ranking[ -]?(card|karte)|bestenliste|rangliste|leaderboard/i'
+
+'card: chronicle':
+  - '/hamster-chronicle-card|chronicle[ -]?(card|karte)|chronik|lebenslauf[ -]?archiv|lifetime archive|history_lifedata/i'

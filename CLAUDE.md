@@ -32,6 +32,21 @@ Falls eine Anfrage Hardware-Dateien in diesem Repo anlegen oder ändern
 würde, bitte nachfragen statt sie hier einzufügen – vermutlich gehört sie
 ins Hardware-Repo.
 
+## Neue Lovelace-Karte? Vier Dinge gehören zusammen
+
+Kommt eine Karte dazu (oder wird eine umbenannt/entfernt), müssen diese
+vier Stellen gemeinsam angefasst werden – sonst laufen Issues zu dieser
+Karte unbeschriftet ins Leere und die Doku wird still falsch:
+
+1. Eintrag in `JS_MODULES` (`const.py`) inkl. eigener Cache-Busting-Version.
+2. GitHub-Label `card: <name>` anlegen
+   (`gh label create "card: <name>" --color ... --description ...`).
+3. Passende Regex-Regel in `.github/issue-labeler.yml` ergänzen – auf
+   Custom-Element-Name, Dateiname und die umgangssprachliche Bezeichnung,
+   zweisprachig (EN/DE). Der Auto-Labeler taggt Issues darüber automatisch
+   der richtigen Karte zu.
+4. Eigene Seite unter `docs/cards/` plus Zeile in der README-Tabelle.
+
 ## Standards (Home Assistant Quality Scale)
 
 - Python 3.12+, vollständig `asyncio`-basiert – keine blockierenden
