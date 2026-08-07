@@ -452,24 +452,41 @@ class HamsterWeightCard extends HTMLElement {
     if (editing) {
       const min = Number(weight.attributes.min ?? 0);
       const max = Number(weight.attributes.max ?? DEFAULT_DIAL_MAX);
-      this._controlsEl.innerHTML = `
-        <input class="hwc-input" type="number" inputmode="numeric"
-               min="${min}" max="${max}" step="${weight.attributes.step ?? 1}"
-               value="${hasWeight ? grams : ""}"
-               aria-label="${t(this._hass, "weight.enterWeight")}"
-               placeholder="${min}–${max} g">
-        <button class="hwc-step hwc-primary" data-action="save" type="button">
-          ${t(this._hass, "weight.save")}
-        </button>
-        ${
-          hasWeight
-            ? `<button class="hwc-step hwc-step-big" data-action="cancel" type="button">
-                 ${t(this._hass, "weight.cancel")}
-               </button>`
-            : ""
-        }
-      `;
+      const step = weight.attributes.step ?? 1;
+      // `hass` is reassigned on every state change anywhere in Home
+      // Assistant, not just this card's own entities, so _render() runs
+      // many times a minute. Rebuilding the input on every one of those
+      // yanks focus out from under whatever the user is mid-typing -
+      // wiping the digits and, on mobile, dismissing the keyboard. None
+      // of that content actually needs to change between keystrokes, so
+      // skip the rebuild unless the form would genuinely look different.
+      const signature = `${min}:${max}:${step}:${hasWeight}`;
+      if (
+        this._controlsEl.dataset.hwcMode !== "edit" ||
+        this._controlsEl.dataset.hwcSignature !== signature
+      ) {
+        this._controlsEl.dataset.hwcMode = "edit";
+        this._controlsEl.dataset.hwcSignature = signature;
+        this._controlsEl.innerHTML = `
+          <input class="hwc-input" type="number" inputmode="numeric"
+                 min="${min}" max="${max}" step="${step}"
+                 value="${hasWeight ? grams : ""}"
+                 aria-label="${t(this._hass, "weight.enterWeight")}"
+                 placeholder="${min}–${max} g">
+          <button class="hwc-step hwc-primary" data-action="save" type="button">
+            ${t(this._hass, "weight.save")}
+          </button>
+          ${
+            hasWeight
+              ? `<button class="hwc-step hwc-step-big" data-action="cancel" type="button">
+                   ${t(this._hass, "weight.cancel")}
+                 </button>`
+              : ""
+          }
+        `;
+      }
     } else {
+      this._controlsEl.dataset.hwcMode = "view";
       const step = Number(this._config.step) || 1;
       this._controlsEl.innerHTML =
         [-step * 5, -step, step, step * 5]
