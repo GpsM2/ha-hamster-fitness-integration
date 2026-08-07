@@ -51,3 +51,8 @@ health-score:
 
 'card: chronicle':
   - '/hamster-chronicle-card|chronicle[ -]?(card|karte)|chronik|lebenslauf[ -]?archiv|lifetime archive|history_lifedata/i'
+
+# Planned card (see the 0.4.0 milestone) - the label exists ahead of the
+# card itself so its issues are grouped from the start.
+'card: weighing':
+  - '/hamster-weight-card|weigh(ing|[ -]?in)[ -]?(card|karte)|wiege[ -]?(karte|erinnerung)|balance scale|balkenwaage|_weight\b/i'
