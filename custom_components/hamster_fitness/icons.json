@@ -57,6 +57,12 @@
         "state": {
           "off": "mdi:lightbulb-auto-outline"
         }
+      },
+      "boarding": {
+        "default": "mdi:home-export-outline",
+        "state": {
+          "off": "mdi:home-heart"
+        }
       }
     },
     "button": {

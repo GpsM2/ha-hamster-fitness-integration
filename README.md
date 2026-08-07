@@ -37,7 +37,11 @@ cards, and a cage light that switches itself on when you open the lid.
   illustrated hamster on the cards.
 - **Lifetime history**: when a hamster moves out or passes away, its
   whole record is archived permanently — it stays in the chronicle even
-  if you later delete the integration entry.
+  if you later delete the integration entry. Set the date by mistake?
+  There's a button to undo it.
+- **Boarding mode**: away at a foster home or the vet? Flip one switch
+  and scoring, warnings and reminders pause until it's back, without
+  archiving anything.
 - **Four dashboard cards built in**, no extra downloads, all following
   Home Assistant's language (English and German):
   [Health Score](docs/cards/health-score.md) ·
@@ -144,6 +148,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `binary_sensor.hamster_<name>_warning` | On when something needs attention |
 | `binary_sensor.hamster_<name>_cage_door` | Cage door open or closed |
 | `switch.hamster_<name>_light_automation`³ | Cage light automation on/off |
+| `switch.hamster_<name>_boarding` | Pause everything while the hamster is temporarily away |
 | `date.hamster_<name>_departure_date` | Set this when the hamster moves out |
 | `button.hamster_<name>_undo_departure` | Undoes a departure set by mistake |
 | `number.hamster_<name>_weight` | Type in the hamster's weight (grams) |
