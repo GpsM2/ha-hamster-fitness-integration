@@ -225,6 +225,11 @@
       "light_automation": {
         "name": "Light automation"
       }
+    },
+    "button": {
+      "undo_departure": {
+        "name": "Undo departure"
+      }
     }
   },
   "messages": {

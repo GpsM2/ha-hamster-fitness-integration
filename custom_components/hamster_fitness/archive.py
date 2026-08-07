@@ -59,6 +59,25 @@ async def async_load(hass: HomeAssistant) -> list[dict[str, Any]]:
     return hamsters
 
 
+async def async_remove_departure(hass: HomeAssistant, entry_id: str) -> None:
+    """Retract one hamster's archive record.
+
+    The counterpart to `async_record_departure`, for undoing a departure
+    that was set by mistake. A hamster that is back among the living has
+    no business in the chronicle's archived half - and leaving the record
+    behind would make it appear twice once the live entry reappears.
+    """
+    store = _store(hass)
+    stored = await store.async_load() or {}
+    hamsters: dict[str, Any] = stored.get("hamsters", {})
+    if hamsters.pop(entry_id, None) is None:
+        return
+    await store.async_save({"hamsters": hamsters})
+    _LOGGER.debug(
+        "Hamster Fitness: Archiv-Eintrag für %s zurückgenommen", entry_id
+    )
+
+
 async def async_record_departure(
     hass: HomeAssistant, entry_id: str, record: dict[str, Any]
 ) -> None:

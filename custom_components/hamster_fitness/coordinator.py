@@ -764,6 +764,54 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             },
         )
 
+    async def async_clear_departure_date(self) -> None:
+        """Undo a departure: unfreeze the hamster and retract its archive.
+
+        A `date` entity offers no confirmation step and cannot be
+        cleared through the UI, so a mistyped departure date would
+        otherwise archive a hamster permanently with no way back. This is
+        that way back - see button.py.
+        """
+        if self._departure_date is None:
+            return
+
+        was_archived = self._is_departed()
+        self._departure_date = None
+        if was_archived:
+            await archive.async_remove_departure(self.hass, self._entry.entry_id)
+            self._rebaseline_after_departure()
+
+        await self._async_save_state()
+        self.async_set_updated_data(self._calculate())
+
+    @callback
+    def _rebaseline_after_departure(self) -> None:
+        """Resume counting from the current reading, not the frozen one.
+
+        While a hamster counts as departed, `_calculate` returns early and
+        never touches the wheel counter - but that counter has kept
+        climbing, possibly under a completely different hamster if the
+        sensor was reassigned in the meantime. Carrying the old baselines
+        over would book every rotation since the departure as distance
+        *this* hamster ran, which is the same phantom-distance failure the
+        sensor-swap detection already guards against elsewhere.
+
+        The lifetime offset is rebased too, so lifetime_distance picks up
+        exactly where it was frozen instead of jumping.
+        """
+        current = self._current_wheel_count()
+        if current is None:
+            return
+
+        frozen_lifetime_rotations = (
+            self.data.lifetime_distance_km * CM_PER_KM
+        ) / self._wheel_circumference_cm
+        self._lifetime_offset_count = frozen_lifetime_rotations - current
+
+        self._last_known_count = current
+        self._baseline_count = current
+        self._night_baseline_count = current
+
     def _is_departed(self) -> bool:
         """Return True if the hamster's departure date has arrived."""
         return self._departure_date is not None and self._departure_date <= dt_util.now().date()
