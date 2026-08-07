@@ -312,6 +312,50 @@ items stay listed so the history stays traceable.
   a day that dipped and recovered looks unremarkable - worth revisiting
   if the chart turns out to be misleading in practice.
 
+### "Boarding"/foster mode
+
+A hamster that is only away temporarily (fostered, boarded, at the vet)
+needs a way to "move out" without it meaning "gone for good." Right now
+`departure_date` only models a permanent, final exit - archives the
+lifetime record and freezes the device. Needs a distinct status (or a
+second date field) that pauses tracking without triggering the
+`history_lifedata.json` archive write in `archive.py`, and a way to
+resume normal tracking afterward.
+
+### Confirmation before archiving a hamster
+
+Setting a departure date immediately freezes the device and (once it's
+today or in the past) writes the permanent archive record - there's no
+"are you sure?" step, so a fat-fingered date on the `date.<hamster>_departure_date`
+entity silently archives a hamster that's still very much here. Needs
+either a confirmation step in the UI flow for setting that date, or a way
+to reverse it (unset the departure date and un-freeze
+`HamsterFitnessCoordinator`, ideally also retracting the archive entry if
+one was already written).
+
+### Ranking card: show average distance per day, not just the total
+
+`hamster-fitness-ranking-card` currently only shows lifetime distance.
+Add a per-day average, computed from days-with-hamster (acquisition date
+to departure date, or to today if still active) - the same
+`daysBetween()`-style math already used in `hamster-chronicle-card.js`
+for its "days with you" column.
+
+### Ranking card doesn't match the other three cards' design
+
+`hamster-fitness-ranking-card` still uses the old plain
+`.hfc-plain-header` look from before the 0.3.0 redesign, while the other
+three cards share the gradient banner header (`renderCardHeader()` in
+`hamster-fitness-shared.js`). Bring it visually in line.
+
+### Config flow: collapse the light-automation options
+
+The light/brightness/transition/turn-off-delay block in the options step
+(`_options_schema()` in `config_flow.py`) is a long flat list and reads
+as cluttered, especially since it's only relevant if a cage light was
+even configured. Worth exploring an accordion/expander (`ha-expansion-panel`
+or similar) to group it and collapse it by default.
+
 ## 🔍 To investigate
 
 ### Distance calculation seemed high compared to the ESP's own numbers
