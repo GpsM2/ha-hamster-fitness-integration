@@ -102,6 +102,15 @@ const LOGO_DUMBBELL_SVG = `
 </svg>
 `;
 
+// The one patch of sky nothing else covers: the frosted header strip
+// runs across the top, the reading chips down the right. Shifting the
+// sun and the moon down and left puts them over open background instead
+// of half-hidden behind either.
+// Applied to an OUTER group, never to .hdn-sun itself: that element's
+// pulse animation sets `transform` in CSS, and a CSS transform replaces
+// the SVG presentation attribute outright rather than composing with it.
+const CELESTIAL_OFFSET = "translate(-198, 46)";
+
 const ICONS = {
   speed: "M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Zm1 4v7h-2V6h2Z",
   distance:
@@ -445,7 +454,7 @@ class HamsterDayNightCard extends HTMLElement {
 
   _moonSvg() {
     return `
-      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin slice" aria-hidden="true">
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin meet" aria-hidden="true">
         <circle cx="26" cy="30" r="1.7" fill="#fff" opacity="0.85"/>
         <circle cx="64" cy="16" r="1.1" fill="#fff" opacity="0.6"/>
         <circle cx="104" cy="34" r="1.5" fill="#fff" opacity="0.75"/>
@@ -454,14 +463,17 @@ class HamsterDayNightCard extends HTMLElement {
         <circle cx="44" cy="52" r="1" fill="#fff" opacity="0.5"/>
         <circle cx="92" cy="10" r="1.2" fill="#fff" opacity="0.6"/>
         <circle cx="222" cy="48" r="1.2" fill="#fff" opacity="0.55"/>
-        <path d="M272 30 a17 17 0 1 0 0.6 0 a13 13 0 1 1 -0.6 0" fill="#F4E285" opacity="0.95"/>
+        <g transform="${CELESTIAL_OFFSET}">
+          <path d="M272 30 a17 17 0 1 0 0.6 0 a13 13 0 1 1 -0.6 0" fill="#F4E285" opacity="0.95"/>
+        </g>
       </svg>
     `;
   }
 
   _sunSvg() {
     return `
-      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin slice" aria-hidden="true">
+      <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin meet" aria-hidden="true">
+        <g transform="${CELESTIAL_OFFSET}">
         <g class="hdn-sun">
           <circle cx="266" cy="32" r="16" fill="#FFD166"/>
           <g stroke="#FFD166" stroke-width="3" stroke-linecap="round" opacity="0.85">
@@ -474,6 +486,7 @@ class HamsterDayNightCard extends HTMLElement {
             <line x1="284" y1="14" x2="288" y2="10"/>
             <line x1="248" y1="50" x2="244" y2="54"/>
           </g>
+        </g>
         </g>
         <g fill="#ffffff" opacity="0.5">
           <ellipse cx="60" cy="34" rx="30" ry="11"/>
@@ -719,16 +732,20 @@ HamsterDayNightCard.styles = `
     overflow: hidden;
     transition: background 0.8s ease;
   }
-  /* The decoration SVG scales uniformly (preserveAspectRatio="xMaxYMin
-     slice"), so its own aspect ratio no longer has to match this box -
-     it covers the box and crops whatever hangs over on the left. The
-     sun and the moon sit at the right edge of the viewBox, which is why
-     the anchor is xMax: they stay put at any card width. */
+  /* Uniform scaling (preserveAspectRatio), so the sun stays a disc and
+     the moon a crescent at every card width - "none" used to stretch
+     them into eggs. "meet" fits the whole viewBox rather than cropping
+     it, and the xMax anchor keeps the sun and moon, which sit at the
+     right of the viewBox, pinned to the right of the card.
+
+     The sun and the moon are placed low and left inside that viewBox
+     (see CELESTIAL_OFFSET), which is the only part of the sky nothing
+     else occupies: the header strip sits above them, the reading chips
+     to their right. */
   .hdn-decor {
     position: absolute;
     inset: 0 0 auto 0;
     height: 130px;
-    overflow: hidden;
     pointer-events: none;
   }
   .hdn-decor-svg {
