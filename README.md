@@ -183,6 +183,10 @@ may use, modify and distribute the code, including commercially, as long
 as the license and copyright notice are kept. (The hardware repo uses a
 different, non-commercial license — see its README.)
 
+See also: [Legal & Safety Disclaimer](DISCLAIMER.md) — this project
+tracks activity, it doesn't replace a veterinarian, and comes with no
+warranty.
+
 ## Support this project
 
 Hamster Fitness is free and always will be. If it's useful to you and you
