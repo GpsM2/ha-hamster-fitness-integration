@@ -62,6 +62,7 @@ const STRINGS = {
     "dayNight.automationOff": "Automation off",
     "dayNight.pausedUntil": "Paused until {time}",
     "dayNight.pauseButton": "Pause 30 min",
+    "dayNight.lidOpen": "Lid open",
     "dayNight.pickerName": "Hamster Fitness: Day & Night",
     "dayNight.pickerDescription":
       "The hamster animated in its wheel while active, or asleep in its nest while resting - under a sky that follows the sun, with the readings inside the scene.",
@@ -233,6 +234,7 @@ const STRINGS = {
     "dayNight.automationOff": "Automatik aus",
     "dayNight.pausedUntil": "Pause bis {time}",
     "dayNight.pauseButton": "30 Min. Pause",
+    "dayNight.lidOpen": "Deckel offen",
     "dayNight.pickerDescription":
       "Zeigt den Hamster animiert im Laufrad (aktiv) oder schlafend im Nest (ruhend), mit sonnenstand-abhängigem Himmel und den Messwerten direkt in der Szene.",
     "dayNight.showSpeed": "Geschwindigkeit anzeigen",

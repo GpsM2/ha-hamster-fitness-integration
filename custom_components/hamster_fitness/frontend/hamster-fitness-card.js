@@ -57,7 +57,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=7";
+} from "./hamster-fitness-shared.js?v=8";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -828,14 +828,18 @@ HamsterFitnessCard.styles = `
     font-size: 0.85em;
     color: var(--secondary-text-color);
   }
+  /* Seven fixed columns rather than flex:1 columns that share out the
+     width. A brand-new install has one or two days of history, and
+     stretching those across the whole chart made it look broken rather
+     than empty - now the week visibly fills up from the left. */
   .hfc-bars {
-    display: flex;
-    align-items: flex-end;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    align-items: end;
     gap: 6px;
     height: 74px;
   }
   .hfc-bar-col {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;

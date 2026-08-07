@@ -169,6 +169,27 @@ def test_german_table_has_no_orphans() -> None:
     assert not orphans, f"German-only keys, likely typos: {orphans}"
 
 
+def test_no_card_stretches_an_svg_non_uniformly() -> None:
+    """`preserveAspectRatio="none"` turns circles into eggs.
+
+    The Day & Night sky decoration used it on a 300x120 viewBox inside a
+    box whose real ratio is `card width : 130px`. Only at exactly 325px
+    wide did the two agree; at any other width the sun disc and the moon
+    crescent were squashed or stretched - at 900px the sun rendered 2.8x
+    wider than tall.
+
+    Nothing about the value looks wrong when reading the code, and it
+    only misbehaves at sizes a developer may not happen to try, so it is
+    pinned here instead.
+    """
+    for path in _card_files():
+        source = path.read_text(encoding="utf-8")
+        assert 'preserveAspectRatio="none"' not in source, (
+            f"{path.name} scales an SVG non-uniformly; circles in it will "
+            "render as ellipses at most card widths"
+        )
+
+
 def test_cards_do_not_hardcode_german_text() -> None:
     """Umlauts outside the translation table mean a missed string."""
     for path in _card_files():
