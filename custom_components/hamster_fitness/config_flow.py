@@ -14,6 +14,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import Platform
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
     BooleanSelector,
     DateSelector,
@@ -65,6 +66,7 @@ from .const import (
     DEFAULT_WHEEL_DIAMETER_CM,
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
+    LIGHT_SECTION,
     MAX_WEIGHT_REMINDER_DAYS,
     MAX_WHEEL_DIAMETER_CM,
     MIN_WEIGHT_REMINDER_DAYS,
@@ -454,59 +456,86 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                     mode=NumberSelectorMode.BOX,
                 )
             ),
-            # Ab hier nur wirksam, wenn CONF_LIGHT_ENTITY konfiguriert ist -
-            # siehe door_light.py. Werden trotzdem immer angezeigt, wie die
-            # übrigen Options auch unabhängig von den Quell-Sensoren.
-            vol.Required(
-                OPTION_LIGHT_BRIGHTNESS_PCT,
-                default=current.get(
-                    OPTION_LIGHT_BRIGHTNESS_PCT, DEFAULT_LIGHT_BRIGHTNESS_PCT
+            # Vier Felder, die nur greifen, wenn CONF_LIGHT_ENTITY gesetzt
+            # ist (siehe door_light.py) - als eingeklappte Section, damit
+            # sie das Formular nicht dominieren. Home Assistant liefert
+            # ihre Werte dadurch verschachtelt zurück, siehe
+            # _flatten_options() unten.
+            vol.Required(LIGHT_SECTION): section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            OPTION_LIGHT_BRIGHTNESS_PCT,
+                            default=current.get(
+                                OPTION_LIGHT_BRIGHTNESS_PCT,
+                                DEFAULT_LIGHT_BRIGHTNESS_PCT,
+                            ),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=1,
+                                max=100,
+                                step=1,
+                                unit_of_measurement="%",
+                                mode=NumberSelectorMode.SLIDER,
+                            )
+                        ),
+                        vol.Required(
+                            OPTION_LIGHT_TRANSITION_S,
+                            default=current.get(
+                                OPTION_LIGHT_TRANSITION_S,
+                                DEFAULT_LIGHT_TRANSITION_S,
+                            ),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=60,
+                                step=0.5,
+                                unit_of_measurement="s",
+                                mode=NumberSelectorMode.BOX,
+                            )
+                        ),
+                        vol.Required(
+                            OPTION_LIGHT_TURN_OFF_ENABLED,
+                            default=current.get(
+                                OPTION_LIGHT_TURN_OFF_ENABLED,
+                                DEFAULT_LIGHT_TURN_OFF_ENABLED,
+                            ),
+                        ): BooleanSelector(),
+                        vol.Required(
+                            OPTION_LIGHT_TURN_OFF_DELAY_S,
+                            default=current.get(
+                                OPTION_LIGHT_TURN_OFF_DELAY_S,
+                                DEFAULT_LIGHT_TURN_OFF_DELAY_S,
+                            ),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=0,
+                                max=3600,
+                                step=1,
+                                unit_of_measurement="s",
+                                mode=NumberSelectorMode.BOX,
+                            )
+                        ),
+                    }
                 ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=1,
-                    max=100,
-                    step=1,
-                    unit_of_measurement="%",
-                    mode=NumberSelectorMode.SLIDER,
-                )
-            ),
-            vol.Required(
-                OPTION_LIGHT_TRANSITION_S,
-                default=current.get(
-                    OPTION_LIGHT_TRANSITION_S, DEFAULT_LIGHT_TRANSITION_S
-                ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=0,
-                    max=60,
-                    step=0.5,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            vol.Required(
-                OPTION_LIGHT_TURN_OFF_ENABLED,
-                default=current.get(
-                    OPTION_LIGHT_TURN_OFF_ENABLED, DEFAULT_LIGHT_TURN_OFF_ENABLED
-                ),
-            ): BooleanSelector(),
-            vol.Required(
-                OPTION_LIGHT_TURN_OFF_DELAY_S,
-                default=current.get(
-                    OPTION_LIGHT_TURN_OFF_DELAY_S, DEFAULT_LIGHT_TURN_OFF_DELAY_S
-                ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=0,
-                    max=3600,
-                    step=1,
-                    unit_of_measurement="s",
-                    mode=NumberSelectorMode.BOX,
-                )
+                {"collapsed": True},
             ),
         }
     )
+
+
+def _flatten_options(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Merge the light section back up into a flat options dict.
+
+    A `section` in the schema means Home Assistant hands the values back
+    nested under LIGHT_SECTION. Everything that reads options at runtime
+    (door_light.py, notify.py, the coordinator) expects them flat, and
+    entries saved before this grouping existed are flat too - so the nest
+    is undone here rather than teaching every reader about it.
+    """
+    flattened = {k: v for k, v in user_input.items() if k != LIGHT_SECTION}
+    flattened.update(user_input.get(LIGHT_SECTION, {}))
+    return flattened
 
 
 class HamsterFitnessOptionsFlow(OptionsFlowWithReload):
@@ -525,10 +554,11 @@ class HamsterFitnessOptionsFlow(OptionsFlowWithReload):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            if user_input[OPTION_IDEAL_TEMP_MIN] >= user_input[OPTION_IDEAL_TEMP_MAX]:
+            options = _flatten_options(user_input)
+            if options[OPTION_IDEAL_TEMP_MIN] >= options[OPTION_IDEAL_TEMP_MAX]:
                 errors["base"] = "invalid_temp_range"
             else:
-                return self.async_create_entry(data=user_input)
+                return self.async_create_entry(data=options)
 
         return self.async_show_form(
             step_id="init",
