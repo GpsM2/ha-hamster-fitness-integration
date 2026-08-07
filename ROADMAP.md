@@ -316,6 +316,27 @@ items stay listed so the history stays traceable.
   a day that dipped and recovered looks unremarkable - worth revisiting
   if the chart turns out to be misleading in practice.
 
+### Weigh-in: notification deep link + a dedicated weighing card
+
+Two related gaps around `number.<hamster>_weight`:
+
+- Tapping the weigh-in reminder push notification (see
+  `_async_send_weight_reminder()` in `notify.py`) just opens Home
+  Assistant's default start page - the `notify.send_message` call has no
+  `data.clickAction`/`data.url`, so there's no path from "you're overdue"
+  to actually entering a value.
+- There's no purpose-built input UI for it either, only the number
+  entity's generic more-info dialog.
+
+Idea: a fifth Lovelace card dedicated to weighing, illustrated - a
+hamster standing on an old-fashioned two-pan balance scale. As the
+entered weight goes up, counterweights stack up on the other pan and the
+hamster's own belly/silhouette gets visibly rounder, so the number has an
+immediate, readable visual instead of just a digit. Tapping/dragging
+would write to `number.<hamster>_weight` directly (`async_set_value` in
+`number.py`), and the push notification's click action should point
+straight at this card (or the entity) once it exists.
+
 ### "Boarding"/foster mode
 
 A hamster that is only away temporarily (fostered, boarded, at the vet)
