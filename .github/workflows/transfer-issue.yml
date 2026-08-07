@@ -5,14 +5,24 @@ name: Transfer hardware issues
 # about the physical sensor/enclosure/firmware rather than this repo's
 # Home Assistant integration code.
 #
+# GitHub's own transfer does not carry labels along (they're a per-repo
+# object, not something an issue owns), so the step below re-applies
+# whatever labels the issue had - minus the trigger label itself, which
+# only existed to route the issue and means nothing once it's arrived.
+# A label that only exists in this repo (not by name in the destination
+# too) is silently skipped rather than failing the whole transfer over
+# cosmetic metadata.
+#
 # IMPORTANT: the default GITHUB_TOKEN is scoped to this repo only and
 # cannot write to a different repository, even one owned by the same
 # account - `gh issue transfer` needs a token with access to BOTH repos.
-# Create a fine-grained personal access token (Issues: read & write) that
-# covers both ha-hamster-fitness-integration and hamster-fitness-hardware,
-# then add it as a repository secret named CROSS_REPO_PAT here (Settings ->
-# Secrets and variables -> Actions). Until that secret exists, this
-# workflow will fail when it runs.
+# A fine-grained PAT does NOT work here even with every relevant
+# permission granted (GitHub rejects the transferIssue GraphQL mutation
+# for fine-grained tokens outright, confirmed by testing) - this needs a
+# CLASSIC personal access token with the "repo" scope, added as a
+# repository secret named CROSS_REPO_PAT here (Settings -> Secrets and
+# variables -> Actions). Until that secret exists, this workflow will
+# fail when it runs.
 
 on:
   issues:
@@ -28,10 +38,51 @@ jobs:
       github.event.label.name == '3d-print'
     runs-on: ubuntu-latest
     steps:
-      - name: Transfer issue to hamster-fitness-hardware
+      - name: Transfer issue and reapply its labels
         env:
           GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
+          SOURCE_REPO: ${{ github.repository }}
+          DEST_REPO: GpsM2/hamster-fitness-hardware
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TRIGGER_LABEL: ${{ github.event.label.name }}
         run: |
-          gh issue transfer "${{ github.event.issue.number }}" \
-            GpsM2/hamster-fitness-hardware \
-            -R "${{ github.repository }}"
+          set -euo pipefail
+
+          # Labels present on the issue at the moment of this event
+          # (the trigger label is already included), minus that trigger
+          # label - read from the raw event payload rather than a second
+          # API call, since it's already exactly what we need.
+          mapfile -t labels < <(
+            jq -r --arg trigger "$TRIGGER_LABEL" \
+              '.issue.labels[].name | select(. != $trigger)' \
+              "$GITHUB_EVENT_PATH"
+          )
+
+          new_url=$(gh issue transfer "$ISSUE_NUMBER" "$DEST_REPO" -R "$SOURCE_REPO")
+          echo "Transferred to $new_url"
+
+          if [ "${#labels[@]}" -eq 0 ]; then
+            echo "No other labels to carry over."
+            exit 0
+          fi
+
+          mapfile -t dest_labels < <(gh label list -R "$DEST_REPO" --json name -q '.[].name')
+          to_apply=()
+          for label in "${labels[@]}"; do
+            for dest in "${dest_labels[@]}"; do
+              if [ "$label" == "$dest" ]; then
+                to_apply+=("$label")
+                break
+              fi
+            done
+          done
+
+          if [ "${#to_apply[@]}" -eq 0 ]; then
+            echo "None of the original labels exist in $DEST_REPO - nothing to reapply."
+            exit 0
+          fi
+
+          new_number="${new_url##*/}"
+          gh issue edit "$new_number" -R "$DEST_REPO" \
+            --add-label "$(IFS=,; echo "${to_apply[*]}")"
+          echo "Reapplied labels: ${to_apply[*]}"
