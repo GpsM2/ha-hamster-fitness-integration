@@ -58,6 +58,11 @@
           "off": "mdi:lightbulb-auto-outline"
         }
       }
+    },
+    "button": {
+      "undo_departure": {
+        "default": "mdi:backup-restore"
+      }
     }
   },
   "services": {

@@ -202,6 +202,7 @@ WARNING_NOTIFICATION_COOLDOWN_HOURS: Final[float] = 4.0
 PLATFORMS: Final[list[Platform]] = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.DATE,
     Platform.NUMBER,
     Platform.SWITCH,

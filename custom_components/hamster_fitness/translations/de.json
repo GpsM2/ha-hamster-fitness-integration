@@ -225,6 +225,11 @@
       "light_automation": {
         "name": "Licht-Automatik"
       }
+    },
+    "button": {
+      "undo_departure": {
+        "name": "Auszug rückgängig machen"
+      }
     }
   },
   "messages": {

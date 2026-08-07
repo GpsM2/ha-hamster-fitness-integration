@@ -145,6 +145,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `binary_sensor.hamster_<name>_cage_door` | Cage door open or closed |
 | `switch.hamster_<name>_light_automation`³ | Cage light automation on/off |
 | `date.hamster_<name>_departure_date` | Set this when the hamster moves out |
+| `button.hamster_<name>_undo_departure` | Undoes a departure set by mistake |
 | `number.hamster_<name>_weight` | Type in the hamster's weight (grams) |
 
 ¹ Only if you picked a speed sensor. ² Only if you picked a humidity

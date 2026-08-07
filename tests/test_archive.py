@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -118,6 +119,124 @@ async def test_archive_outlives_the_config_entry(hass: HomeAssistant) -> None:
 
     (record,) = await archive.async_load(hass)
     assert record["name"] == "Taco"
+
+
+async def test_undoing_a_departure_retracts_the_archive(
+    hass: HomeAssistant,
+) -> None:
+    """A hamster brought back must not linger in the archived half.
+
+    Otherwise the chronicle would list it twice - once live, once
+    archived - the moment the live entry starts reporting again.
+    """
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
+
+    await coordinator.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+    assert len(await archive.async_load(hass)) == 1
+
+    await coordinator.async_clear_departure_date()
+    await hass.async_block_till_done()
+
+    assert await archive.async_load(hass) == []
+    assert coordinator.departure_date is None
+
+
+async def test_undoing_a_departure_unfreezes_the_hamster(
+    hass: HomeAssistant,
+) -> None:
+    """After the undo, the wheel counts again."""
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
+
+    await coordinator.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+    frozen_km = coordinator.data.night_distance_km
+
+    # Frozen means "stops moving", not "drops to zero".
+    hass.states.async_set(WHEEL_SENSOR, "6000")
+    await hass.async_block_till_done()
+    assert coordinator.data.night_distance_km == frozen_km
+
+    await coordinator.async_clear_departure_date()
+    await hass.async_block_till_done()
+    # Re-baselined on undo, so the counter starts from here again.
+    assert coordinator.data.night_distance_km == 0.0
+
+    hass.states.async_set(WHEEL_SENSOR, "7000")
+    await hass.async_block_till_done()
+    assert coordinator.data.night_distance_km > 0.0
+
+
+async def test_undoing_a_departure_does_not_invent_distance(
+    hass: HomeAssistant,
+) -> None:
+    """Rotations clocked up while departed must not be booked afterwards.
+
+    While a hamster counts as departed the coordinator ignores the wheel
+    entirely - but the counter keeps climbing, quite possibly under a
+    different hamster if the sensor was reassigned. Resuming against the
+    old baseline would credit all of it to this hamster at once.
+    """
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
+    lifetime_before = coordinator.data.lifetime_distance_km
+
+    await coordinator.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+
+    # A year's worth of somebody else's running.
+    hass.states.async_set(WHEEL_SENSOR, "5000000")
+    await hass.async_block_till_done()
+
+    await coordinator.async_clear_departure_date()
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_distance_km == 0.0
+    assert coordinator.data.daily_distance_km == 0.0
+    # Lifetime picks up where it was frozen rather than leaping.
+    assert coordinator.data.lifetime_distance_km == pytest.approx(
+        lifetime_before, abs=0.01
+    )
+
+
+async def test_undoing_without_a_departure_is_harmless(
+    hass: HomeAssistant,
+) -> None:
+    """Pressing undo on a living hamster changes nothing."""
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
+    before = coordinator.data.lifetime_distance_km
+
+    await coordinator.async_clear_departure_date()
+    await hass.async_block_till_done()
+
+    assert coordinator.departure_date is None
+    assert coordinator.data.lifetime_distance_km == before
+
+
+async def test_undo_button_is_only_available_when_departed(
+    hass: HomeAssistant,
+) -> None:
+    """The button greys out when there is nothing to undo."""
+    entry = await _setup_entry(hass)
+    button = "button.hamster_taco_undo_departure"
+
+    assert hass.states.get(button).state == "unavailable"
+
+    await entry.runtime_data.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+    assert hass.states.get(button).state != "unavailable"
+
+    # And pressing it puts things back.
+    await hass.services.async_call(
+        "button", "press", {"entity_id": button}, blocking=True
+    )
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.departure_date is None
+    assert hass.states.get(button).state == "unavailable"
 
 
 async def test_two_hamsters_are_archived_side_by_side(hass: HomeAssistant) -> None:
