@@ -30,6 +30,7 @@
 import {
   DEFAULT_FUR,
   HEADER_STYLES,
+  daysBetween,
   fmtDate,
   fmtNumber,
   isValidHex,
@@ -39,7 +40,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=3";
+} from "./hamster-fitness-shared.js?v=4";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -92,14 +93,6 @@ const LOGO_CHRONICLE = `
   </g>
 </svg>
 `;
-
-function daysBetween(fromIso, toIso) {
-  if (!fromIso) return null;
-  const from = new Date(fromIso);
-  const to = toIso ? new Date(toIso) : new Date();
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return null;
-  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86400000));
-}
 
 class HamsterChronicleCard extends HTMLElement {
   setConfig(config) {
