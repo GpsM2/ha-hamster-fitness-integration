@@ -60,6 +60,7 @@ from .const import (
     DAILY_RESET_HOUR,
     DEFAULT_BREED,
     DEFAULT_COAT_COLOR,
+    DEFAULT_DIAL_MAX_G,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_MIN_DISTANCE_KM,
@@ -77,6 +78,7 @@ from .const import (
     STORAGE_VERSION,
     TEMP_BUFFER_C,
     WARNING_SCORE_THRESHOLD,
+    WEIGHT_CLASSES,
 )
 from .runtime_text import format_number, render_message
 
@@ -107,6 +109,13 @@ _SLEEP_PENALTY_CAP = 100.0
 # wie eine zu kalte Umgebung oder tagelang zu wenig Bewegung. Bei voll
 # ausgereiztem Schlaf-Abzug (100) sind das 15 Punkte.
 _SLEEP_SCORE_WEIGHT = 0.15
+
+# Abzug für Unter-/Übergewicht. Greift nur, wenn überhaupt gewogen wurde
+# und die Art bekannt ist - siehe _weight_penalty(). Deutlich, aber nicht
+# dominant: ein zu dicker Hamster ist ein echtes Gesundheitsrisiko, aber
+# der Wert ändert sich nur, wenn jemand ihn von Hand einträgt, und darf
+# eine ansonsten gute Woche nicht komplett überschreiben.
+_WEIGHT_PENALTY_CAP = 20.0
 
 
 @dataclass
@@ -166,6 +175,12 @@ class HamsterFitnessData:
     # der Schlafzeit" konkret benennen kann statt nur einen Punktwert.
     sleep_door_openings: int = 0
     sleep_activity_sessions: int = 0
+    # Abzug (0-20) für Unter-/Übergewicht, plus die Einordnung selbst:
+    # "underweight" | "normal" | "overweight", oder None wenn nicht
+    # bewertbar (nie gewogen, oder Art unbekannt).
+    weight_penalty: float = 0.0
+    weight_status: str | None = None
+    weight_g: float | None = None
     # Die vier Säulen der Gesundheit, jeweils 0-100 (höher = besser). Jede
     # Säule skaliert ihren eigenen Abzug auf die volle Breite, ist also für
     # sich lesbar - sie summieren sich NICHT zum health_score auf, der die
@@ -260,6 +275,12 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # jedem Neustart neu gesetzt, wenn RestoreEntity den alten Wert
         # wiederherstellt, und "vor 2 Minuten gewogen" wäre schlicht falsch.
         self._weight_last_set_at: datetime | None = None
+        # Das zuletzt eingetragene Gewicht in Gramm. Liegt hier und nicht
+        # nur in der number-Entity, weil der Health Score es braucht -
+        # eine Entity über ihren State auszulesen wäre der Umweg über
+        # genau die Registry-Auflösung, die anderswo schon Ärger gemacht
+        # hat.
+        self._weight_g: float | None = None
 
         # Lauf-Session-Tracking für night_active_duration/day_rest_duration -
         # siehe _update_activity_session(). Anders als die Baselines oben
@@ -379,6 +400,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             if pause_until is not None and pause_until > dt_util.utcnow():
                 self._light_pause_until = pause_until
                 self._schedule_light_pause_end(pause_until)
+            self._weight_g = stored.get("weight_g")
             weighed_raw = stored.get("weight_last_set_at")
             self._weight_last_set_at = (
                 dt_util.parse_datetime(weighed_raw) if weighed_raw else None
@@ -493,6 +515,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     if self._light_pause_until
                     else None
                 ),
+                "weight_g": self._weight_g,
                 "weight_last_set_at": (
                     self._weight_last_set_at.isoformat()
                     if self._weight_last_set_at
@@ -632,11 +655,34 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         """Return when a weight was last entered, or None if never."""
         return self._weight_last_set_at
 
-    async def async_record_weight_update(self) -> None:
-        """Remember that a weight was just entered."""
+    @property
+    def weight_g(self) -> float | None:
+        """Return the last entered weight in grams, or None if never."""
+        return self._weight_g
+
+    async def async_record_weight_update(self, weight_g: float) -> None:
+        """Store a freshly entered weight and recalculate."""
+        self._weight_g = weight_g
         self._weight_last_set_at = dt_util.utcnow()
         await self._async_save_state()
-        self.async_update_listeners()
+        self.async_set_updated_data(self._calculate())
+
+    async def async_adopt_restored_weight(self, weight_g: float) -> None:
+        """Take over a weight restored by the number entity, once.
+
+        Before 0.4.0 the value lived only in Home Assistant's
+        restore-state store, since nothing but the entity itself needed
+        it. Now the health score does, so it moves here - this is the
+        one-time handover for entries that predate the change. The
+        timestamp stays unset: the old value carries no record of when it
+        was entered, and inventing "just now" would silence a weigh-in
+        reminder that may well be overdue.
+        """
+        if self._weight_g is not None:
+            return
+        self._weight_g = weight_g
+        await self._async_save_state()
+        self.async_set_updated_data(self._calculate())
 
     # ------------------------------------------------------------------
     # Käfiglicht-Automatik (Schalter + Pause, siehe door_light.py)
@@ -1041,12 +1087,21 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._sleep_door_openings, self._sleep_activity_sessions
         )
 
+        # Das Gewicht trägt niemand automatisch ein, also fließt es auch
+        # nur dann ein, wenn tatsächlich gewogen wurde - sonst würde ein
+        # frisch eingerichteter Hamster ohne Zutun Punkte verlieren.
+        weight_g = self._weight_g
+        weight_classes = _weight_classes_for(self._entry)
+        weight_status = _weight_status(weight_g, weight_classes)
+        weight_penalty = _weight_penalty(weight_g, weight_classes)
+
         score = round(
             100
             - distance_penalty
             - temperature_penalty
             - care_penalty
             - sleep_penalty * _SLEEP_SCORE_WEIGHT
+            - weight_penalty
         )
         score = max(0, min(100, score))
 
@@ -1076,6 +1131,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     "warning.too_hot",
                     temperature=format_number(self.hass, temperature, 1),
                 )
+        if weight_status == "underweight":
+            reasons["underweight"] = render_message(
+                self.hass,
+                "warning.underweight",
+                weight=format_number(self.hass, weight_g or 0.0, 0),
+            )
+        elif weight_status == "overweight":
+            reasons["overweight"] = render_message(
+                self.hass,
+                "warning.overweight",
+                weight=format_number(self.hass, weight_g or 0.0, 0),
+            )
         if hours_door_closed is not None and hours_door_closed > NEGLECT_THRESHOLD_HOURS:
             reasons["neglected"] = render_message(
                 self.hass, "warning.neglected", hours=f"{hours_door_closed:.0f}"
@@ -1113,6 +1180,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             sleep_penalty=round(sleep_penalty, 1),
             sleep_door_openings=self._sleep_door_openings,
             sleep_activity_sessions=self._sleep_activity_sessions,
+            weight_penalty=round(weight_penalty, 1),
+            weight_status=weight_status,
+            weight_g=weight_g,
             score_activity=_pillar_score(distance_penalty, _DISTANCE_PENALTY_CAP),
             score_sleep=_pillar_score(sleep_penalty, _SLEEP_PENALTY_CAP),
             score_climate=_pillar_score(temperature_penalty, _TEMP_PENALTY_CAP),
@@ -1171,6 +1241,33 @@ def hamster_profile(entry: HamsterFitnessConfigEntry) -> dict[str, str | None]:
     }
 
 
+def hamster_weight_profile(
+    entry: HamsterFitnessConfigEntry,
+) -> dict[str, float | None]:
+    """The breed's weight thresholds, for the weighing card's dial.
+
+    All None for an unknown breed: the card then draws a plain scale
+    with no healthy/unhealthy zones rather than inventing thresholds
+    that would be wrong for whatever species it actually is.
+    """
+    classes = _weight_classes_for(entry)
+    if classes is None:
+        return {
+            "weight_underweight_g": None,
+            "weight_normal_min_g": None,
+            "weight_normal_max_g": None,
+            "weight_overweight_g": None,
+            "weight_dial_max_g": DEFAULT_DIAL_MAX_G,
+        }
+    return {
+        "weight_underweight_g": classes["underweight"],
+        "weight_normal_min_g": classes["normal_min"],
+        "weight_normal_max_g": classes["normal_max"],
+        "weight_overweight_g": classes["overweight"],
+        "weight_dial_max_g": classes["dial_max"],
+    }
+
+
 def _compute_window_start(now_local: datetime, hour: int) -> datetime:
     """Return the most recent daily reset timestamp (at `hour`) at/before now.
 
@@ -1185,6 +1282,68 @@ def _compute_window_start(now_local: datetime, hour: int) -> datetime:
     if now_local < candidate:
         candidate -= timedelta(days=1)
     return candidate
+
+
+def _weight_classes_for(
+    entry: HamsterFitnessConfigEntry,
+) -> dict[str, float] | None:
+    """Weight thresholds for this hamster's breed, or None if unjudgeable.
+
+    A hamster whose breed is "other" (or one set up before the breed
+    field existed) returns None: 40 g is perfectly healthy for a
+    Roborovski and dangerously underweight for a Syrian, so without
+    knowing the species there is nothing honest to say about the number.
+    """
+    breed = entry.data.get(CONF_BREED, DEFAULT_BREED)
+    return WEIGHT_CLASSES.get(breed)
+
+
+def _weight_status(
+    weight_g: float | None, classes: dict[str, float] | None
+) -> str | None:
+    """Classify a weight as underweight/normal/overweight."""
+    if weight_g is None or classes is None:
+        return None
+    if weight_g < classes["normal_min"]:
+        return "underweight"
+    if weight_g > classes["normal_max"]:
+        return "overweight"
+    return "normal"
+
+
+def _weight_penalty(
+    weight_g: float | None, classes: dict[str, float] | None
+) -> float:
+    """Penalty points (0-20) for a weight outside the breed's ideal range.
+
+    Nothing is deducted when no weight has ever been entered, or when the
+    breed is unknown - the value is hand-entered, so penalising its
+    absence would punish someone for not having weighed yet.
+
+    Inside the ideal range: no penalty. Between the ideal range and the
+    under-/overweight threshold the penalty ramps to half the cap, so a
+    hamster a few grams off its ideal loses a little. Past that threshold
+    it ramps to the full cap, which is where a vet would start paying
+    attention.
+    """
+    if weight_g is None or classes is None:
+        return 0.0
+
+    half = _WEIGHT_PENALTY_CAP / 2
+
+    if weight_g < classes["normal_min"]:
+        span = max(classes["normal_min"] - classes["underweight"], 0.01)
+        if weight_g >= classes["underweight"]:
+            return half * (classes["normal_min"] - weight_g) / span
+        return half + min(half, half * (classes["underweight"] - weight_g) / span)
+
+    if weight_g > classes["normal_max"]:
+        span = max(classes["overweight"] - classes["normal_max"], 0.01)
+        if weight_g <= classes["overweight"]:
+            return half * (weight_g - classes["normal_max"]) / span
+        return half + min(half, half * (weight_g - classes["overweight"]) / span)
+
+    return 0.0
 
 
 def _in_sleep_phase(moment: datetime) -> bool:

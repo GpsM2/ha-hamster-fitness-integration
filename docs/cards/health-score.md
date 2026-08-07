@@ -39,6 +39,11 @@ Tapping a tile opens a detail dialog with the concrete numbers behind
 that score and a short husbandry note explaining why it matters. Escape
 or the × closes it.
 
+Weight sits outside the four pillars: it isn't measured, it's typed in.
+Once you have recorded one, being under- or overweight for the breed
+takes up to 20 points off the overall score — before that it counts for
+nothing at all. See [Track Weight](weighing.md).
+
 **7-day trend** — a bar chart of the last seven days, each bar the
 **average** score across that day, closed out at 9 AM (right after the
 hamster's active phase ends). Today's score is compared against the

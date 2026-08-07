@@ -226,7 +226,7 @@ async def test_weight_reminder_stays_quiet_when_recently_weighed(
     sent = async_mock_service(hass, "notify", "send_message")
     entry = await _setup_entry(hass, options=REMINDER_OPTIONS)
     coordinator = entry.runtime_data
-    await coordinator.async_record_weight_update()
+    await coordinator.async_record_weight_update(45.0)
 
     notifier = HamsterFitnessNotifier(hass, entry, coordinator)
     notifier._async_check_weight_reminder()

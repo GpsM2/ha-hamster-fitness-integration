@@ -60,16 +60,30 @@ class HamsterWeightNumber(
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_weight"
         self._attr_device_info = hamster_device_info(entry)
-        self._attr_native_value: float | None = None
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the weight the coordinator holds."""
+        return self.coordinator.weight_g
 
     async def async_added_to_hass(self) -> None:
-        """Restore the last known weight after a restart."""
+        """Hand a pre-0.4.0 weight over to the coordinator, once.
+
+        The value used to live only in Home Assistant's restore-state
+        store, because nothing but this entity needed it. Now the health
+        score does, so the coordinator owns it - and entries set up
+        before that change still have their weight sitting in the old
+        place. This moves it across on first load; afterwards
+        `async_adopt_restored_weight` is a no-op.
+        """
         await super().async_added_to_hass()
+        if self.coordinator.weight_g is not None:
+            return
         last_state = await self.async_get_last_state()
         if last_state is None or last_state.state in ("unknown", "unavailable"):
             return
         with contextlib.suppress(ValueError):
-            self._attr_native_value = float(last_state.state)
+            await self.coordinator.async_adopt_restored_weight(float(last_state.state))
 
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
@@ -86,6 +100,4 @@ class HamsterWeightNumber(
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the weight when changed via the UI."""
-        self._attr_native_value = value
-        self.async_write_ha_state()
-        await self.coordinator.async_record_weight_update()
+        await self.coordinator.async_record_weight_update(value)

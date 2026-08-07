@@ -239,6 +239,8 @@
     "warning": {
       "low_score": "Der Health-Score ist auf {score} % gesunken.",
       "too_little_exercise": "Bisher erst {distance} km gelaufen, deutlich weniger als üblich.",
+      "underweight": "Mit {weight} g liegt das unter dem gesunden Bereich dieser Rasse.",
+      "overweight": "Mit {weight} g liegt das über dem gesunden Bereich dieser Rasse.",
       "too_cold": "Im Käfig ist es kalt geworden: {temperature} °C.",
       "too_hot": "Im Käfig ist es ziemlich warm: {temperature} °C.",
       "neglected": "Der Käfig wurde seit {hours} Stunden nicht mehr geöffnet."

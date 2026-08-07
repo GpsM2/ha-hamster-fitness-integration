@@ -2,11 +2,11 @@
  * Hamster Fitness: Track Weight
  *
  * An input for `number.<hamster>_weight` that looks like something you'd
- * want to use: the hamster sits on an old-fashioned two-pan balance,
- * counterweights stack up on the other pan as the number rises, and the
- * hamster itself gets visibly rounder. The point is that a weight in
- * grams means very little on its own - seeing the balance tip tells you
- * more at a glance than "97".
+ * want to use: the hamster sits in the pan of an old household kitchen
+ * scale, and the numbered drum below turns to bring the reading up to
+ * the marker. The point is that a weight in grams means very little on
+ * its own - seeing where the needle lands between the healthy and the
+ * worrying bands tells you more at a glance than "97".
  *
  * Weighing is the one thing this integration cannot measure by itself,
  * so it has always been a bare number box behind a more-info dialog.
@@ -20,13 +20,12 @@
  *   type: custom:hamster-weight-card
  *   entity: sensor.hamster_taco_health_score   # required - same as the other cards
  *   title: Taco                                 # optional - defaults to the device name
- *   scale_min: 20                               # optional - grams, low end of the drawn scale
- *   scale_max: 200                              # optional - grams, high end
  *   step: 1                                     # optional - grams per tap
  *
- * scale_min/scale_max only drive the illustration, never validation -
- * the number entity's own limits still apply. Defaults span a dwarf
- * hamster to a large Syrian; narrow them for a more expressive tilt.
+ * The dial's range and its healthy/unhealthy bands come from the
+ * hamster's breed, not from the card config - a Roborovski and a Syrian
+ * differ by a factor of five, so one fixed scale would be useless for
+ * one of them. See WEIGHT_CLASSES in const.py.
  */
 
 import {
@@ -40,22 +39,23 @@ import {
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=6";
+} from "./hamster-fitness-shared.js?v=7";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
 const DEFAULTS = {
-  scale_min: 20,
-  scale_max: 200,
   step: 1,
 };
 
-// How many counterweight discs the right-hand pan can stack. Enough to
-// read as "more" or "fewer" at a glance without turning into a tower.
-const MAX_WEIGHTS = 6;
-// How far either pan may travel, in SVG units.
-const MAX_PAN_TRAVEL = 26;
+// Dial geometry. The ring covers 300 degrees rather than a full circle,
+// so zero and the maximum never meet under the marker.
+const DIAL_CX = 150;
+const DIAL_CY = 206;
+const DIAL_R = 80;
+const DIAL_SWEEP = 300;
+// Fallback range when the breed is unknown - wide enough for any species.
+const DEFAULT_DIAL_MAX = 250;
 
 const LOGO_SCALE = `
 <svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">
@@ -194,7 +194,7 @@ class HamsterWeightCard extends HTMLElement {
     if (input.value === "" || Number.isNaN(value)) return;
 
     const min = Number(weight.attributes.min ?? 0);
-    const max = Number(weight.attributes.max ?? 2000);
+    const max = Number(weight.attributes.max ?? DEFAULT_DIAL_MAX);
     this._hass.callService("number", "set_value", {
       entity_id: this._entityId("weight"),
       value: Math.min(max, Math.max(min, value)),
@@ -226,7 +226,7 @@ class HamsterWeightCard extends HTMLElement {
     const current = Number(weight.state);
     const base = Number.isNaN(current) ? 0 : current;
     const min = Number(weight.attributes.min ?? 0);
-    const max = Number(weight.attributes.max ?? 2000);
+    const max = Number(weight.attributes.max ?? DEFAULT_DIAL_MAX);
     const next = Math.min(max, Math.max(min, base + delta));
     if (next === base) return;
 
@@ -236,80 +236,153 @@ class HamsterWeightCard extends HTMLElement {
     });
   }
 
-  /** 0..1 position of `grams` within the drawn scale. */
-  _fraction(grams) {
-    const min = Number(this._config.scale_min);
-    const max = Number(this._config.scale_max);
-    if (!(max > min) || grams === null || Number.isNaN(grams)) return 0.5;
-    return Math.min(1, Math.max(0, (grams - min) / (max - min)));
+  /**
+   * The scale's thresholds, taken from the hamster's breed (see
+   * WEIGHT_CLASSES in const.py) and surfaced as attributes on the
+   * health-score sensor. All null for an unknown breed - the dial then
+   * shows a plain range with no healthy/unhealthy zones, because 40 g is
+   * fine for a Roborovski and alarming for a Syrian.
+   */
+  _limits(healthScore) {
+    const a = healthScore.attributes;
+    return {
+      max: Number(a.weight_dial_max_g) || DEFAULT_DIAL_MAX,
+      underweight: a.weight_underweight_g ?? null,
+      normalMin: a.weight_normal_min_g ?? null,
+      normalMax: a.weight_normal_max_g ?? null,
+      overweight: a.weight_overweight_g ?? null,
+    };
+  }
+
+  /** Angle on the dial for a weight, in degrees from the top marker. */
+  _angle(grams, max) {
+    const clamped = Math.min(max, Math.max(0, grams));
+    return (clamped / max) * DIAL_SWEEP;
   }
 
   /**
-   * The balance itself. `fraction` tips the beam and decides how many
-   * counterweights the right pan carries and how round the hamster is.
+   * Arc path between two weights, for the coloured zone bands.
+   *
+   * Shares `_angle`'s origin with the tick marks - both measure from the
+   * top of the dial - so a band always lies under the numbers it
+   * describes, whichever way the drum has turned.
    */
-  _scene(fraction, hasWeight) {
-    // Left pan (the hamster) sinks as the weight rises; the beam follows.
-    const travel = (fraction - 0.5) * 2 * MAX_PAN_TRAVEL;
-    const tilt = (fraction - 0.5) * 2 * 9; // degrees
-    const leftY = travel;
-    const rightY = -travel;
+  _zonePath(from, to, max, radius) {
+    const a1 = this._angle(from, max) * (Math.PI / 180);
+    const a2 = this._angle(to, max) * (Math.PI / 180);
+    const point = (angle) => [
+      DIAL_CX + radius * Math.sin(angle),
+      DIAL_CY - radius * Math.cos(angle),
+    ];
+    const [x1, y1] = point(a1);
+    const [x2, y2] = point(a2);
+    const large = Math.abs(a2 - a1) > Math.PI ? 1 : 0;
+    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${radius} ${radius} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
 
-    // No weight recorded means an empty scale, not a half-loaded one -
-    // the beam rests level and both pans stay bare.
-    const discs = hasWeight ? Math.round(fraction * MAX_WEIGHTS) : 0;
-    const counterweights = Array.from({ length: discs }, (_, index) => {
-      const width = 30 - index * 3;
-      return `<rect x="${215 - width / 2}" y="${150 - index * 9}" width="${width}" height="8"
-                    rx="3" fill="#8A929A" stroke="#5c6570" stroke-width="1.5"/>`;
-    }).join("");
+  /**
+   * A household scale in the style of the old cast-iron kitchen ones: a
+   * pan on top for the hamster, an ornate case below, and a circular
+   * dial whose numbered ring turns behind a fixed marker. The reading
+   * sits in the middle of the dial, where the maker's name used to be.
+   *
+   * Turning the ring rather than sweeping a needle is what the real
+   * mechanism does, and it keeps the current number upright at the top
+   * instead of upside down at the bottom of a sweep.
+   */
+  _scene(grams, hasWeight, limits, status) {
+    const max = limits.max;
+    const rotation = hasWeight ? -this._angle(grams, max) : 0;
 
-    // Body swells with weight - the most immediately readable cue.
-    const bodyRx = 30 + fraction * 12;
-    const bodyRy = 22 + fraction * 10;
+    // Numbered ticks around the ring. A round step keeps the labels
+    // legible whatever the breed's range happens to be.
+    const step = max <= 60 ? 10 : max <= 100 ? 20 : 50;
+    const labelY = DIAL_CY - DIAL_R + 30;
+    const ticks = [];
+    for (let value = 0; value <= max + 0.001; value += step / 5) {
+      const major = Math.abs(value % step) < 0.001;
+      const angle = this._angle(value, max);
+      const inner = major ? DIAL_R - 15 : DIAL_R - 8;
+      // The numbers are printed on the drum, so they ride round with it
+      // rather than staying upright - which is what the real scale does,
+      // and the reading that matters is upright under the marker anyway.
+      ticks.push(`
+        <g transform="rotate(${angle.toFixed(2)} ${DIAL_CX} ${DIAL_CY})">
+          <line x1="${DIAL_CX}" y1="${DIAL_CY - DIAL_R + 2}" x2="${DIAL_CX}" y2="${DIAL_CY - inner}"
+                stroke="#5c4a3a" stroke-width="${major ? 2.2 : 1}" opacity="${major ? 0.9 : 0.5}"/>
+          ${
+            major
+              ? `<text x="${DIAL_CX}" y="${labelY}" text-anchor="middle"
+                       class="hwc-tick-label">${Math.round(value)}</text>`
+              : ""
+          }
+        </g>`);
+    }
+
+    // Healthy/unhealthy bands, only when the breed is known.
+    const zones =
+      limits.normalMin === null
+        ? ""
+        : `
+          <path d="${this._zonePath(0, limits.underweight, max, DIAL_R - 4)}"
+                class="hwc-zone hwc-zone-low"/>
+          <path d="${this._zonePath(limits.normalMin, limits.normalMax, max, DIAL_R - 4)}"
+                class="hwc-zone hwc-zone-ok"/>
+          <path d="${this._zonePath(limits.overweight, max, max, DIAL_R - 4)}"
+                class="hwc-zone hwc-zone-high"/>`;
 
     return `
-      <svg class="hwc-svg" viewBox="0 0 300 230" aria-hidden="true">
-        <!-- stand -->
-        <rect x="130" y="196" width="40" height="8" rx="4" fill="#B8860B"/>
-        <rect x="146" y="70" width="8" height="128" fill="#C19A6B"/>
-        <circle cx="150" cy="66" r="6" fill="#FFD166" stroke="#B8860B" stroke-width="2"/>
+      <svg class="hwc-svg" viewBox="0 0 300 330" aria-hidden="true">
+        <!-- pan on top, hamster sitting in it -->
+        <ellipse cx="150" cy="46" rx="88" ry="17" fill="#c9ccd1" stroke="#8A929A" stroke-width="2"/>
+        <path d="M62 46 a88 17 0 0 0 176 0 a88 26 0 0 1 -176 0 Z" fill="#b6babf"/>
+        ${
+          hasWeight
+            ? `<g class="hwc-hamster">
+                 <ellipse cx="150" cy="24" rx="34" ry="22" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
+                 <ellipse cx="152" cy="30" rx="20" ry="12" fill="var(--hf-belly)" opacity="0.7"/>
+                 <circle cx="180" cy="12" r="15" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
+                 <circle cx="171" cy="1" r="5.5" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
+                 <circle cx="186" cy="9" r="2.3" fill="#3a2a1a"/>
+                 <ellipse cx="194" cy="15" rx="4" ry="3" fill="#f4d9c6"/>
+                 <path d="M120 28 q-10 4 -14 11" stroke="var(--hf-fur-dark)" stroke-width="3.5"
+                       fill="none" stroke-linecap="round"/>
+               </g>`
+            : `<text x="150" y="34" text-anchor="middle" class="hwc-empty-pan">?</text>`
+        }
 
-        <!-- beam -->
-        <g transform="rotate(${tilt.toFixed(2)} 150 70)" class="hwc-beam">
-          <rect x="60" y="66" width="180" height="7" rx="3.5" fill="#FFD166" stroke="#B8860B" stroke-width="2"/>
-          <circle cx="85" cy="70" r="4" fill="#B8860B"/>
-          <circle cx="215" cy="70" r="4" fill="#B8860B"/>
+        <!-- neck -->
+        <rect x="144" y="56" width="12" height="34" fill="#8A929A"/>
+
+        <!-- case, loosely after the cast-iron originals -->
+        <path d="M40 96 q110 -26 220 0 l-14 16 H54 Z" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+        <rect x="46" y="110" width="208" height="192" rx="10" fill="#A0703F" stroke="#5c4a3a" stroke-width="2"/>
+        <rect x="46" y="110" width="16" height="192" fill="#8B5A2B" opacity="0.55"/>
+        <rect x="238" y="110" width="16" height="192" fill="#8B5A2B" opacity="0.55"/>
+        <rect x="58" y="298" width="184" height="14" rx="6" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+        <circle cx="72" cy="318" r="8" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+        <circle cx="228" cy="318" r="8" fill="#8B5A2B" stroke="#5c4a3a" stroke-width="2"/>
+
+        <!-- dial face -->
+        <circle cx="${DIAL_CX}" cy="${DIAL_CY}" r="${DIAL_R + 12}" fill="#5c4a3a"/>
+        <circle cx="${DIAL_CX}" cy="${DIAL_CY}" r="${DIAL_R + 6}" fill="#fdfbf5" stroke="#8B5A2B" stroke-width="3"/>
+
+        <!-- the ring turns; the marker above it does not -->
+        <g class="hwc-dial" transform="rotate(${rotation.toFixed(2)} ${DIAL_CX} ${DIAL_CY})">
+          ${zones}
+          ${ticks.join("")}
         </g>
 
-        <!-- left pan: the hamster -->
-        <g class="hwc-pan" transform="translate(0 ${leftY.toFixed(2)})">
-          <path d="M85 74 L62 128 M85 74 L108 128" stroke="#B8860B" stroke-width="2" fill="none"/>
-          <path d="M55 128 a30 12 0 0 0 60 0 Z" fill="#FFD166" stroke="#B8860B" stroke-width="2"/>
-          ${
-            hasWeight
-              ? `<g class="hwc-hamster">
-                   <ellipse cx="85" cy="${118 - bodyRy * 0.35}" rx="${bodyRx.toFixed(1)}" ry="${bodyRy.toFixed(1)}"
-                            fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
-                   <ellipse cx="85" cy="${122 - bodyRy * 0.2}" rx="${(bodyRx * 0.6).toFixed(1)}" ry="${(bodyRy * 0.55).toFixed(1)}"
-                            fill="var(--hf-belly)" opacity="0.75"/>
-                   <circle cx="${(85 + bodyRx * 0.62).toFixed(1)}" cy="${(104 - bodyRy * 0.5).toFixed(1)}" r="14"
-                           fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="2.5"/>
-                   <circle cx="${(85 + bodyRx * 0.42).toFixed(1)}" cy="${(93 - bodyRy * 0.5).toFixed(1)}" r="5"
-                           fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="2"/>
-                   <circle cx="${(85 + bodyRx * 0.86).toFixed(1)}" cy="${(102 - bodyRy * 0.5).toFixed(1)}" r="2.2" fill="#3a2a1a"/>
-                   <ellipse cx="${(85 + bodyRx * 1.02).toFixed(1)}" cy="${(107 - bodyRy * 0.5).toFixed(1)}" rx="4" ry="3" fill="#f4d9c6"/>
-                 </g>`
-              : `<text class="hwc-empty-pan" x="85" y="118" text-anchor="middle">?</text>`
-          }
-        </g>
+        <circle cx="${DIAL_CX}" cy="${DIAL_CY}" r="${DIAL_R - 38}" fill="#fdfbf5"/>
+        <text x="${DIAL_CX}" y="${DIAL_CY + 4}" text-anchor="middle"
+              class="hwc-dial-value hwc-status-${status || "unknown"}">${
+                hasWeight ? Math.round(grams) : "–"
+              }</text>
+        <text x="${DIAL_CX}" y="${DIAL_CY + 24}" text-anchor="middle" class="hwc-dial-unit">g</text>
 
-        <!-- right pan: counterweights -->
-        <g class="hwc-pan" transform="translate(0 ${rightY.toFixed(2)})">
-          <path d="M215 74 L192 128 M215 74 L238 128" stroke="#B8860B" stroke-width="2" fill="none"/>
-          <path d="M185 128 a30 12 0 0 0 60 0 Z" fill="#FFD166" stroke="#B8860B" stroke-width="2"/>
-          <g transform="translate(0 -28)">${counterweights}</g>
-        </g>
+        <!-- fixed marker at the top of the dial -->
+        <path d="M${DIAL_CX - 8} ${DIAL_CY - DIAL_R - 10} L${DIAL_CX + 8} ${DIAL_CY - DIAL_R - 10} L${DIAL_CX} ${DIAL_CY - DIAL_R + 6} Z"
+              fill="#c0392b" stroke="#7d2519" stroke-width="1.5"/>
       </svg>
     `;
   }
@@ -340,7 +413,10 @@ class HamsterWeightCard extends HTMLElement {
 
     const grams = Number(weight.state);
     const hasWeight = !Number.isNaN(grams) && weight.state !== "unknown";
-    const fraction = this._fraction(hasWeight ? grams : null);
+    const limits = this._limits(healthScore);
+    // Classified server-side, so the card and the health score can never
+    // disagree about whether a hamster is too heavy.
+    const status = hasWeight ? healthScore.attributes.weight_status : null;
 
     const lastWeighed = weight.attributes.last_weighed_at;
     const daysAgo = lastWeighed ? daysBetween(lastWeighed, null) : null;
@@ -354,14 +430,19 @@ class HamsterWeightCard extends HTMLElement {
         : "",
     });
 
-    this._sceneEl.innerHTML = this._scene(fraction, hasWeight);
+    this._sceneEl.innerHTML = this._scene(grams, hasWeight, limits, status);
 
-    this._readoutEl.innerHTML = `
-      <span class="hwc-value hwc-clickable" data-entity="${this._entityId("weight")}"
-            tabindex="0" role="button">${
-              hasWeight ? fmtNumber(this._hass, grams, 0, "g") : "–"
-            }</span>
-    `;
+    // The dial already shows the number, so this line says what it means
+    // rather than repeating it.
+    this._readoutEl.innerHTML = status
+      ? `<span class="hwc-verdict hwc-status-${status} hwc-clickable"
+               data-entity="${this._entityId("weight")}" tabindex="0" role="button">${t(
+                 this._hass,
+                 `weight.status.${status}`
+               )}</span>`
+      : hasWeight
+        ? `<span class="hwc-verdict hwc-status-unknown">${t(this._hass, "weight.noBreedRange")}</span>`
+        : "";
 
     // Nothing recorded yet means the +/- buttons would have to climb all
     // the way from zero - roughly a hundred taps for a Syrian hamster.
@@ -370,13 +451,13 @@ class HamsterWeightCard extends HTMLElement {
 
     if (editing) {
       const min = Number(weight.attributes.min ?? 0);
-      const max = Number(weight.attributes.max ?? 2000);
+      const max = Number(weight.attributes.max ?? DEFAULT_DIAL_MAX);
       this._controlsEl.innerHTML = `
         <input class="hwc-input" type="number" inputmode="numeric"
                min="${min}" max="${max}" step="${weight.attributes.step ?? 1}"
                value="${hasWeight ? grams : ""}"
                aria-label="${t(this._hass, "weight.enterWeight")}"
-               placeholder="${t(this._hass, "weight.enterWeight")}">
+               placeholder="${min}–${max} g">
         <button class="hwc-step hwc-primary" data-action="save" type="button">
           ${t(this._hass, "weight.save")}
         </button>
@@ -461,24 +542,49 @@ HamsterWeightCard.styles = `
   }
   /* Everything that moves shares one easing, so the beam, the pans and
      the hamster settle together rather than arriving separately. */
-  .hwc-beam,
-  .hwc-pan,
-  .hwc-hamster ellipse,
-  .hwc-hamster circle {
-    transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1),
-                rx 0.55s ease, ry 0.55s ease, cx 0.55s ease, cy 0.55s ease;
-  }
+
   .hwc-empty-pan {
     font-size: 30px;
     font-weight: 800;
     fill: var(--secondary-text-color);
     opacity: 0.6;
   }
-  .hwc-value {
-    font-size: 2.4em;
+  .hwc-tick-label {
+    font-size: 11px;
+    font-weight: 700;
+    fill: #5c4a3a;
+  }
+  .hwc-zone {
+    fill: none;
+    stroke-width: 7;
+    stroke-linecap: butt;
+    opacity: 0.75;
+  }
+  .hwc-zone-low { stroke: #4EA8DE; }
+  .hwc-zone-ok { stroke: #4caf50; }
+  .hwc-zone-high { stroke: #e45c5c; }
+  .hwc-dial {
+    transition: transform 0.8s cubic-bezier(0.32, 1.14, 0.6, 1);
+  }
+  .hwc-dial-value {
+    font-size: 30px;
     font-weight: 900;
-    color: var(--primary-text-color);
-    line-height: 1;
+    fill: var(--primary-text-color, #212121);
+  }
+  .hwc-dial-unit {
+    font-size: 13px;
+    font-weight: 700;
+    fill: #8A929A;
+  }
+  .hwc-status-underweight { fill: #4EA8DE; color: #4EA8DE; }
+  .hwc-status-normal { fill: #4caf50; color: #4caf50; }
+  .hwc-status-overweight { fill: #e45c5c; color: #e45c5c; }
+  .hwc-status-unknown { color: var(--secondary-text-color); }
+  .hwc-verdict {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 1.05em;
+    font-weight: 800;
   }
   .hwc-clickable {
     cursor: pointer;
@@ -562,10 +668,7 @@ HamsterWeightCard.styles = `
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hwc-beam,
-    .hwc-pan,
-    .hwc-hamster ellipse,
-    .hwc-hamster circle {
+    .hwc-dial {
       transition: none;
     }
   }
@@ -575,8 +678,8 @@ HamsterWeightCard.styles = `
       min-width: 46px;
       padding: 9px 8px;
     }
-    .hwc-value {
-      font-size: 2em;
+    .hwc-verdict {
+      font-size: 0.95em;
     }
   }
 `;
@@ -597,16 +700,12 @@ const WEIGHT_EDITOR_SCHEMA = [
     selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
   },
   { name: "title", selector: { text: {} } },
-  { name: "scale_min", selector: { number: { min: 0, max: 500, step: 1, mode: "box" } } },
-  { name: "scale_max", selector: { number: { min: 1, max: 2000, step: 1, mode: "box" } } },
   { name: "step", selector: { number: { min: 1, max: 50, step: 1, mode: "box" } } },
 ];
 
 const WEIGHT_EDITOR_LABELS = {
   entity: "common.entityPicker",
   title: "common.optionalTitle",
-  scale_min: "weight.scaleMin",
-  scale_max: "weight.scaleMax",
   step: "weight.step",
 };
 
