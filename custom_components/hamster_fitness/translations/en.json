@@ -115,11 +115,7 @@
           "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time",
           "weight_reminder_enabled": "Remind me to weigh the hamster",
-          "weight_reminder_days": "Weigh-in interval",
-          "light_brightness_pct": "Cage light brightness",
-          "light_transition_s": "Cage light transition time",
-          "light_turn_off_enabled": "Turn cage light off automatically",
-          "light_turn_off_delay_s": "Cage light turn-off delay"
+          "weight_reminder_days": "Weigh-in interval"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
@@ -129,11 +125,25 @@
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent.",
           "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
-          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
-          "light_brightness_pct": "Only relevant if a cage light was selected in the sensors step. Brightness the light is set to when the cage opens.",
-          "light_transition_s": "Only relevant if a cage light was selected. Fade duration for both turning on and off, in seconds. 0 switches instantly.",
-          "light_turn_off_enabled": "Only relevant if a cage light was selected. Turn off automatically when the cage closes. Turn off if something else (e.g. an automation) should control when the light goes off.",
-          "light_turn_off_delay_s": "Only relevant if a cage light was selected and automatic turn-off is enabled. Wait this many seconds after the cage closes before turning the light off. 0 turns it off immediately."
+          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent."
+        },
+        "sections": {
+          "light_settings": {
+            "name": "Cage light",
+            "description": "Only takes effect if you picked a cage light in the sensors step. Collapsed by default, since most of the time there is nothing to change here.",
+            "data": {
+              "light_brightness_pct": "Brightness",
+              "light_transition_s": "Fade time",
+              "light_turn_off_enabled": "Turn off automatically",
+              "light_turn_off_delay_s": "Turn-off delay"
+            },
+            "data_description": {
+              "light_brightness_pct": "Brightness the light is set to when the cage opens.",
+              "light_transition_s": "Fade duration for both turning on and off, in seconds. 0 switches instantly.",
+              "light_turn_off_enabled": "Turn off automatically when the cage closes. Switch off if something else - an automation, say - should decide when the light goes out.",
+              "light_turn_off_delay_s": "Only relevant with automatic turn-off enabled. Wait this many seconds after the cage closes before switching off. 0 turns it off immediately."
+            }
+          }
         }
       }
     },

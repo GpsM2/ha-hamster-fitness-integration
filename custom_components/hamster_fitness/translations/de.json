@@ -115,11 +115,7 @@
           "daily_summary_enabled": "Tageszusammenfassung senden",
           "notification_time": "Uhrzeit der Tageszusammenfassung",
           "weight_reminder_enabled": "Ans Wiegen erinnern",
-          "weight_reminder_days": "Wiege-Intervall",
-          "light_brightness_pct": "Helligkeit der Käfigbeleuchtung",
-          "light_transition_s": "Übergangszeit der Käfigbeleuchtung",
-          "light_turn_off_enabled": "Käfigbeleuchtung automatisch ausschalten",
-          "light_turn_off_delay_s": "Ausschalt-Verzögerung der Käfigbeleuchtung"
+          "weight_reminder_days": "Wiege-Intervall"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
@@ -129,11 +125,25 @@
           "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
           "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
           "weight_reminder_enabled": "Meldet sich nur, wenn das Wiegen wirklich überfällig ist - wer regelmäßig einen neuen Wert einträgt, bekommt diese Erinnerung nie. Versand zur oben eingestellten Uhrzeit der Tageszusammenfassung.",
-          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird.",
-          "light_brightness_pct": "Nur relevant, wenn im Schritt 'Quell-Sensoren' eine Käfigbeleuchtung ausgewählt wurde. Helligkeit, auf die das Licht beim Öffnen des Käfigs gesetzt wird.",
-          "light_transition_s": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Überblendzeit beim Ein- und Ausschalten, in Sekunden. 0 schaltet sofort.",
-          "light_turn_off_enabled": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt wurde. Beim Schließen des Käfigs automatisch ausschalten. Deaktivieren, wenn etwas anderes (z. B. eine Automatisierung) das Ausschalten übernehmen soll.",
-          "light_turn_off_delay_s": "Nur relevant, wenn eine Käfigbeleuchtung ausgewählt und das automatische Ausschalten aktiviert ist. So viele Sekunden nach dem Schließen warten, bevor das Licht ausgeht. 0 schaltet sofort aus."
+          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird."
+        },
+        "sections": {
+          "light_settings": {
+            "name": "Käfigbeleuchtung",
+            "description": "Wirkt nur, wenn im Sensoren-Schritt eine Käfigbeleuchtung ausgewählt wurde. Standardmäßig eingeklappt, weil hier meistens nichts zu ändern ist.",
+            "data": {
+              "light_brightness_pct": "Helligkeit",
+              "light_transition_s": "Übergangszeit",
+              "light_turn_off_enabled": "Automatisch ausschalten",
+              "light_turn_off_delay_s": "Ausschaltverzögerung"
+            },
+            "data_description": {
+              "light_brightness_pct": "Helligkeit, auf die das Licht beim Öffnen des Käfigs gesetzt wird.",
+              "light_transition_s": "Ein- und Ausblenddauer in Sekunden. 0 schaltet ohne Übergang.",
+              "light_turn_off_enabled": "Beim Schließen des Käfigs automatisch ausschalten. Abschalten, wenn etwas anderes - etwa eine Automatisierung - über das Ausschalten entscheiden soll.",
+              "light_turn_off_delay_s": "Nur relevant, wenn das automatische Ausschalten aktiv ist. So viele Sekunden nach dem Schließen warten, bevor ausgeschaltet wird. 0 schaltet sofort aus."
+            }
+          }
         }
       }
     },

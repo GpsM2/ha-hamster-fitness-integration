@@ -102,6 +102,10 @@ OPTION_NOTIFICATION_TIME: Final = "notification_time"
 OPTION_WEIGHT_REMINDER_ENABLED: Final = "weight_reminder_enabled"
 OPTION_WEIGHT_REMINDER_DAYS: Final = "weight_reminder_days"
 # Nur wirksam, wenn CONF_LIGHT_ENTITY gesetzt ist, siehe door_light.py.
+# Die vier Felder werden im Options-Flow als eingeklappte Section
+# LIGHT_SECTION gruppiert - gespeichert werden sie aber flach wie alle
+# anderen Options auch, siehe _flatten_options() in config_flow.py.
+LIGHT_SECTION: Final = "light_settings"
 OPTION_LIGHT_BRIGHTNESS_PCT: Final = "light_brightness_pct"
 OPTION_LIGHT_TRANSITION_S: Final = "light_transition_s"
 OPTION_LIGHT_TURN_OFF_ENABLED: Final = "light_turn_off_enabled"
