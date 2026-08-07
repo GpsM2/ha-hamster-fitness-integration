@@ -239,6 +239,8 @@
     "warning": {
       "low_score": "The health score has dropped to {score}%.",
       "too_little_exercise": "Only {distance} km run so far, well below normal.",
+      "underweight": "At {weight} g, that's below the healthy range for this breed.",
+      "overweight": "At {weight} g, that's above the healthy range for this breed.",
       "too_cold": "The cage has gotten cold: {temperature} °C.",
       "too_hot": "The cage is quite warm: {temperature} °C.",
       "neglected": "The cage hasn't been opened in {hours} hours."

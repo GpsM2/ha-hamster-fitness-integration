@@ -57,9 +57,14 @@
 <script type="module">
 const FRONTEND = "../../custom_components/hamster_fitness/frontend";
 
-// The cards follow Home Assistant's language; ?lang= mocks it so both
+// The cards follow Home Assistant's language; this mocks it so both
 // translations can be eyeballed without changing anything in HA.
-const LANG = new URLSearchParams(location.search).get("lang") || "de";
+// The choice is remembered, because some preview panes drop the query
+// string from a file:// URL and ?lang= alone would never arrive.
+const stored = localStorage.getItem("hf-preview-lang");
+const asked = new URLSearchParams(location.search).get("lang");
+if (asked) localStorage.setItem("hf-preview-lang", asked);
+const LANG = asked || stored || "de";
 
 const status = document.getElementById("status");
 const out = document.getElementById("out");
@@ -67,11 +72,18 @@ const out = document.getElementById("out");
 // A failed ES module import aborts the whole file silently, which is
 // exactly how every card once vanished at once (see README). So the
 // harness checks explicitly rather than just rendering nothing.
+// Fresh on every load. Without this the browser keeps the module it
+// already has and the preview quietly shows the previous edit - the very
+// staleness this harness exists to catch. (The cards' own `?v=` import of
+// hamster-fitness-shared.js is left alone: that is the production
+// cache-busting mechanism, and it should behave here exactly as it does
+// in Home Assistant.)
+const BUST = `?t=${Date.now()}`;
 try {
-  await import(`${FRONTEND}/hamster-fitness-card.js`);
-  await import(`${FRONTEND}/hamster-day-night-card.js`);
-  await import(`${FRONTEND}/hamster-chronicle-card.js`);
-  await import(`${FRONTEND}/hamster-weight-card.js`);
+  await import(`${FRONTEND}/hamster-fitness-card.js${BUST}`);
+  await import(`${FRONTEND}/hamster-day-night-card.js${BUST}`);
+  await import(`${FRONTEND}/hamster-chronicle-card.js${BUST}`);
+  await import(`${FRONTEND}/hamster-weight-card.js${BUST}`);
 } catch (err) {
   status.className = "fail";
   status.textContent =
@@ -319,14 +331,45 @@ place(makeCard("hamster-fitness-ranking-card", {}, chronicleHass()), "wide");
 
 // --- Wiege-Karte ------------------------------------------------------
 
-function weightHass(grams, lastWeighedDaysAgo) {
+// Mirrors WEIGHT_CLASSES in const.py. "other" is deliberately absent:
+// with no species there is no reference range, so the dial gets a plain
+// scale and no coloured zones.
+const WEIGHT_CLASSES = {
+  golden: { underweight: 85, normal_min: 100, normal_max: 160, overweight: 170, dial_max: 250 },
+  winter_white: { underweight: 30, normal_min: 35, normal_max: 50, overweight: 55, dial_max: 80 },
+  roborovski: { underweight: 15, normal_min: 18, normal_max: 28, overweight: 32, dial_max: 50 },
+};
+
+function weightHass(grams, lastWeighedDaysAgo, breed = "golden") {
   const hass = baseHass({ night: false, active: false, speed: 0, lightOn: false });
+  const classes = WEIGHT_CLASSES[breed];
+
+  // The card reads its dial geometry off the health-score sensor, the
+  // way the coordinator publishes it.
+  Object.assign(hass.states["sensor.hamster_taco_health_score"].attributes, {
+    weight_underweight_g: classes ? classes.underweight : null,
+    weight_normal_min_g: classes ? classes.normal_min : null,
+    weight_normal_max_g: classes ? classes.normal_max : null,
+    weight_overweight_g: classes ? classes.overweight : null,
+    weight_dial_max_g: classes ? classes.dial_max : 250,
+    // Mirrors _weight_status() in coordinator.py: no breed and no
+    // weight both mean "no verdict".
+    weight_status:
+      !classes || grams === null
+        ? null
+        : grams < classes.normal_min
+          ? "underweight"
+          : grams > classes.normal_max
+            ? "overweight"
+            : "normal",
+  });
+
   const id = "number.hamster_taco_weight";
   hass.states[id] = {
     state: grams === null ? "unknown" : String(grams),
     attributes: {
       min: 0,
-      max: 2000,
+      max: 250,
       step: 1,
       last_weighed_at:
         lastWeighedDaysAgo === null
@@ -338,16 +381,21 @@ function weightHass(grams, lastWeighedDaysAgo) {
   return hass;
 }
 
-section("Wiegen");
+section("Wiegen – dieselbe Zahl, je nach Rasse ein anderes Urteil");
 grid(
   [
-    ["Leichter Zwerghamster (32 g)", [32, 2]],
-    ["Kräftiger Goldhamster (168 g)", [168, 0]],
-    ["Noch nie gewogen", [null, null]],
+    ["Goldhamster · 130 g · normal", [130, 2, "golden"]],
+    ["Goldhamster · 205 g · zu schwer", [205, 5, "golden"]],
+    ["Goldhamster · 78 g · zu leicht", [78, 1, "golden"]],
+    ["Dsungare · 42 g · normal (Skala bis 80)", [42, 3, "winter_white"]],
+    ["Roborovski · 22 g · normal (Skala bis 50)", [22, 0, "roborovski"]],
+    ["Roborovski · 40 g · zu schwer", [40, 9, "roborovski"]],
+    ["Unbekannte Rasse · 120 g · kein Urteil", [120, 4, "other"]],
+    ["Noch nie gewogen", [null, null, "golden"]],
   ],
-  ([grams, days]) =>
+  ([grams, days, breed]) =>
     makeCard("hamster-weight-card", { entity: "sensor.hamster_taco_health_score" },
-      weightHass(grams, days))
+      weightHass(grams, days, breed))
 );
 </script>
 </body>

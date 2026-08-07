@@ -157,9 +157,11 @@ const STRINGS = {
     "weight.save": "Save",
     "weight.cancel": "Cancel",
     "weight.typeIt": "Type a weight",
-    "weight.scaleMin": "Scale low end (g)",
-    "weight.scaleMax": "Scale high end (g)",
     "weight.step": "Grams per tap",
+    "weight.status.underweight": "Underweight",
+    "weight.status.normal": "Healthy weight",
+    "weight.status.overweight": "Overweight",
+    "weight.noBreedRange": "No reference range for this breed",
 
     // Ranking card
     "ranking.title": "Hamster ranking",
@@ -321,9 +323,11 @@ const STRINGS = {
     "weight.pickerName": "Hamster Fitness: Gewicht erfassen",
     "weight.pickerDescription":
       "Gewicht des Hamsters auf einer illustrierten Balkenwaage eintragen - mit steigendem Wert stapeln sich die Gegengewichte und der Hamster wird runder.",
-    "weight.scaleMin": "Skala unten (g)",
-    "weight.scaleMax": "Skala oben (g)",
     "weight.step": "Gramm pro Tastendruck",
+    "weight.status.underweight": "Untergewicht",
+    "weight.status.normal": "Normalgewicht",
+    "weight.status.overweight": "Übergewicht",
+    "weight.noBreedRange": "Kein Referenzbereich für diese Rasse",
 
     "ranking.title": "Hamster-Ranking",
     "ranking.subtitle": "Nach gelaufener Strecke",

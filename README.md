@@ -22,7 +22,9 @@ cards, and a cage light that switches itself on when you open the lid.
 - **Health score** (0–100%) from four pillars: how far your hamster ran
   at night, how undisturbed it slept, the cage climate, and how regularly
   you look after it. Each pillar is its own sensor, so you can see *which*
-  one is weak instead of guessing.
+  one is weak instead of guessing. Once you record a weight, how far it
+  sits outside the healthy range for the breed counts too — until then it
+  simply doesn't.
 - **Distance and speed**: tonight, last night, today, lifetime total,
   current speed and top speed.
 - **Activity tracking**: how long the current running session has lasted
@@ -115,7 +117,7 @@ configure it:
 | [Hamster Fitness: Day & Night](docs/cards/day-and-night.md) | The illustrated live view |
 | [Hamster Fitness: Ranking](docs/cards/ranking.md) | All hamsters by lifetime distance |
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
-| [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a balance scale |
+| [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
 
 ### If something looks wrong after an update
 
@@ -153,7 +155,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `switch.hamster_<name>_boarding` | Pause everything while the hamster is temporarily away |
 | `date.hamster_<name>_departure_date` | Set this when the hamster moves out |
 | `button.hamster_<name>_undo_departure` | Undoes a departure set by mistake |
-| `number.hamster_<name>_weight` | Type in the hamster's weight (grams) |
+| `number.hamster_<name>_weight` | Type in the hamster's weight (grams, up to 250) |
 
 ¹ Only if you picked a speed sensor. ² Only if you picked a humidity
 sensor. ³ Only if you picked a cage light.

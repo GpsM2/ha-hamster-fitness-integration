@@ -210,7 +210,72 @@ PLATFORMS: Final[list[Platform]] = [
 
 # --- Gewicht ---
 MIN_WEIGHT_G: Final[float] = 0.0
-MAX_WEIGHT_G: Final[float] = 2000.0
+# Der schwerste Hamster (ein sehr kräftiger Goldhamster) liegt bei rund
+# 180 g. 250 g lässt reichlich Luft nach oben und fängt trotzdem den
+# Zahlendreher ab, der aus 120 g mal eben 1200 g macht.
+MAX_WEIGHT_G: Final[float] = 250.0
+
+# --- Gewichtsklassen je Hamsterart ---
+# Quelle: tierärztliche Richtwerte, vom Nutzer zusammengetragen. Die
+# Spanne "normal" ist der Idealbereich; darunter/darüber beginnt der
+# Punktabzug, ab underweight/overweight wird er deutlich (siehe
+# _weight_penalty() in coordinator.py).
+#
+# "dial_max" begrenzt nur die Skala der Wiege-Karte - ein Roborowski auf
+# einer 250-g-Skala stünde sonst im ersten Zwanzigstel und man sähe
+# keinerlei Ausschlag.
+#
+# BREED_OTHER fehlt bewusst: bei unbekannter Art lässt sich das Gewicht
+# nicht beurteilen, also wird es auch nicht bewertet.
+WEIGHT_CLASSES: Final[dict[str, dict[str, float]]] = {
+    BREED_GOLDEN: {
+        "underweight": 85.0,
+        "normal_min": 100.0,
+        "normal_max": 160.0,
+        "overweight": 170.0,
+        "dial_max": 250.0,
+    },
+    BREED_TEDDY: {
+        # Teddyhamster sind eine Fellvariante des Goldhamsters, also
+        # dieselben Richtwerte.
+        "underweight": 85.0,
+        "normal_min": 100.0,
+        "normal_max": 160.0,
+        "overweight": 170.0,
+        "dial_max": 250.0,
+    },
+    BREED_WINTER_WHITE: {
+        "underweight": 30.0,
+        "normal_min": 35.0,
+        "normal_max": 50.0,
+        "overweight": 55.0,
+        "dial_max": 80.0,
+    },
+    BREED_CAMPBELL: {
+        "underweight": 30.0,
+        "normal_min": 35.0,
+        "normal_max": 50.0,
+        "overweight": 55.0,
+        "dial_max": 80.0,
+    },
+    BREED_CHINESE: {
+        "underweight": 25.0,
+        "normal_min": 30.0,
+        "normal_max": 45.0,
+        "overweight": 50.0,
+        "dial_max": 70.0,
+    },
+    BREED_ROBOROVSKI: {
+        "underweight": 15.0,
+        "normal_min": 18.0,
+        "normal_max": 28.0,
+        "overweight": 32.0,
+        "dial_max": 50.0,
+    },
+}
+# Skala für einen Hamster ohne bekannte Art - deckt alle Arten ab, ohne
+# dass daraus eine Bewertung abgeleitet würde.
+DEFAULT_DIAL_MAX_G: Final[float] = 250.0
 
 # --- Frontend (bundled hamster-fitness-card, siehe frontend/__init__.py) ---
 URL_BASE: Final = f"/{DOMAIN}-frontend"
@@ -225,7 +290,7 @@ URL_BASE: Final = f"/{DOMAIN}-frontend"
 # Bei jeder Änderung an hamster-fitness-shared.js hochzählen UND denselben
 # Wert in den ?v=-Importen aller Kartendateien nachziehen. tests/
 # test_frontend_resources.py prüft das ab, damit es nicht vergessen wird.
-SHARED_MODULE_VERSION: Final = "6"
+SHARED_MODULE_VERSION: Final = "7"
 # "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
 # jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
 # Browser ggf. die alte, gecachte Version weiter aus.
@@ -233,21 +298,21 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "12",
+        "version": "13",
     },
     {
         "name": "Hamster Day & Night Card",
         "filename": "hamster-day-night-card.js",
-        "version": "7",
+        "version": "8",
     },
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "6",
+        "version": "7",
     },
     {
         "name": "Hamster Weight Card",
         "filename": "hamster-weight-card.js",
-        "version": "2",
+        "version": "3",
     },
 ]

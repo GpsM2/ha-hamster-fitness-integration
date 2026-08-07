@@ -28,6 +28,7 @@ from .coordinator import (
     HamsterFitnessCoordinator,
     hamster_device_info,
     hamster_profile,
+    hamster_weight_profile,
 )
 
 
@@ -94,7 +95,7 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
         super().__init__(coordinator, entry, "health_score")
         # Static config, so reading it once is enough - a Reconfigure
         # reloads the whole entry and rebuilds this entity anyway.
-        self._profile = hamster_profile(entry)
+        self._profile = {**hamster_profile(entry), **hamster_weight_profile(entry)}
 
     @property
     def native_value(self) -> int:
@@ -122,6 +123,9 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
             "temperature_penalty": data.temperature_penalty,
             "care_penalty": data.care_penalty,
             "sleep_penalty": data.sleep_penalty,
+            "weight_penalty": data.weight_penalty,
+            "weight_status": data.weight_status,
+            "weight_g": data.weight_g,
             "score_history": data.score_history,
         }
 
