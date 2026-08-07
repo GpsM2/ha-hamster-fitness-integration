@@ -8,11 +8,21 @@
 # case-insensitive. Keywords are kept bilingual (EN/DE) since issues may
 # come in either language.
 #
+# The action only ADDS labels, it never removes them - so an issue whose
+# text sounds like both a bug report and a feature request can end up with
+# both. That is deliberate: a human glance is cheaper than a missed label.
+#
 # The generic word "sensor" (DE and EN) is deliberately left out of
 # "hardware" - it also appears constantly in normal integration reports
 # ("temperature sensor won't select", "door sensor unavailable") and would
 # over-match. TCRT5000/ESPHome/wiring terms already identify hardware
 # reports specifically enough.
+#
+# There is deliberately NO `integration` rule any more. This is the
+# integration repo, so the label carried no information here - it matched
+# nearly everything - and genuine hardware reports are transferred to
+# hamster-fitness-hardware automatically anyway. The label itself is kept
+# in the repo so the historical issues that already carry it stay intact.
 #
 # ---------------------------------------------------------------------
 # ADDING A NEW LOVELACE CARD? Three things have to happen together:
@@ -22,18 +32,34 @@
 #      name, its JS filename, and whatever people would plausibly call it
 #      in prose - in both English and German
 #   3. list it in docs/cards/ and the README table
-# Otherwise issues about that card land unlabelled and get lost among the
-# generic `integration` ones.
+# Otherwise issues about that card land unlabelled and get lost.
 # ---------------------------------------------------------------------
+
+# --- Issue type -------------------------------------------------------
+# Deliberately keyed on words that describe something being WRONG or
+# WANTED, not on generic vocabulary. "add"/"neu" are left out of
+# `enhancement` on purpose: they appear in nearly every bug report too
+# ("after adding the sensor..."), and a wrong label is worse than none.
+
+bug:
+  - '/\bbug\b|\bfehler\b|\berror\b|crash|absturz|abgestürzt|exception|traceback|stack ?trace|funktioniert nicht|geht nicht|klappt nicht|does(n.t| not) work|not working|broken|kaputt|defekt|schlägt fehl|fails?\b|failing|unexpected|unerwartet|verschwind(et|en)|disappears?|hängt sich auf|freezes?|eingefroren|reproduc(e|ible)|reproduzier/i'
+
+enhancement:
+  - '/feature[ -]?request|enhancement|verbesserung(svorschlag)?|feature\b|w(ä|ae)re (sch(ö|oe)n|gut|super|toll|praktisch)|would be (nice|great|good)|k(ö|oe)nnte man|vorschlag|proposal|idee\b|\bidea\b|wunsch\b|support for|unterst(ü|ue)tzung f(ü|ue)r|nice to have/i'
+
+documentation:
+  - '/documentation|dokumentation|\bdocs?\b|\bdoku\b|readme|anleitung|tutorial|\bguide\b|typo|tippfehler|rechtschreib|wiki|beschreibung fehlt|missing description/i'
+
+# --- Subject area -----------------------------------------------------
 
 hardware:
   - '/esphome|d1[ -]?mini|esp8266|esp32|tcrt5000|wiring|verkabelung|soldering|löten|photo ?sensor|opto ?sensor|lichtschranke/i'
 
-integration:
-  - '/config flow|reconfigure|hacs|auto[- ]?discovery|automatische erkennung|\bentit(y|ies|ät(en)?)\b|lovelace|custom_components|config entry|options flow/i'
-
 health-score:
   - '/algorithm(us)?|health[ -]?score|gesundheit(swert)?|laufstrecke|distanz|distance|umdrehung(en)?|rotation(en)?|penalty|punktabzug|warnschwelle|warning threshold/i'
+
+weather:
+  - '/\bweather\b|\bwetter\b|forecast|vorhersage|wettervorhersage|hitzewarn|heat ?wave|hitzewelle|\bregen\b|\brain\b|gewitter|thunderstorm|weather\.[a-z_]+/i'
 
 # --- One label per bundled Lovelace card ------------------------------
 # Matched on the custom element name, the JS filename, and the card's
@@ -44,7 +70,7 @@ health-score:
   - '/hamster-fitness-card|health[ -]?score[ -]?card|karte.{0,20}health[ -]?score|health[ -]?score.{0,20}(card|karte)|säulen|pillars|smart insight|trend[ -]?(chart|diagramm)|4[ -]?säulen/i'
 
 'card: day-night':
-  - '/hamster-day-night-card|day ?& ?night|day[ -]?and[ -]?night|tag ?& ?nacht|laufrad[ -]?animation|wheel animation|nest[ -]?szene|schlafszene/i'
+  - '/hamster-day-night-card|day ?& ?night|day[ -]?and[ -]?night|tag ?& ?nacht|laufrad[ -]?animation|wheel animation|nest[ -]?szene|schlafszene|\bchips?\b/i'
 
 'card: ranking':
   - '/hamster-fitness-ranking-card|ranking[ -]?(card|karte)|bestenliste|rangliste|leaderboard/i'
@@ -52,7 +78,5 @@ health-score:
 'card: chronicle':
   - '/hamster-chronicle-card|chronicle[ -]?(card|karte)|chronik|lebenslauf[ -]?archiv|lifetime archive|history_lifedata/i'
 
-# Planned card (see the 0.4.0 milestone) - the label exists ahead of the
-# card itself so its issues are grouped from the start.
 'card: weighing':
-  - '/hamster-weight-card|weigh(ing|[ -]?in)[ -]?(card|karte)|wiege[ -]?(karte|erinnerung)|balance scale|balkenwaage|_weight\b/i'
+  - '/hamster-weight-card|weigh(ing|t|[ -]?in)[ -]?(card|karte)|wiege[ -]?(karte|erinnerung)|gewichts?[ -]?(karte|eingabe)|track weight|gewicht erfassen|dial scale|zifferblatt|_weight\b/i'
