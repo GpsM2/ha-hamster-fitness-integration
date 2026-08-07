@@ -1,9 +1,10 @@
 # Hamster Fitness – Projektregeln für Claude
 
 Diese Datei enthält verbindliche Arbeitsanweisungen für Claude in diesem
-Repository. Sie ergänzt README.md (Nutzer-Doku, Englisch) und ROADMAP.md
-(Verlauf, Englisch), richtet sich aber ausschließlich an den
-Entwicklungsprozess.
+Repository. Sie ergänzt README.md (Nutzer-Doku, Englisch), richtet sich
+aber ausschließlich an den Entwicklungsprozess. Geplante Arbeit wird über
+GitHub Issues getrackt (Milestones bündeln zusammengehörige Batches),
+nicht mehr über eine ROADMAP.md-Datei im Repo.
 
 ## Projektziel
 
@@ -54,7 +55,7 @@ ins Hardware-Repo.
   `strings.json` und `translations/en.json` müssen deshalb händisch
   identisch gehalten werden – bei jeder Änderung an einem der beiden Werte
   auch den anderen aktualisieren, sonst fehlt englischsprachigen Nutzern
-  der Text komplett (siehe ROADMAP für den Bugfix-Hintergrund).
+  der Text komplett (in 0.2.6 als echter Bug gefunden und behoben).
 - Tests unter `tests/` (pytest, idealerweise
   `pytest-homeassistant-custom-component`), mindestens für
   `config_flow.py` und die Sensor-Plattform.
@@ -88,7 +89,7 @@ registrierten Timer scharf und verdecken echte Fehler.
 - Commit-Messages beschreiben das "Warum", nicht nur das "Was".
 - `manifest.json`'s `version` nur bei tatsächlichen Code-Änderungen
   hochzählen (Patch-Version, z. B. 0.2.3 → 0.2.4) – nicht bei reinen
-  README-/ROADMAP-Änderungen.
+  README-/Doku-Änderungen.
 - Größere Refactorings (z. B. Architektur-Umbauten) vorher als Plan
   vorstellen und explizit bestätigen lassen, bevor der Code angefasst
   wird.

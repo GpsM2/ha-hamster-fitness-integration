@@ -49,8 +49,8 @@ async def test_daily_distance_uses_diameter_not_circumference(
     """100 rotations on a 28 cm *diameter* wheel is ~0.088 km, not ~0.028 km.
 
     Regression test for the diameter/circumference mix-up this integration
-    used to have (see ROADMAP.md): CONF_WHEEL_DIAMETER must be converted
-    via circumference = diameter * pi before being used for distance math.
+    used to have: CONF_WHEEL_DIAMETER must be converted via circumference
+    = diameter * pi before being used for distance math.
     """
     hass.states.async_set(WHEEL_SENSOR, "0")
     hass.states.async_set(TEMPERATURE_SENSOR, "22")
