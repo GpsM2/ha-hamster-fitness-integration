@@ -200,7 +200,21 @@ class HamsterFitnessNotifier:
 
     @callback
     def _async_handle_daily_time(self, now: datetime) -> None:
-        """Run both time-based flows at the configured local time."""
+        """Run both time-based flows at the configured local time.
+
+        Both stay quiet while the hamster is away (boarding mode): a
+        summary repeating a frozen distance, or a nudge to weigh a
+        hamster that is at the vet, is noise the user can do nothing
+        about. Warnings are already silent - the coordinator stops
+        producing reasons while paused.
+        """
+        if self._coordinator.boarding:
+            _LOGGER.debug(
+                "Hamster Fitness (%s): vorübergehend abwesend, "
+                "Tageszusammenfassung und Wiege-Erinnerung übersprungen",
+                self._hamster_name,
+            )
+            return
         if self._daily_summary_enabled:
             self._async_send_daily_summary()
         if self._weight_reminder_enabled:

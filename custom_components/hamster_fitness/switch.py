@@ -16,6 +16,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -41,7 +42,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Hamster Fitness switches from a config entry."""
+    entities: list[SwitchEntity] = [HamsterBoardingSwitch(entry.runtime_data, entry)]
+
     if not entry.data.get(CONF_LIGHT_ENTITY):
+        async_add_entities(entities)
         return
 
     # An entity service rather than a domain-level one: the pause always
@@ -58,7 +62,50 @@ async def async_setup_entry(
         "async_pause_automation",
     )
 
-    async_add_entities([HamsterLightAutomationSwitch(entry.runtime_data, entry)])
+    entities.append(HamsterLightAutomationSwitch(entry.runtime_data, entry))
+    async_add_entities(entities)
+
+
+class HamsterBoardingSwitch(
+    CoordinatorEntity[HamsterFitnessCoordinator], SwitchEntity
+):
+    """Suspends evaluation while the hamster is temporarily away.
+
+    For a stay at a foster home, a trip to the vet, or someone else
+    looking after the hamster. Distinct from a departure date, which is
+    permanent and archives the hamster: this changes nothing about the
+    hamster's standing, writes no archive record, and simply resumes when
+    switched back off.
+
+    Without it, an empty cage's temperature and a motionless wheel drag
+    the health score down and fire warnings about a hamster that is not
+    even there.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "boarding"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: HamsterFitnessCoordinator, entry: HamsterFitnessConfigEntry
+    ) -> None:
+        """Initialize the boarding switch."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_boarding"
+        self._attr_device_info = hamster_device_info(entry)
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the hamster is currently away."""
+        return self.coordinator.boarding
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Mark the hamster as away and pause evaluation."""
+        await self.coordinator.async_set_boarding(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Welcome the hamster back and resume evaluation."""
+        await self.coordinator.async_set_boarding(False)
 
 
 class HamsterLightAutomationSwitch(

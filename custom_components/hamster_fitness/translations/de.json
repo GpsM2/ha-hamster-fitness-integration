@@ -224,6 +224,9 @@
     "switch": {
       "light_automation": {
         "name": "Licht-Automatik"
+      },
+      "boarding": {
+        "name": "Vorübergehend abwesend"
       }
     },
     "button": {

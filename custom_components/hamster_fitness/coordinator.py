@@ -273,6 +273,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # robust gegenüber Geräte-Reboots des Rad-Sensors.
         self._lifetime_offset_count: float = 0.0
         self._departure_date: date | None = None
+        # Vorübergehende Abwesenheit (Pflegestelle, Tierarzt, Urlaub) -
+        # siehe async_set_boarding(). Anders als departure_date endgültig
+        # nichts: kein Archiv-Eintrag, jederzeit umkehrbar.
+        self._boarding: bool = False
 
         self.data = HamsterFitnessData()
 
@@ -382,6 +386,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
+        self._boarding = stored.get("boarding", False)
 
         # Reine Wanduhrzeit, nicht an den Rad-Sensor-Zählerstand gekoppelt -
         # anders als die Baselines unten unabhängig von sensor_changed
@@ -397,8 +402,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             dt_util.parse_datetime(last_activity_raw) if last_activity_raw else None
         )
 
-        if self._is_departed():
-            # Bereits archivierter Hamster: den zuletzt eingefrorenen Stand
+        if self._is_paused():
+            # Pausierter Hamster (archiviert oder vorübergehend abwesend):
+            # den zuletzt eingefrorenen Stand
             # wiederherstellen und NICHT neu baseline - alle Baselines/
             # Zählerstände sind für einen archivierten Hamster irrelevant,
             # da _calculate() ab jetzt ohnehin nur noch self.data
@@ -502,6 +508,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "departure_date": (
                     self._departure_date.isoformat() if self._departure_date else None
                 ),
+                "boarding": self._boarding,
                 "session_start_at": (
                     self._session_start_at.isoformat()
                     if self._session_start_at
@@ -565,7 +572,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         sampling would just pad the history with a value that can no
         longer change.
         """
-        if self._is_departed():
+        if self._is_paused():
             return
         self._score_sum_today += self.data.health_score
         self._score_samples_today += 1
@@ -779,22 +786,23 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._departure_date = None
         if was_archived:
             await archive.async_remove_departure(self.hass, self._entry.entry_id)
-            self._rebaseline_after_departure()
+            self._rebaseline_after_pause()
 
         await self._async_save_state()
         self.async_set_updated_data(self._calculate())
 
     @callback
-    def _rebaseline_after_departure(self) -> None:
+    def _rebaseline_after_pause(self) -> None:
         """Resume counting from the current reading, not the frozen one.
 
-        While a hamster counts as departed, `_calculate` returns early and
-        never touches the wheel counter - but that counter has kept
-        climbing, possibly under a completely different hamster if the
-        sensor was reassigned in the meantime. Carrying the old baselines
-        over would book every rotation since the departure as distance
-        *this* hamster ran, which is the same phantom-distance failure the
-        sensor-swap detection already guards against elsewhere.
+        While a hamster is paused - archived, or temporarily away -
+        `_calculate` returns early and never touches the wheel counter,
+        but that counter has kept climbing, possibly under a completely
+        different hamster if the sensor was reassigned in the meantime.
+        Carrying the old baselines over would book every rotation since
+        the pause as distance *this* hamster ran, which is the same
+        phantom-distance failure the sensor-swap detection already guards
+        against elsewhere.
 
         The lifetime offset is rebased too, so lifetime_distance picks up
         exactly where it was frozen instead of jumping.
@@ -811,6 +819,52 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._last_known_count = current
         self._baseline_count = current
         self._night_baseline_count = current
+
+    @property
+    def boarding(self) -> bool:
+        """Return whether the hamster is temporarily away."""
+        return self._boarding
+
+    async def async_set_boarding(self, enabled: bool) -> None:
+        """Suspend or resume evaluation for a temporary absence.
+
+        For a hamster at a foster home, the vet, or looked after by
+        someone else while its owner is away. Deliberately distinct from
+        a departure date: nothing is archived, the hamster stays a normal
+        part of the household, and switching back resumes where things
+        left off.
+
+        While on, the frozen snapshot is served unchanged - an empty
+        cage's temperature and a motionless wheel would otherwise drag
+        the health score down and fire warnings about a hamster that
+        simply isn't there.
+        """
+        if self._boarding == enabled:
+            return
+
+        self._boarding = enabled
+        if enabled:
+            # Clear any live warning on the way out, same as a departure -
+            # an alert about an absent hamster helps nobody.
+            self.async_set_updated_data(
+                replace(self.data, warning_on=False, warning_reasons={})
+            )
+        else:
+            self._rebaseline_after_pause()
+
+        await self._async_save_state()
+        if not enabled:
+            self.async_set_updated_data(self._calculate())
+
+    def _is_paused(self) -> bool:
+        """Return True while evaluation is suspended, for either reason.
+
+        Departure is permanent and archives the hamster; boarding is a
+        temporary absence that does not. Everything that merely needs to
+        know "should I still be scoring this hamster" asks this instead
+        of distinguishing the two.
+        """
+        return self._is_departed() or self._boarding
 
     def _is_departed(self) -> bool:
         """Return True if the hamster's departure date has arrived."""
@@ -867,10 +921,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     @callback
     def _calculate(self) -> HamsterFitnessData:
         """Recompute distance, health score and warning state."""
-        if self._is_departed():
-            # Archivierter Hamster: eingefrorenen Endstand unverändert
-            # zurückgeben, auch wenn die Quell-Sensoren (z. B. nach
-            # Zuweisung an einen neuen Hamster) weiter Events feuern.
+        if self._is_paused():
+            # Archiviert oder vorübergehend abwesend: eingefrorenen Stand
+            # unverändert zurückgeben, auch wenn die Quell-Sensoren (z. B.
+            # nach Zuweisung an einen anderen Hamster) weiter Events feuern.
             return self.data
 
         now = dt_util.utcnow()

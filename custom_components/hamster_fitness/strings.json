@@ -224,6 +224,9 @@
     "switch": {
       "light_automation": {
         "name": "Light automation"
+      },
+      "boarding": {
+        "name": "Boarding"
       }
     },
     "button": {
