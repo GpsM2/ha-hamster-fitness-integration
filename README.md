@@ -119,6 +119,67 @@ configure it:
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
 | [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
 
+## The cards
+
+All five follow Home Assistant's language (English and German), including
+number and date formatting, and tint their illustrated hamster with the
+coat colour from its profile — so two hamsters on one dashboard never
+look like the same animal.
+
+### Health Score
+
+The whole picture for one hamster: the score ring, a plain-language
+*Smart Insight*, the four pillars as a tappable 2×2 grid, and a 7-day
+trend of daily averages.
+
+<img src="docs/images/card-health-score.png" alt="Health Score card showing a score of 88, the four pillars, and a 7-day trend" width="420">
+
+Tapping a pillar opens the numbers behind that score, plus a short
+husbandry note explaining why it matters — so the card answers *why*,
+not just *how much*:
+
+<img src="docs/images/card-health-score-pillar.png" alt="Sleep pillar detail dialog listing cage openings, wake-up runs and the sleep phase" width="420">
+
+### Day & Night
+
+The live view. The hamster runs in its wheel while it is actually active
+— the wheel's speed follows the real one — and sleeps in its nest when
+it is not. The sky follows the sun's position independently, so a
+hamster dozing at 2 a.m. is drawn asleep under a night sky rather than
+running just because it is dark.
+
+<img src="docs/images/card-day-night-active.png" alt="Day & Night card at night, hamster running in the wheel, readings as chips" width="420"> <img src="docs/images/card-day-night-resting.png" alt="Day & Night card by day, hamster asleep in its nest" width="420">
+
+Every chip is tappable: the readings open their own entity, and the cage
+light chip switches the lamp directly.
+
+### Ranking
+
+Every hamster by lifetime distance, with the average distance per day
+alongside the total — so a hamster that has only lived here two months
+is not simply bottom of the list.
+
+<img src="docs/images/card-ranking.png" alt="Ranking card listing hamsters by lifetime distance" width="560">
+
+### Chronicle
+
+Everyone who ever lived here, current and long since departed. Archived
+hamsters keep their record even after the device is deleted.
+
+<img src="docs/images/card-chronicle.png" alt="Chronicle card listing current and archived hamsters with distance, top speed and days" width="560">
+
+### Track Weight
+
+Weight is the one thing the integration cannot measure by itself. The
+dial's range and its coloured bands come from the breed, because "97 g"
+means healthy Syrian or dangerously fat Roborovski depending on the
+animal:
+
+<img src="docs/images/card-weight-syrian.png" alt="Track Weight card, Syrian hamster at 130 g, marker in the green band" width="420"> <img src="docs/images/card-weight-roborovski.png" alt="Track Weight card, Roborovski at 22 g on a scale reading to 50 g" width="420">
+
+Both hamsters above are a healthy weight — the scale, not the number,
+is what differs.
+
 ### If something looks wrong after an update
 
 Home Assistant caches translations and dashboard resources. After copying

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hamster Fitness – README screenshots</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f2f3f5;
+    margin: 0;
+    padding: 0;
+  }
+  /* Each shot is captured by its id, so give every one a fixed width and
+     a little breathing room - the capture clips to the element box. */
+  .shot {
+    width: 460px;
+    padding: 14px;
+    background: #f2f3f5;
+  }
+  .shot-wide { width: 660px; }
+  ha-card {
+    display: block;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --divider-color: #e0e0e0;
+    --card-background-color: #fff;
+    --primary-color: #03a9f4;
+  }
+</style>
+</head>
+<body>
+<div id="shots"></div>
+
+<script type="module">
+// Purpose-built page for the README images: English only, one card per
+// captured element, fixed widths so the screenshots stay comparable.
+// tools/capture_screenshots.py drives this with Playwright.
+//
+// Kept separate from index.html on purpose - that one is a scratchpad for
+// eyeballing edge cases and changes shape constantly, which would make
+// the README images churn with it.
+
+const FRONTEND = "../../custom_components/hamster_fitness/frontend";
+const BUST = `?t=${Date.now()}`;
+
+await import(`${FRONTEND}/hamster-fitness-card.js${BUST}`);
+await import(`${FRONTEND}/hamster-day-night-card.js${BUST}`);
+await import(`${FRONTEND}/hamster-chronicle-card.js${BUST}`);
+await import(`${FRONTEND}/hamster-weight-card.js${BUST}`);
+
+const LANG = "en";
+const out = document.getElementById("shots");
+
+function shot(id, wide = false) {
+  const div = document.createElement("div");
+  div.id = id;
+  div.className = "shot" + (wide ? " shot-wide" : "");
+  out.appendChild(div);
+  return div;
+}
+
+function makeCard(tag, config, hass) {
+  const card = document.createElement(tag);
+  card.setConfig(config);
+  card.hass = hass;
+  return card;
+}
+
+const HEALTH = "sensor.hamster_taco_health_score";
+
+function baseHass({ night, active, speed, lightOn, coat = "#D48C46" }) {
+  return {
+    language: LANG,
+    states: {
+      "sun.sun": {
+        state: night ? "below_horizon" : "above_horizon",
+        attributes: { elevation: night ? -20 : 42 },
+      },
+      "sensor.hamster_taco_active_duration": { state: active ? "75" : "0", attributes: {} },
+      "sensor.hamster_taco_rest_duration": { state: active ? "0" : "490", attributes: {} },
+      "sensor.hamster_taco_current_speed": { state: String(speed), attributes: {} },
+      "sensor.hamster_taco_night_distance": { state: "2.84", attributes: {} },
+      "sensor.hamster_taco_humidity": { state: "52", attributes: {} },
+      "binary_sensor.hamster_taco_cage_door": { state: "off", attributes: {} },
+      "switch.hamster_taco_light_automation": {
+        state: "on",
+        attributes: { pause_active: false, paused_until: null, light_entity: "light.cage" },
+      },
+      "light.cage": { state: lightOn ? "on" : "off", attributes: {} },
+      [HEALTH]: {
+        state: "88",
+        attributes: {
+          temperature: 21.4,
+          coat_color_hex: coat,
+          acquisition_date: "2025-11-02",
+          temperature_entity: "sensor.cage_temperature",
+          humidity_entity: "sensor.cage_humidity",
+        },
+      },
+    },
+    entities: {
+      [HEALTH]: { device_id: "d1", translation_key: "health_score" },
+      "sensor.hamster_taco_active_duration": { device_id: "d1", translation_key: "night_active_duration" },
+      "sensor.hamster_taco_rest_duration": { device_id: "d1", translation_key: "day_rest_duration" },
+      "sensor.hamster_taco_current_speed": { device_id: "d1", translation_key: "current_speed" },
+      "sensor.hamster_taco_night_distance": { device_id: "d1", translation_key: "night_distance" },
+      "sensor.hamster_taco_humidity": { device_id: "d1", translation_key: "humidity" },
+      "binary_sensor.hamster_taco_cage_door": { device_id: "d1", translation_key: "door" },
+      "switch.hamster_taco_light_automation": { device_id: "d1", translation_key: "light_automation" },
+    },
+    devices: { d1: { name: "Hamster Taco" } },
+    callService: () => {},
+  };
+}
+
+function healthHass() {
+  const hass = baseHass({ night: true, active: true, speed: 3.4, lightOn: false });
+  hass.states[HEALTH] = {
+    state: "88",
+    attributes: {
+      temperature: 21.4,
+      humidity: 52,
+      coat_color_hex: "#D48C46",
+      acquisition_date: "2025-11-02",
+      night_distance_km: 6.1,
+      last_completed_night_km: 5.4,
+      score_history: [
+        { date: "2026-07-31", score: 74 },
+        { date: "2026-08-01", score: 81 },
+        { date: "2026-08-02", score: 92 },
+        { date: "2026-08-03", score: 88 },
+        { date: "2026-08-04", score: 70 },
+        { date: "2026-08-05", score: 85 },
+        { date: "2026-08-06", score: 88 },
+      ],
+    },
+  };
+  const pillar = (key, id, value, attributes) => {
+    hass.states[id] = { state: String(value), attributes };
+    hass.entities[id] = { device_id: "d1", translation_key: key };
+  };
+  pillar("score_activity", "sensor.hamster_taco_activity_score", 100, {
+    night_distance_km: 6.1, last_completed_night_km: 5.4,
+    ideal_distance_min_km: 5, ideal_distance_max_km: 10,
+  });
+  pillar("score_sleep", "sensor.hamster_taco_sleep_score", 80, {
+    sleep_door_openings: 1, sleep_activity_sessions: 0,
+    sleep_phase_start_hour: 10, sleep_phase_end_hour: 17,
+  });
+  pillar("score_climate", "sensor.hamster_taco_climate_score", 100, {
+    temperature: 21.4, humidity: 52,
+  });
+  pillar("score_care", "sensor.hamster_taco_care_score", 92, {
+    hours_door_closed: 14, door_open: false, neglect_threshold_hours: 48,
+  });
+  hass.states["binary_sensor.hamster_taco_warning"] = { state: "off", attributes: {} };
+  hass.entities["binary_sensor.hamster_taco_warning"] = { device_id: "d1", translation_key: "warning" };
+  return hass;
+}
+
+function chronicleHass() {
+  const states = {}, entities = {}, devices = {};
+  const add = (slug, name, coat, acquired, departed, km, speed, score, breed) => {
+    const dev = `dev_${slug}`;
+    devices[dev] = { name: `Hamster ${name}` };
+    const ids = {
+      lifetime_distance: `sensor.hamster_${slug}_lifetime_distance`,
+      health_score: `sensor.hamster_${slug}_health_score`,
+      departure_date: `date.hamster_${slug}_departure_date`,
+      max_speed_tonight: `sensor.hamster_${slug}_max_speed_tonight`,
+    };
+    for (const [key, id] of Object.entries(ids)) {
+      entities[id] = { device_id: dev, platform: "hamster_fitness", translation_key: key };
+    }
+    states[ids.lifetime_distance] = { state: String(km), attributes: {} };
+    states[ids.health_score] = { state: String(score), attributes: {
+      coat_color_hex: coat, acquisition_date: acquired, breed } };
+    states[ids.departure_date] = { state: departed || "unknown", attributes: {} };
+    states[ids.max_speed_tonight] = { state: String(speed), attributes: {} };
+  };
+  add("taco", "Taco", "#D48C46", "2025-11-02", null, 184.3, 7.4, 88, "golden");
+  add("nala", "Nala", "#8A929A", "2024-03-15", "2026-02-20", 402.9, 9.1, 71, "winter_white");
+  return {
+    language: LANG, states, entities, devices,
+    callWS: async () => ({ hamsters: [
+      { name: "Mochi", breed: "roborovski", coat_color_hex: "#E8D3A7",
+        acquisition_date: "2021-06-01", departure_date: "2023-09-12",
+        lifetime_distance_km: 611.4, lifetime_max_speed_kmh: 8.2,
+        final_health_score: 84, days_with_you: 833 },
+    ] }),
+  };
+}
+
+function weightHass(grams, breed) {
+  const classes = {
+    golden: { underweight: 85, normal_min: 100, normal_max: 160, overweight: 170, dial_max: 250 },
+    roborovski: { underweight: 15, normal_min: 18, normal_max: 28, overweight: 32, dial_max: 50 },
+  }[breed];
+  const hass = baseHass({ night: false, active: false, speed: 0, lightOn: false });
+  Object.assign(hass.states[HEALTH].attributes, {
+    weight_underweight_g: classes.underweight,
+    weight_normal_min_g: classes.normal_min,
+    weight_normal_max_g: classes.normal_max,
+    weight_overweight_g: classes.overweight,
+    weight_dial_max_g: classes.dial_max,
+    weight_status:
+      grams < classes.normal_min ? "underweight"
+      : grams > classes.normal_max ? "overweight" : "normal",
+  });
+  const id = "number.hamster_taco_weight";
+  hass.states[id] = {
+    state: String(grams),
+    attributes: {
+      min: 0, max: 250, step: 1,
+      last_weighed_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    },
+  };
+  hass.entities[id] = { device_id: "d1", translation_key: "weight" };
+  return hass;
+}
+
+// --- The shots the README embeds ------------------------------------
+
+shot("shot-health").appendChild(
+  makeCard("hamster-fitness-card", { entity: HEALTH }, healthHass()));
+
+shot("shot-day-night").appendChild(
+  makeCard("hamster-day-night-card", { entity: HEALTH },
+    baseHass({ night: true, active: true, speed: 4.2, lightOn: true })));
+
+shot("shot-day-night-rest").appendChild(
+  makeCard("hamster-day-night-card", { entity: HEALTH },
+    baseHass({ night: false, active: false, speed: 0, lightOn: false })));
+
+shot("shot-chronicle", true).appendChild(
+  makeCard("hamster-chronicle-card",
+    { columns: ["distance", "top_speed", "days"] }, chronicleHass()));
+
+shot("shot-ranking", true).appendChild(
+  makeCard("hamster-fitness-ranking-card", {}, chronicleHass()));
+
+shot("shot-weight").appendChild(
+  makeCard("hamster-weight-card", { entity: HEALTH }, weightHass(130, "golden")));
+
+shot("shot-weight-robo").appendChild(
+  makeCard("hamster-weight-card", { entity: HEALTH }, weightHass(22, "roborovski")));
+
+// The pillar detail modal - a submenu worth showing, since it is what
+// makes the score explain itself rather than just report a number.
+const modalHost = shot("shot-health-modal");
+const modalCard = makeCard("hamster-fitness-card", { entity: HEALTH }, healthHass());
+modalHost.appendChild(modalCard);
+modalCard._openModal("sleep");
+
+// Signals to Playwright that every card has rendered.
+document.body.dataset.ready = "1";
+</script>
+</body>
+</html>

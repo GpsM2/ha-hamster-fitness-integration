@@ -169,6 +169,36 @@ def test_german_table_has_no_orphans() -> None:
     assert not orphans, f"German-only keys, likely typos: {orphans}"
 
 
+def test_style_blocks_contain_no_stray_backtick() -> None:
+    """A backtick inside the CSS ends the template literal early.
+
+    Each card keeps its stylesheet in a `styles = ` template literal, so
+    one backtick in a comment - writing `meet` for emphasis, say -
+    terminates the string mid-CSS and turns the rest into JavaScript.
+    The file then fails to parse, which means the card never registers
+    and, because the shared module is imported first, it can take its
+    siblings down with it.
+
+    Cheap to typo, invisible on review, fatal at runtime.
+    """
+    for path in _card_files():
+        source = path.read_text(encoding="utf-8")
+        marker = ".styles = `"
+        start = source.find(marker)
+        if start == -1:
+            continue
+        body = source[start + len(marker) :]
+        end = body.find("`")
+        assert end != -1, f"{path.name}: unterminated styles template literal"
+        # Everything up to the first backtick is the stylesheet; a stray
+        # one would make that block end before the CSS actually does.
+        css = body[:end]
+        assert "{" in css and "}" in css, (
+            f"{path.name}: the styles literal ends after {len(css)} chars, "
+            "before any CSS rule - there is a stray backtick inside it"
+        )
+
+
 def test_no_card_stretches_an_svg_non_uniformly() -> None:
     """`preserveAspectRatio="none"` turns circles into eggs.
 
