@@ -32,6 +32,7 @@
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
           "light_entity": "Käfigbeleuchtung (optional)",
+          "illuminance_sensor": "Helligkeitssensor (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -42,6 +43,7 @@
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
+          "illuminance_sensor": "Ein Lichtsensor (device_class: illuminance) am tatsächlichen Standort des Käfigs. Wenn gesetzt, nutzt die Day-&-Night-Karte diesen Wert für Tag/Nacht statt des Sonnenstands - praktisch hinter Vorhängen, im Keller oder unter einer Abdeckung. Leer lassen, um weiter den Sonnenstand zu nutzen.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       },
@@ -76,6 +78,7 @@
           "humidity_sensor": "Luftfeuchtigkeitssensor (optional)",
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
           "light_entity": "Käfigbeleuchtung (optional)",
+          "illuminance_sensor": "Helligkeitssensor (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -86,6 +89,7 @@
           "humidity_sensor": "Ein Luftfeuchtigkeitssensor (device_class: humidity) in der Nähe des Käfigs. Leer lassen, falls nicht vorhanden - dann wird keine Feuchtigkeits-Entity angelegt.",
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
+          "illuminance_sensor": "Ein Lichtsensor (device_class: illuminance) am tatsächlichen Standort des Käfigs. Wenn gesetzt, nutzt die Day-&-Night-Karte diesen Wert für Tag/Nacht statt des Sonnenstands - praktisch hinter Vorhängen, im Keller oder unter einer Abdeckung. Leer lassen, um weiter den Sonnenstand zu nutzen.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       }

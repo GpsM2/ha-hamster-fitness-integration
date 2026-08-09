@@ -32,6 +32,7 @@
           "humidity_sensor": "Humidity sensor (optional)",
           "speed_sensor": "Current-speed sensor (optional)",
           "light_entity": "Cage light (optional)",
+          "illuminance_sensor": "Ambient light sensor (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -42,6 +43,7 @@
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
           "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
+          "illuminance_sensor": "A light sensor (device_class: illuminance) placed where your hamster actually lives. When set, the Day & Night card uses its reading for day/night instead of the sun's position - useful behind curtains, in a basement, or under a cover. Leave empty to keep using the sun.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       },
@@ -76,6 +78,7 @@
           "humidity_sensor": "Humidity sensor (optional)",
           "speed_sensor": "Current-speed sensor (optional)",
           "light_entity": "Cage light (optional)",
+          "illuminance_sensor": "Ambient light sensor (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -86,6 +89,7 @@
           "humidity_sensor": "A humidity sensor (device_class: humidity) placed near the cage. Leave empty if you don't have one - no humidity entity will be created.",
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
           "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
+          "illuminance_sensor": "A light sensor (device_class: illuminance) placed where your hamster actually lives. When set, the Day & Night card uses its reading for day/night instead of the sun's position - useful behind curtains, in a basement, or under a cover. Leave empty to keep using the sun.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       }

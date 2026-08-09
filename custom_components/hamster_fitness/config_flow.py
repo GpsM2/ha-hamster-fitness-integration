@@ -42,6 +42,7 @@ from .const import (
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
     CONF_HUMIDITY_SENSOR,
+    CONF_ILLUMINANCE_SENSOR,
     CONF_LIGHT_ENTITY,
     CONF_NOTIFY_SERVICES,
     CONF_SPEED_SENSOR,
@@ -208,6 +209,17 @@ def _sensors_schema() -> vol.Schema:
             # Übergang/Ausschalt-Verhalten stehen im Expertenmenü.
             vol.Optional(CONF_LIGHT_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain=Platform.LIGHT, multiple=False)
+            ),
+            # Optional: ohne diese Entity bleibt die Day-&-Night-Karte bei
+            # sun.sun für Tag/Nacht (siehe coordinator.py). Ein echter
+            # Helligkeitssensor im Zimmer trifft es besser als der
+            # Sonnenstand, sobald Vorhänge, Keller o. Ä. im Spiel sind.
+            vol.Optional(CONF_ILLUMINANCE_SENSOR): EntitySelector(
+                EntitySelectorConfig(
+                    domain=Platform.SENSOR,
+                    device_class="illuminance",
+                    multiple=False,
+                )
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die
