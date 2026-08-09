@@ -119,7 +119,9 @@
           "daily_summary_enabled": "Send daily summary",
           "notification_time": "Daily summary time",
           "weight_reminder_enabled": "Remind me to weigh the hamster",
-          "weight_reminder_days": "Weigh-in interval"
+          "weight_reminder_days": "Weigh-in interval",
+          "heat_forecast_enabled": "Heat care reminder",
+          "heat_forecast_threshold_c": "Heat reminder threshold"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
@@ -129,7 +131,9 @@
           "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
           "notification_time": "Local time at which the daily summary is sent.",
           "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
-          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent."
+          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
+          "heat_forecast_enabled": "Sends a morning reminder when the day's forecast high reaches the threshold below - shade the cage, keep the room cool, refill the water more often. Needs a weather entity picked during setup; without one this does nothing.",
+          "heat_forecast_threshold_c": "Forecast OUTDOOR high that triggers the reminder - not the cage temperature. The two don't map onto each other: air conditioning, a basement, or a north-facing room all change how much of the outside heat reaches the cage."
         },
         "sections": {
           "light_settings": {
@@ -255,7 +259,8 @@
       "less_than_yesterday": "That's {delta} m less than yesterday.",
       "same_as_yesterday": "That's the same as yesterday.",
       "weight_reminder": "It's been {days} days since the last weigh-in.",
-      "weight_reminder_never": "No weight recorded yet - time for a first weigh-in?"
+      "weight_reminder_never": "No weight recorded yet - time for a first weigh-in?",
+      "heat_forecast": "Up to {temperature} °C forecast today. Give the cage shade, keep the room cool during the day, and refill the water more often so it doesn't spoil in the heat."
     }
   },
   "services": {

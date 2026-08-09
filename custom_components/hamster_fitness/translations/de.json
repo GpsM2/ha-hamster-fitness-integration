@@ -119,7 +119,9 @@
           "daily_summary_enabled": "Tageszusammenfassung senden",
           "notification_time": "Uhrzeit der Tageszusammenfassung",
           "weight_reminder_enabled": "Ans Wiegen erinnern",
-          "weight_reminder_days": "Wiege-Intervall"
+          "weight_reminder_days": "Wiege-Intervall",
+          "heat_forecast_enabled": "Hitze-Erinnerung",
+          "heat_forecast_threshold_c": "Schwellwert der Hitze-Erinnerung"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
@@ -129,7 +131,9 @@
           "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
           "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
           "weight_reminder_enabled": "Meldet sich nur, wenn das Wiegen wirklich überfällig ist - wer regelmäßig einen neuen Wert einträgt, bekommt diese Erinnerung nie. Versand zur oben eingestellten Uhrzeit der Tageszusammenfassung.",
-          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird."
+          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird.",
+          "heat_forecast_enabled": "Schickt morgens eine Erinnerung, wenn die vorhergesagte Tageshöchsttemperatur den Schwellwert unten erreicht - Schatten für den Käfig, Raum tagsüber kühl halten, Wasser öfter nachfüllen. Setzt eine bei der Einrichtung gewählte Wetter-Entity voraus; ohne die passiert nichts.",
+          "heat_forecast_threshold_c": "Vorhergesagte AUSSEN-Höchsttemperatur, ab der erinnert wird - nicht die Käfigtemperatur. Beide hängen nicht 1:1 zusammen: Klimaanlage, Keller oder Nordseite ändern, wie viel der Außenhitze am Käfig ankommt."
         },
         "sections": {
           "light_settings": {
@@ -255,7 +259,8 @@
       "less_than_yesterday": "Das sind {delta} m weniger als gestern.",
       "same_as_yesterday": "Das ist genauso viel wie gestern.",
       "weight_reminder": "Seit {days} Tagen wurde nicht mehr gewogen.",
-      "weight_reminder_never": "Noch kein Gewicht eingetragen - Zeit fürs erste Wiegen?"
+      "weight_reminder_never": "Noch kein Gewicht eingetragen - Zeit fürs erste Wiegen?",
+      "heat_forecast": "Heute bis zu {temperature} °C vorhergesagt. Sorge für Schatten am Käfig, halte den Raum tagsüber kühl und fülle das Wasser öfter nach, damit es in der Hitze nicht schlecht wird."
     }
   },
   "services": {

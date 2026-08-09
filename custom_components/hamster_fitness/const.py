@@ -72,6 +72,9 @@ CONF_LIGHT_ENTITY: Final = "light_entity"
 # Optional - ohne diese Entity nutzt die Day-&-Night-Karte weiterhin
 # sun.sun für Tag/Nacht, siehe coordinator.py's _read_ambient_light().
 CONF_ILLUMINANCE_SENSOR: Final = "illuminance_sensor"
+# Optional - Wetter-Entity für die Hitze-Erinnerung (notify.py) und das
+# Wetter-Overlay der Day-&-Night-Karte. Ohne bleibt beides inaktiv.
+CONF_WEATHER_ENTITY: Final = "weather_entity"
 # Optional - eine number-Entity (typischerweise auf einem ESPHome-Gerät),
 # an die CONF_WHEEL_DIAMETER bei jedem Setup/Reconfigure automatisch
 # übertragen wird, siehe __init__.py's _async_sync_wheel_diameter(). Ohne
@@ -104,6 +107,9 @@ OPTION_DAILY_SUMMARY_ENABLED: Final = "daily_summary_enabled"
 OPTION_NOTIFICATION_TIME: Final = "notification_time"
 OPTION_WEIGHT_REMINDER_ENABLED: Final = "weight_reminder_enabled"
 OPTION_WEIGHT_REMINDER_DAYS: Final = "weight_reminder_days"
+# Nur wirksam, wenn CONF_WEATHER_ENTITY gesetzt ist, siehe notify.py.
+OPTION_HEAT_FORECAST_ENABLED: Final = "heat_forecast_enabled"
+OPTION_HEAT_FORECAST_THRESHOLD_C: Final = "heat_forecast_threshold_c"
 # Nur wirksam, wenn CONF_LIGHT_ENTITY gesetzt ist, siehe door_light.py.
 # Die vier Felder werden im Options-Flow als eingeklappte Section
 # LIGHT_SECTION gruppiert - gespeichert werden sie aber flach wie alle
@@ -125,6 +131,18 @@ DEFAULT_WEIGHT_REMINDER_ENABLED: Final = False
 DEFAULT_WEIGHT_REMINDER_DAYS: Final[int] = 7
 MIN_WEIGHT_REMINDER_DAYS: Final[int] = 1
 MAX_WEIGHT_REMINDER_DAYS: Final[int] = 90
+DEFAULT_HEAT_FORECAST_ENABLED: Final = False
+# Bewusst NICHT von OPTION_IDEAL_TEMP_MAX abgeleitet: das ist die
+# Käfig-Innentemperatur, hier geht es um die Außen-Tageshöchsttemperatur.
+# Beide hängen nicht 1:1 zusammen - Klimaanlage, Nord-/Südseite, Keller.
+DEFAULT_HEAT_FORECAST_THRESHOLD_C: Final[float] = 28.0
+MIN_HEAT_FORECAST_THRESHOLD_C: Final[float] = 15.0
+MAX_HEAT_FORECAST_THRESHOLD_C: Final[float] = 45.0
+# Nach einer verschickten Hitze-Erinnerung so lange Ruhe geben. Eine
+# Hitzewelle dauert typischerweise mehrere Tage; die Tipps sind nach dem
+# ersten Morgen bekannt, und täglich dieselbe Meldung trainiert nur an,
+# sie wegzuwischen.
+HEAT_REMINDER_COOLDOWN_HOURS: Final[int] = 48
 DEFAULT_LIGHT_BRIGHTNESS_PCT: Final[int] = 100
 DEFAULT_LIGHT_TRANSITION_S: Final[float] = 0.0
 DEFAULT_LIGHT_TURN_OFF_ENABLED: Final = True
@@ -198,6 +216,11 @@ STORAGE_VERSION: Final[int] = 1
 # --- Benachrichtigungen ---
 NOTIFY_DOMAIN: Final = "notify"
 NOTIFY_SERVICE_SEND_MESSAGE: Final = "send_message"
+# Die Vorhersage kommt über den Service, nicht über ein State-Attribut:
+# das alte `forecast`-Attribut gibt es in aktuellen HA-Versionen nicht
+# mehr.
+WEATHER_DOMAIN: Final = "weather"
+WEATHER_SERVICE_GET_FORECASTS: Final = "get_forecasts"
 # Abklingzeit, bevor derselbe Warngrund erneut gesendet werden darf.
 WARNING_NOTIFICATION_COOLDOWN_HOURS: Final[float] = 4.0
 

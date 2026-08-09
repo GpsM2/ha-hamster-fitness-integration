@@ -47,12 +47,15 @@ from .const import (
     CONF_NOTIFY_SERVICES,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
+    CONF_WEATHER_ENTITY,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_DIAMETER_SYNC_ENTITY,
     CONF_WHEEL_SENSOR,
     DEFAULT_BREED,
     DEFAULT_COAT_COLOR,
     DEFAULT_DAILY_SUMMARY_ENABLED,
+    DEFAULT_HEAT_FORECAST_ENABLED,
+    DEFAULT_HEAT_FORECAST_THRESHOLD_C,
     DEFAULT_IDEAL_TEMP_MAX,
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_LIGHT_BRIGHTNESS_PCT,
@@ -68,11 +71,15 @@ from .const import (
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
     LIGHT_SECTION,
+    MAX_HEAT_FORECAST_THRESHOLD_C,
     MAX_WEIGHT_REMINDER_DAYS,
     MAX_WHEEL_DIAMETER_CM,
+    MIN_HEAT_FORECAST_THRESHOLD_C,
     MIN_WEIGHT_REMINDER_DAYS,
     MIN_WHEEL_DIAMETER_CM,
     OPTION_DAILY_SUMMARY_ENABLED,
+    OPTION_HEAT_FORECAST_ENABLED,
+    OPTION_HEAT_FORECAST_THRESHOLD_C,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
     OPTION_LIGHT_BRIGHTNESS_PCT,
@@ -220,6 +227,12 @@ def _sensors_schema() -> vol.Schema:
                     device_class="illuminance",
                     multiple=False,
                 )
+            ),
+            # Optional: Grundlage für die Hitze-Erinnerung (notify.py) und
+            # später das Wetter-Overlay der Day-&-Night-Karte. Ohne diese
+            # Entity bleibt beides inaktiv.
+            vol.Optional(CONF_WEATHER_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=Platform.WEATHER, multiple=False)
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die
@@ -465,6 +478,30 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                     max=MAX_WEIGHT_REMINDER_DAYS,
                     step=1,
                     unit_of_measurement="d",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            # Greift nur, wenn CONF_WEATHER_ENTITY gesetzt ist (siehe
+            # notify.py). Der Schwellwert meint die vorhergesagte
+            # Außen-Tageshöchsttemperatur, nicht die Käfigtemperatur.
+            vol.Required(
+                OPTION_HEAT_FORECAST_ENABLED,
+                default=current.get(
+                    OPTION_HEAT_FORECAST_ENABLED, DEFAULT_HEAT_FORECAST_ENABLED
+                ),
+            ): BooleanSelector(),
+            vol.Required(
+                OPTION_HEAT_FORECAST_THRESHOLD_C,
+                default=current.get(
+                    OPTION_HEAT_FORECAST_THRESHOLD_C,
+                    DEFAULT_HEAT_FORECAST_THRESHOLD_C,
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=MIN_HEAT_FORECAST_THRESHOLD_C,
+                    max=MAX_HEAT_FORECAST_THRESHOLD_C,
+                    step=0.5,
+                    unit_of_measurement="°C",
                     mode=NumberSelectorMode.BOX,
                 )
             ),
