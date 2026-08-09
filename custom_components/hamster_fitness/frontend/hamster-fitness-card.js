@@ -57,7 +57,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=9";
+} from "./hamster-fitness-shared.js?v=10";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -633,18 +633,37 @@ class HamsterFitnessCard extends HTMLElement {
    * a middling score with no acute warning is not "all good", and saying
    * so under an amber badge would just read as contradictory.
    */
+  /**
+   * The "all good" line, naming a distance the wording actually matches.
+   *
+   * This used to show max(night_distance_km, last_completed_night_km)
+   * under a single "last full night" label - but those are two different
+   * nights, and the larger one is not reliably either. Early in a new
+   * night the max is still last night's total, so the card claimed the
+   * night before's distance as the current one; later it flips to
+   * tonight's while still calling it "last full night". Whichever way it
+   * fell, the label was wrong half the time.
+   *
+   * The score itself legitimately uses that max (see
+   * _effective_distance_km in coordinator.py - it stops the score
+   * collapsing every evening when the counter restarts at zero). A
+   * sentence read by a human needs the honest version instead: say which
+   * night, and show that night's number.
+   */
   _positiveInsight(attrs, score) {
     if (score !== null && score < GOOD_SCORE_THRESHOLD) {
       return t(this._hass, "health.insightMiddling");
     }
-    const night = Number(
-      attrs.night_distance_km >= attrs.last_completed_night_km
-        ? attrs.night_distance_km
-        : attrs.last_completed_night_km
-    );
-    if (!Number.isNaN(night) && night > 0) {
+    const tonight = Number(attrs.night_distance_km);
+    if (!Number.isNaN(tonight) && tonight > 0) {
+      return t(this._hass, "health.insightGoodTonight", {
+        distance: this._fmt(tonight, 2, "km"),
+      });
+    }
+    const lastNight = Number(attrs.last_completed_night_km);
+    if (!Number.isNaN(lastNight) && lastNight > 0) {
       return t(this._hass, "health.insightGood", {
-        distance: this._fmt(night, 2, "km"),
+        distance: this._fmt(lastNight, 2, "km"),
       });
     }
     return t(this._hass, "health.insightGoodPlain");
