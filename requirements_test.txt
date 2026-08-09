@@ -3,3 +3,13 @@
 pytest-homeassistant-custom-component
 ruff
 mypy
+
+# manifest.json declares "frontend" as a dependency, so every config-entry
+# setup in the test suite pulls in Home Assistant's frontend component,
+# which imports this at runtime. It is not a hard dependency of
+# `homeassistant` itself (headless setups don't need it), so pip only
+# installs it if something asks for it by name - nothing did, which is
+# why a from-scratch install (a fresh clone, or CI) failed 76 of 120
+# tests with "ModuleNotFoundError: No module named 'hass_frontend'" while
+# a long-lived local venv, where it arrived some other way, stayed green.
+home-assistant-frontend
