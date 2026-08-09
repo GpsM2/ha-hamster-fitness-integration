@@ -111,7 +111,7 @@ def test_card_versions_are_unique_per_file() -> None:
 SHARED_PATH = FRONTEND_DIR / SHARED_MODULE
 # Only these namespaces are translation keys; anything else with a dot in
 # it (file names, CSS, entity ids) must not be mistaken for one.
-KEY_NAMESPACES = "common|dayNight|health|pillar|ranking|chronicle|breed|weight"
+KEY_NAMESPACES = "common|dayNight|health|pillar|ranking|chronicle|breed|weight|coatColor"
 # Dots are allowed beyond the namespace too - some keys nest a second
 # level, e.g. weight.status.overweight.
 KEY_LITERAL = re.compile(rf'"(({KEY_NAMESPACES})\.[A-Za-z0-9_.]+)"')
