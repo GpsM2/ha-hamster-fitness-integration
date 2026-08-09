@@ -33,6 +33,14 @@ brightness reading from just before it switched on, rather than reading
 the lit room as broad daylight. No illuminance sensor configured? The
 card falls back to `sun.sun` exactly as before — nothing to set up.
 
+**The weather** drifts over the scene when a weather entity was picked
+during setup: clouds, rain, snow, sleet, hail, fog, wind and lightning,
+with the sky dimming to match. All fifteen Home Assistant weather states
+are drawn individually rather than lumped together — `pouring` really
+does look wetter than `rainy`, and `hail` isn't snow. Clear states draw
+nothing, which is also what happens with no weather entity configured,
+or for a state a future Home Assistant version might add.
+
 **The hamster** is drawn in the coat colour from its profile, so two
 hamsters on one dashboard are told apart at a glance.
 
@@ -88,5 +96,8 @@ show_climate: false
   restarts it — with a constantly-updating speed sensor that made the
   wheel stutter. Speed changes now retime the running animation instead
   of restarting it.
-- With `prefers-reduced-motion` set, the animations are skipped.
+- With `prefers-reduced-motion` set, the animations are skipped. The
+  lightning flash is removed outright rather than paused — a full-card
+  white strobe is exactly what that setting exists to avoid, and a frozen
+  one would just sit there as a bright pane.
 - The card's text follows `hass.language` (English and German).
