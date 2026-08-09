@@ -123,6 +123,7 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
             "last_completed_night_km": data.last_completed_night_km,
             "daily_distance_km": data.daily_distance_km,
             "temperature": data.temperature,
+            "ambient_light_lx": data.ambient_light_lx,
             "hours_door_closed": data.hours_door_closed,
             "distance_penalty": data.distance_penalty,
             "temperature_penalty": data.temperature_penalty,

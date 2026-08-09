@@ -53,6 +53,8 @@ from .const import (
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
     CONF_HUMIDITY_SENSOR,
+    CONF_ILLUMINANCE_SENSOR,
+    CONF_LIGHT_ENTITY,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_DIAMETER,
@@ -143,6 +145,10 @@ class HamsterFitnessData:
     lifetime_distance_km: float = 0.0
     temperature: float | None = None
     humidity: float | None = None
+    # Room brightness for the Day & Night card - see
+    # HamsterFitnessCoordinator._read_ambient_light(). None when no
+    # illuminance sensor was configured; the card falls back to sun.sun.
+    ambient_light_lx: float | None = None
     current_speed_kmh: float | None = None
     # Höchste seit dem letzten Nachtfenster-Start (NIGHT_WINDOW_START_HOUR)
     # gesehene Geschwindigkeit. Nur in-memory nachgeführt (siehe
@@ -228,6 +234,17 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # Optional - None, wenn beim Einrichten nicht ausgewählt.
         self._humidity_sensor: str | None = entry.data.get(CONF_HUMIDITY_SENSOR)
         self._speed_sensor: str | None = entry.data.get(CONF_SPEED_SENSOR)
+        self._illuminance_sensor: str | None = entry.data.get(CONF_ILLUMINANCE_SENSOR)
+        # Nur zum Auslesen des An/Aus-Zustands für _read_ambient_light() -
+        # das eigentliche Schalten übernimmt door_light.py.
+        self._light_entity: str | None = entry.data.get(CONF_LIGHT_ENTITY)
+        # Letzter Helligkeitswert von VOR dem Einschalten des Käfiglichts.
+        # Bewusst nicht persistiert (wie _max_speed_tonight_kmh) - ein
+        # Neustart ausgerechnet während das Licht an ist, zeigt bis zum
+        # nächsten Ausschalten kurzzeitig einen leicht veralteten Wert.
+        # Rein kosmetisch (beeinflusst nur den Kartenhintergrund, nicht den
+        # Health Score), das Risiko ist also vernachlässigbar.
+        self._last_ambient_light_lx: float | None = None
 
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}_{entry.entry_id}_baseline"
@@ -323,6 +340,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             tracked_entities.append(self._humidity_sensor)
         if self._speed_sensor:
             tracked_entities.append(self._speed_sensor)
+        if self._illuminance_sensor:
+            tracked_entities.append(self._illuminance_sensor)
+        if self._light_entity:
+            # Not for the light's own sake - so the Day & Night card's
+            # background updates immediately when the light flips, rather
+            # than waiting for some unrelated sensor event to trigger the
+            # next recalculation.
+            tracked_entities.append(self._light_entity)
         entry.async_on_unload(
             async_track_state_change_event(
                 self.hass,
@@ -709,6 +734,36 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             return False
         return self._light_pause_until is None
 
+    def _read_ambient_light(self) -> float | None:
+        """Room brightness for the Day & Night card, or None to use sun.sun.
+
+        None both when no illuminance sensor was configured (the card's
+        own fallback) and when one was configured but its state isn't a
+        usable number yet (e.g. still "unavailable" right after a
+        restart) - in the latter case there is no last-known reading to
+        fall back to either the first time this runs.
+
+        While the cage light is on, the sensor would otherwise report
+        "bright" regardless of the actual time of day, and the card would
+        flip to a daytime scene in the middle of the night. So the last
+        reading from before the light turned on is held for as long as it
+        stays on, and only a reading taken with the light off ever
+        updates it.
+        """
+        if not self._illuminance_sensor:
+            return None
+
+        light_state = self.hass.states.get(self._light_entity) if self._light_entity else None
+        light_on = light_state is not None and light_state.state == "on"
+
+        if not light_on:
+            state = self.hass.states.get(self._illuminance_sensor)
+            current = _as_float(state.state) if state else None
+            if current is not None:
+                self._last_ambient_light_lx = current
+
+        return self._last_ambient_light_lx
+
     async def async_set_light_automation_enabled(self, enabled: bool) -> None:
         """Turn the cage-light automation on or off for good."""
         self._light_automation_enabled = enabled
@@ -1020,6 +1075,8 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             humidity_state = self.hass.states.get(self._humidity_sensor)
             humidity = _as_float(humidity_state.state) if humidity_state else None
 
+        ambient_light_lx = self._read_ambient_light()
+
         current_speed_kmh: float | None = None
         if self._speed_sensor:
             speed_state = self.hass.states.get(self._speed_sensor)
@@ -1157,6 +1214,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             lifetime_distance_km=round(lifetime_distance_km, 3),
             temperature=temperature,
             humidity=humidity,
+            ambient_light_lx=ambient_light_lx,
             current_speed_kmh=current_speed_kmh,
             max_speed_tonight_kmh=(
                 round(self._max_speed_tonight_kmh, 1)

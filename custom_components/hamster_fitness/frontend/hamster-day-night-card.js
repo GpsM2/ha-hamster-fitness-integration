@@ -64,6 +64,18 @@ const DAY_GRADIENT_HORIZON = ["#F4A261", "#E9C46A"];
 const DAY_GRADIENT_MIDDAY = ["#4EA8DE", "#90E0EF"];
 const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
 
+// Ambient-light thresholds, only used once an illuminance sensor is
+// configured (coordinator.py's ambient_light_lx attribute; None means
+// "keep using sun.sun", the card's existing behaviour). At/below
+// AMBIENT_NIGHT_LX counts as night; at/above AMBIENT_DAY_LX the gradient
+// is fully "day". Deliberately a plain two-stop fade straight to
+// DAY_GRADIENT_MIDDAY, not a three-stop one through DAY_GRADIENT_HORIZON
+// like the sun-elevation path: lux says how bright the room is, not
+// where the sun sits, so there is no honest "just past the horizon" hue
+// to interpolate through.
+const AMBIENT_NIGHT_LX = 5;
+const AMBIENT_DAY_LX = 150;
+
 const STATUS_ONLINE = { key: "common.online", color: "#06D6A0" };
 const STATUS_OFFLINE = { key: "common.offline", color: "#EF476F" };
 const STATUS_UNAVAILABLE = { key: "common.unavailable", color: "#8D99AE" };
@@ -307,7 +319,31 @@ class HamsterDayNightCard extends HTMLElement {
     return this._hass.states[this._entityId(key)];
   }
 
-  _backgroundGradient() {
+  /**
+   * The room's actual brightness when an illuminance sensor is
+   * configured (see coordinator.py's ambient_light_lx), or null to fall
+   * back to sun.sun. null both when nothing was configured and when a
+   * sensor was configured but has no usable reading yet - either way
+   * there is nothing better than the sun to go on.
+   */
+  _ambientLightLx(healthScore) {
+    const raw = healthScore.attributes.ambient_light_lx;
+    if (raw === null || raw === undefined) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  _backgroundGradient(ambientLx) {
+    if (ambientLx !== null) {
+      const t = Math.min(
+        1,
+        Math.max(0, (ambientLx - AMBIENT_NIGHT_LX) / (AMBIENT_DAY_LX - AMBIENT_NIGHT_LX))
+      );
+      const from = lerpColor(NIGHT_GRADIENT[0], DAY_GRADIENT_MIDDAY[0], t);
+      const to = lerpColor(NIGHT_GRADIENT[1], DAY_GRADIENT_MIDDAY[1], t);
+      return `linear-gradient(180deg, ${from}, ${to})`;
+    }
+
     const sun = this._hass.states["sun.sun"];
     if (!sun || sun.state === "below_horizon") {
       return `linear-gradient(180deg, ${NIGHT_GRADIENT[0]}, ${NIGHT_GRADIENT[1]})`;
@@ -321,7 +357,8 @@ class HamsterDayNightCard extends HTMLElement {
     return `linear-gradient(180deg, ${from}, ${to})`;
   }
 
-  _isNight() {
+  _isNight(ambientLx) {
+    if (ambientLx !== null) return ambientLx <= AMBIENT_NIGHT_LX;
     const sun = this._hass.states["sun.sun"];
     return !sun || sun.state === "below_horizon";
   }
@@ -592,7 +629,8 @@ class HamsterDayNightCard extends HTMLElement {
     // hamsters on one dashboard don't look like the same animal.
     applyFur(this._root, coatColor(healthScore));
 
-    this._skyEl.style.background = this._backgroundGradient();
+    const ambientLx = this._ambientLightLx(healthScore);
+    this._skyEl.style.background = this._backgroundGradient(ambientLx);
 
     const title =
       this._config.title ||
@@ -611,7 +649,7 @@ class HamsterDayNightCard extends HTMLElement {
     // Sky decoration and scene are only rebuilt when they actually change
     // mode - rebuilding them every update is what used to restart the
     // wheel animation mid-spin.
-    const decorMode = this._isNight() ? "night" : "day";
+    const decorMode = this._isNight(ambientLx) ? "night" : "day";
     if (decorMode !== this._decorMode) {
       this._decorEl.innerHTML =
         decorMode === "night" ? this._moonSvg() : this._sunSvg();
