@@ -73,7 +73,7 @@ function makeCard(tag, config, hass) {
 
 const HEALTH = "sensor.hamster_taco_health_score";
 
-function baseHass({ night, active, speed, lightOn, coat = "#D48C46" }) {
+function baseHass({ night, active, speed, lightOn, coat = "#D48C46", weather = null }) {
   return {
     language: LANG,
     states: {
@@ -100,8 +100,11 @@ function baseHass({ night, active, speed, lightOn, coat = "#D48C46" }) {
           acquisition_date: "2025-11-02",
           temperature_entity: "sensor.cage_temperature",
           humidity_entity: "sensor.cage_humidity",
+          weather_entity: weather ? "weather.home" : null,
+          night_avg_speed_kmh: 3.1,
         },
       },
+      ...(weather ? { "weather.home": { state: weather, attributes: {} } } : {}),
     },
     entities: {
       [HEALTH]: { device_id: "d1", translation_key: "health_score" },
@@ -236,6 +239,11 @@ shot("shot-day-night").appendChild(
 shot("shot-day-night-rest").appendChild(
   makeCard("hamster-day-night-card", { entity: HEALTH },
     baseHass({ night: false, active: false, speed: 0, lightOn: false })));
+
+shot("shot-day-night-weather").appendChild(
+  makeCard("hamster-day-night-card", { entity: HEALTH },
+    baseHass({ night: false, active: true, speed: 4.2, lightOn: false,
+               weather: "pouring" })));
 
 shot("shot-chronicle", true).appendChild(
   makeCard("hamster-chronicle-card",
