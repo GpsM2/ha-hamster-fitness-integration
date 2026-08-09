@@ -62,8 +62,8 @@ cards, and a cage light that switches itself on when you open the lid.
   to build the small, cheap ESPHome-based one this project was designed
   around — a few euros in parts. Any other rotation counter works too.
 - A temperature sensor and a door/lid sensor for the cage.
-- Optional: humidity sensor, speed sensor, and a cage light. Anything
-  optional is simply skipped if you don't have it.
+- Optional: humidity sensor, speed sensor, ambient light sensor, and a
+  cage light. Anything optional is simply skipped if you don't have it.
 
 ## Installation
 
@@ -96,8 +96,9 @@ Go to **Settings → Devices & Services → Add Integration** and search for
   and the wheel diameter (the number on the wheel's packaging — the same
   one you entered in the ESPHome sensor, if you built one);
 - then the sensors that feed it: wheel rotations, temperature and
-  cage/lid sensor are required, humidity, speed, cage light, the wheel
-  diameter sync target and notification targets are optional.
+  cage/lid sensor are required, humidity, speed, ambient light, cage
+  light, the wheel diameter sync target and notification targets are
+  optional.
 
 You can change all of it later without starting over — gear icon on the
 device → "Reconfigure." The **Configure** button holds the fine-tuning:

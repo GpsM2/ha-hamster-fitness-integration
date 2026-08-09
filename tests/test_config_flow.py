@@ -12,6 +12,7 @@ from custom_components.hamster_fitness.const import (
     CONF_ACQUISITION_DATE,
     CONF_DOOR_SENSOR,
     CONF_HAMSTER_NAME,
+    CONF_ILLUMINANCE_SENSOR,
     CONF_TEMPERATURE_SENSOR,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
@@ -56,6 +57,32 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["title"] == "Taco"
     assert result["data"][CONF_HAMSTER_NAME] == "Taco"
     assert result["data"][CONF_WHEEL_SENSOR] == "sensor.wheel_rotations"
+
+
+async def test_user_flow_stores_an_optional_illuminance_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Picking an ambient light sensor stores it; the base flow above
+    already covers leaving it out entirely, since none of the existing
+    fixtures set it."""
+    hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    hass.states.async_set("binary_sensor.cage_door", "off")
+    hass.states.async_set("sensor.room_illuminance", "5")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {**SENSORS_INPUT, CONF_ILLUMINANCE_SENSOR: "sensor.room_illuminance"},
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_ILLUMINANCE_SENSOR] == "sensor.room_illuminance"
 
 
 async def test_user_flow_rejects_blank_name(hass: HomeAssistant) -> None:

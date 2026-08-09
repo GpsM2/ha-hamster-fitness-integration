@@ -69,6 +69,9 @@ CONF_SPEED_SENSOR: Final = "speed_sensor"
 # Optional - ohne diese Entity bleibt die Käfigbeleuchtungs-Automatik
 # einfach inaktiv, siehe door_light.py.
 CONF_LIGHT_ENTITY: Final = "light_entity"
+# Optional - ohne diese Entity nutzt die Day-&-Night-Karte weiterhin
+# sun.sun für Tag/Nacht, siehe coordinator.py's _read_ambient_light().
+CONF_ILLUMINANCE_SENSOR: Final = "illuminance_sensor"
 # Optional - eine number-Entity (typischerweise auf einem ESPHome-Gerät),
 # an die CONF_WHEEL_DIAMETER bei jedem Setup/Reconfigure automatisch
 # übertragen wird, siehe __init__.py's _async_sync_wheel_diameter(). Ohne
