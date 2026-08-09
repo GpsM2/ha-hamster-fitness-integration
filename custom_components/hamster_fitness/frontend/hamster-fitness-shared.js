@@ -88,6 +88,8 @@ const STRINGS = {
     "health.ringScore": "Health Score",
     "health.ringSpeed": "Speed",
     "health.previewNote": "Preview with sample data",
+    "health.insightGoodTonight":
+      "All good - {distance} run so far tonight.",
     "health.insightGood":
       "All good - last full night of running: {distance}.",
     "health.insightGoodPlain": "All good - nothing out of the ordinary.",
@@ -277,8 +279,10 @@ const STRINGS = {
     "health.withYouYears": "seit {count} Jahren bei dir",
     "health.ringSpeed": "Geschwindigkeit",
     "health.previewNote": "Vorschau mit Beispieldaten",
+    "health.insightGoodTonight":
+      "Alles im grünen Bereich - heute Nacht bisher {distance} gelaufen.",
     "health.insightGood":
-      "Alles im grünen Bereich - zuletzt {distance} in einer Nacht gelaufen.",
+      "Alles im grünen Bereich - letzte volle Nacht: {distance}.",
     "health.insightGoodPlain":
       "Alles im grünen Bereich - keine Auffälligkeiten.",
     "health.insightMiddling":
