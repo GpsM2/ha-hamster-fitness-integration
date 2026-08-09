@@ -18,23 +18,40 @@ doing right now, with the readings sitting inside the picture.
 - **Resting** — the hamster curled up in its nest with drifting Zs, the
   wheel standing still in the background.
 
-**The sky** is driven separately, by `sun.sun`: a starry night with the
-moon, or a daytime gradient that shifts with the sun's elevation. The two
-layers are deliberately independent — a hamster dozing at 2 AM is drawn
-sleeping under a night sky, not sprinting just because it is dark.
+**The sky** is driven separately from the scene: a starry night with the
+moon, or a daytime gradient. The two layers are deliberately independent
+— a hamster dozing at 2 AM is drawn sleeping under a night sky, not
+sprinting just because it is dark.
+
+By default the sky follows `sun.sun`, shifting with the sun's elevation.
+If you picked an **ambient light sensor** during setup, the card uses its
+actual reading instead — closer to reality for a cage behind curtains,
+in a basement, or under a cover, where the sun's position outside says
+nothing about the light where the hamster actually lives. The cage
+light itself can't fool it: while the light is on, the card holds the
+brightness reading from just before it switched on, rather than reading
+the lit room as broad daylight. No illuminance sensor configured? The
+card falls back to `sun.sun` exactly as before — nothing to set up.
 
 **The hamster** is drawn in the coat colour from its profile, so two
 hamsters on one dashboard are told apart at a glance.
 
 **The chips** in the scene hold the live readings: how long it has been
 running or resting, current speed, distance this night, temperature and
-humidity, and the cage light.
+humidity, and the cage light. Every chip is tappable and opens that
+reading's own history.
+
+**The resting chip** carries a **lid open** badge whenever the cage is
+open while the hamster rests — the moment most likely to interrupt a
+nap, and exactly what the sleep pillar of the health score scores.
 
 **The light chip** shows whether the cage light is on, off, or its
-automation is paused, and offers a **30 Min. Pause** button — handy while
-cleaning the cage, so the light doesn't flick on and off with every lift
-of the lid. The automation re-arms itself afterwards. The chip only
-appears if you picked a cage light during setup.
+automation is paused. Tapping the chip itself **switches the light**
+directly — the label still opens the automation's own history, and a
+**30 Min. Pause** button sits alongside for cleaning the cage, so the
+light doesn't flick on and off with every lift of the lid. The
+automation re-arms itself afterwards. The chip only appears if you
+picked a cage light during setup.
 
 ## Options
 
