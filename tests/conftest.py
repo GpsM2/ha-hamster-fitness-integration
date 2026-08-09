@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_socket
+from freezegun import freeze_time
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 
@@ -58,6 +59,39 @@ if sys.platform == "win32":
         pytest_socket.socket_allow_hosts(["127.0.0.1", "::1"])
 
     pytest_socket.disable_socket = _allow_loopback_sockets
+
+
+@pytest.fixture(autouse=True)
+def fixed_clock(request: pytest.FixtureRequest) -> Generator[None]:
+    """Pin the wall clock, so the suite doesn't depend on when it runs.
+
+    The health score docks points for disturbances during the hamster's
+    main sleep phase (SLEEP_PHASE_START_HOUR..END_HOUR, 10:00-17:00
+    *local* time - see _in_sleep_phase). Starting a run session inside
+    that window counts as one. Almost every test simulates wheel
+    activity, and several then assert `health_score == 100`.
+
+    pytest-homeassistant-custom-component runs Home Assistant on
+    US/Pacific, so those assertions quietly held or failed depending on
+    the time of day the suite happened to run: green at 13:00 UTC
+    (06:00 Pacific), red at 18:00 UTC (11:00 Pacific). That is roughly
+    seven hours a day - 17:00 to 24:00 UTC - during which the whole
+    suite failed for no reason connected to the code, CI included.
+
+    Freezing at 05:00 UTC puts local time at 22:00 Pacific: the middle of
+    a hamster's active phase, which is both outside the sleep window and
+    the state these tests are actually describing.
+
+    Tests that need time to pass advance it explicitly - either by
+    patching dt_util.utcnow (see test_night_average_speed.py) or through
+    async_fire_time_changed - so nothing here depends on the clock
+    ticking by itself.
+    """
+    if "no_fixed_clock" in request.keywords:
+        yield
+        return
+    with freeze_time("2026-08-09T05:00:00+00:00"):
+        yield
 
 
 @pytest.fixture(autouse=True)

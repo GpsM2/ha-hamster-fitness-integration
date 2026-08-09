@@ -19,6 +19,7 @@ from custom_components.hamster_fitness.const import (
     SCORE_HISTORY_DAYS,
 )
 from custom_components.hamster_fitness.coordinator import (
+    _in_sleep_phase,
     _pillar_score,
     _sleep_penalty,
 )
@@ -291,8 +292,6 @@ def test_sleep_penalty_weighs_openings_heavier_than_wake_ups() -> None:
 
 def test_sleep_phase_window_is_wall_clock_local() -> None:
     """_in_sleep_phase compares local hours, whatever tz the input carries."""
-    from custom_components.hamster_fitness.coordinator import _in_sleep_phase
-
     local_noon = dt_util.now().replace(hour=12, minute=0, second=0, microsecond=0)
     local_night = local_noon.replace(hour=2)
 
@@ -301,3 +300,24 @@ def test_sleep_phase_window_is_wall_clock_local() -> None:
     # Same instant expressed in UTC must classify identically.
     assert _in_sleep_phase(dt_util.as_utc(local_noon)) is True
     assert isinstance(local_noon, datetime)
+
+
+def test_the_suites_frozen_clock_is_outside_the_sleep_phase() -> None:
+    """Guards the `fixed_clock` fixture's choice of instant.
+
+    Nearly every test simulates wheel activity, and starting a run
+    session inside the sleep phase docks health-score points. If the
+    frozen instant in conftest.py ever moved into that window - or the
+    window itself widened to cover it - a whole batch of `score == 100`
+    assertions would start failing for reasons having nothing to do with
+    the change that caused it.
+
+    That was exactly the old failure mode, just driven by the wall clock:
+    before the clock was frozen the suite failed for about seven hours a
+    day (17:00-24:00 UTC, i.e. 10:00-17:00 US/Pacific, the timezone
+    pytest-homeassistant-custom-component runs Home Assistant on).
+    """
+    assert not _in_sleep_phase(dt_util.utcnow()), (
+        "conftest.py's frozen clock now lands inside the sleep phase; "
+        "move it back out or the suite will fail en masse"
+    )
