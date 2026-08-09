@@ -34,6 +34,7 @@ SHOTS = {
     "shot-health-modal": "card-health-score-pillar.png",
     "shot-day-night": "card-day-night-active.png",
     "shot-day-night-rest": "card-day-night-resting.png",
+    "shot-day-night-weather": "card-day-night-weather.png",
     "shot-chronicle": "card-chronicle.png",
     "shot-ranking": "card-ranking.png",
     "shot-weight": "card-weight-syrian.png",

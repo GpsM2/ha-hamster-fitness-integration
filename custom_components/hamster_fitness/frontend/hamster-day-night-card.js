@@ -704,7 +704,7 @@ class HamsterDayNightCard extends HTMLElement {
         <svg class="hdn-chip-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS.light}"/></svg>
         <span class="hdn-chip-text">
           <span class="hdn-chip-label hdn-clickable" data-entity="${switchId}" tabindex="0" role="button">${t(this._hass, "dayNight.cageLight")}</span>
-          <span class="hdn-chip-value">${statusText}</span>
+          <span class="hdn-chip-value"><span>${statusText}</span></span>
         </span>
         ${button}
       </div>
@@ -799,7 +799,7 @@ class HamsterDayNightCard extends HTMLElement {
         this._chip({
           icon: ICONS.timer,
           label: t(this._hass, "dayNight.runningFor"),
-          value: fmtDuration(this._hass, activeMinutes),
+          value: `<span>${fmtDuration(this._hass, activeMinutes)}</span>`,
           entity: this._entityId("night_active_duration"),
         })
       );
@@ -813,7 +813,7 @@ class HamsterDayNightCard extends HTMLElement {
         this._chip({
           icon: ICONS.timer,
           label: t(this._hass, "dayNight.restingFor"),
-          value: fmtDuration(this._hass, dayRest && dayRest.state),
+          value: `<span>${fmtDuration(this._hass, dayRest && dayRest.state)}</span>`,
           entity: this._entityId("day_rest_duration"),
           badge:
             door && door.state === "on" ? t(this._hass, "dayNight.lidOpen") : "",
@@ -825,7 +825,7 @@ class HamsterDayNightCard extends HTMLElement {
         this._chip({
           icon: ICONS.speed,
           label: t(this._hass, "dayNight.speed"),
-          value: fmtNumber(this._hass, currentSpeed && currentSpeed.state, 1, "km/h"),
+          value: `<span>${fmtNumber(this._hass, currentSpeed && currentSpeed.state, 1, "km/h")}</span>`,
           entity: this._entityId("current_speed"),
         })
       );
@@ -842,8 +842,8 @@ class HamsterDayNightCard extends HTMLElement {
       const distanceText = fmtNumber(this._hass, nightDistance && nightDistance.state, 2, "km");
       const value =
         nightAvgSpeed === null || nightAvgSpeed === undefined
-          ? distanceText
-          : `${distanceText} · ${fmtNumber(this._hass, nightAvgSpeed, 1, "km/h")}`;
+          ? `<span>${distanceText}</span>`
+          : `<span>${distanceText} ·</span> <span>${fmtNumber(this._hass, nightAvgSpeed, 1, "km/h")}</span>`;
       chips.push(
         this._chip({
           icon: ICONS.distance,
@@ -855,8 +855,8 @@ class HamsterDayNightCard extends HTMLElement {
     }
     if (this._config.show_climate) {
       const climate = humidity
-        ? `${fmtNumber(this._hass, temperature, 1, "°C")} · ${fmtNumber(this._hass, humidity.state, 0, "%")}`
-        : fmtNumber(this._hass, temperature, 1, "°C");
+        ? `<span>${fmtNumber(this._hass, temperature, 1, "°C")} ·</span> <span>${fmtNumber(this._hass, humidity.state, 0, "%")}</span>`
+        : `<span>${fmtNumber(this._hass, temperature, 1, "°C")}</span>`;
       // Tapping this chip used to open the health score, because the
       // card renders the temperature from an attribute and had no
       // reference to the sensor behind it. The coordinator now publishes
@@ -1096,6 +1096,13 @@ HamsterDayNightCard.styles = `
   .hdn-chip-value {
     font-size: 1.15em;
     font-weight: 800;
+  }
+  /* Chips that combine two readings ("2.84 km · 3.1 km/h", "21.4 °C ·
+     52 %") outgrew their pill on any card narrower than ~560px once the
+     night average was added. The value may now wrap between its parts -
+     each part is its own nowrap span, so a number never separates from
+     its unit. */
+  .hdn-chip-value > span {
     white-space: nowrap;
   }
   .hdn-chip-lit {
@@ -1218,6 +1225,13 @@ HamsterDayNightCard.styles = `
     }
     .hdn-chip {
       flex: 1 1 45%;
+    }
+    /* Two chips per row leaves each about 45% of an already narrow card,
+       which the two-part values (distance + average speed, temperature +
+       humidity) still outgrow even when wrapped. A touch smaller here
+       rather than clipped. */
+    .hdn-chip-value {
+      font-size: 1.02em;
     }
     .hdn-chip-wide {
       flex-basis: 100%;

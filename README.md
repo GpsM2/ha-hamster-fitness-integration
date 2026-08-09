@@ -1,6 +1,6 @@
 # Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.4.0-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
@@ -153,6 +153,12 @@ hamster dozing at 2 a.m. is drawn asleep under a night sky rather than
 running just because it is dark.
 
 <img src="docs/images/card-day-night-active.png" alt="Day & Night card at night, hamster running in the wheel, readings as chips" width="420"> <img src="docs/images/card-day-night-resting.png" alt="Day & Night card by day, hamster asleep in its nest" width="420">
+
+Pick a weather entity during setup and the weather drifts over the scene
+too — all fifteen Home Assistant conditions, from drifting cloud to
+lightning:
+
+<img src="docs/images/card-day-night-weather.png" alt="Day & Night card with rain falling over the scene and the sky dimmed" width="420">
 
 Every chip is tappable: the readings open their own entity, and the cage
 light chip switches the lamp directly.
