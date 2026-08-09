@@ -290,5 +290,11 @@
         "black": "Black / dark"
       }
     }
+  },
+  "issues": {
+    "restart_required": {
+      "title": "Restart Home Assistant to finish the update",
+      "description": "Hamster Fitness {installed_version} has been downloaded, but Home Assistant is still running {running_version} — the new code only takes effect after a restart.\n\nGo to **Settings → System → Restart**. This notice disappears by itself once the restart is done."
+    }
   }
 }

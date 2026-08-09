@@ -29,6 +29,7 @@ from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
 from .door_light import HamsterFitnessDoorLight
 from .frontend import JSModuleRegistration
 from .notify import HamsterFitnessNotifier
+from .update_check import async_setup_update_check
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +57,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     websocket_api.async_register_command(hass, _ws_history)
     websocket_api.async_register_command(hass, _ws_add_historical_hamster)
+
+    # Raises a Repairs entry when HACS has written a new version to disk
+    # but Home Assistant is still running the old one. Domain-wide, like
+    # the commands above - the version belongs to the integration, not to
+    # any one hamster.
+    await async_setup_update_check(hass)
 
     return True
 
