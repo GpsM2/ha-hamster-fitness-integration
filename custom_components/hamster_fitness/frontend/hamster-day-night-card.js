@@ -76,6 +76,43 @@ const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
 const AMBIENT_NIGHT_LX = 5;
 const AMBIENT_DAY_LX = 150;
 
+/**
+ * Every weather state Home Assistant defines, mapped to what the scene
+ * should show. Covered individually rather than lumped into a few
+ * buckets - "pouring" really should look wetter than "rainy", and
+ * "hail" isn't snow.
+ *
+ * Each entry picks: a precipitation type (with how heavy), how much
+ * cloud drifts past, whether lightning flashes, and how much the sky is
+ * dimmed. `clear` states draw nothing at all, which is also the fallback
+ * for any state a future Home Assistant might add.
+ */
+const WEATHER_SCENES = {
+  "clear-night": { clouds: 0, dim: 0 },
+  sunny: { clouds: 0, dim: 0 },
+  partlycloudy: { clouds: 2, dim: 0.05 },
+  cloudy: { clouds: 4, dim: 0.16 },
+  fog: { clouds: 0, dim: 0.3, fog: true },
+  windy: { clouds: 2, dim: 0.05, wind: true },
+  "windy-variant": { clouds: 3, dim: 0.1, wind: true },
+  rainy: { clouds: 4, dim: 0.24, drops: 26, dropKind: "rain" },
+  pouring: { clouds: 5, dim: 0.34, drops: 54, dropKind: "rain" },
+  snowy: { clouds: 4, dim: 0.2, drops: 30, dropKind: "snow" },
+  "snowy-rainy": { clouds: 4, dim: 0.26, drops: 34, dropKind: "sleet" },
+  hail: { clouds: 5, dim: 0.28, drops: 30, dropKind: "hail" },
+  lightning: { clouds: 4, dim: 0.3, lightning: true },
+  "lightning-rainy": {
+    clouds: 5,
+    dim: 0.36,
+    drops: 46,
+    dropKind: "rain",
+    lightning: true,
+  },
+  // "Exceptional" means severe weather of an unspecified kind, so it
+  // gets the most dramatic treatment rather than a guess at which.
+  exceptional: { clouds: 5, dim: 0.4, lightning: true, wind: true },
+};
+
 const STATUS_ONLINE = { key: "common.online", color: "#06D6A0" };
 const STATUS_OFFLINE = { key: "common.offline", color: "#EF476F" };
 const STATUS_UNAVAILABLE = { key: "common.unavailable", color: "#8D99AE" };
@@ -197,6 +234,7 @@ class HamsterDayNightCard extends HTMLElement {
           <div class="hdn-error" hidden></div>
           <div class="hdn-sky">
             <div class="hdn-decor"></div>
+            <div class="hdn-weather"></div>
             ${renderCardHeader({
               logoSvg: LOGO_DUMBBELL_SVG,
               title: "",
@@ -220,6 +258,7 @@ class HamsterDayNightCard extends HTMLElement {
     this._errorEl = this.querySelector(".hdn-error");
     this._skyEl = this.querySelector(".hdn-sky");
     this._decorEl = this.querySelector(".hdn-decor");
+    this._weatherEl = this.querySelector(".hdn-weather");
     this._titleEl = this.querySelector(".hf-title");
     this._statusDotEl = this.querySelector(".hf-badge-dot");
     this._statusLabelEl = this.querySelector(".hdn-status-label");
@@ -355,6 +394,78 @@ class HamsterDayNightCard extends HTMLElement {
     const from = lerpColor(DAY_GRADIENT_HORIZON[0], DAY_GRADIENT_MIDDAY[0], t);
     const to = lerpColor(DAY_GRADIENT_HORIZON[1], DAY_GRADIENT_MIDDAY[1], t);
     return `linear-gradient(180deg, ${from}, ${to})`;
+  }
+
+  /**
+   * The current weather scene, or null to draw no overlay at all.
+   *
+   * Reads the weather entity chosen during setup (published as an
+   * attribute by the coordinator, the same way the climate chip gets its
+   * thermometer). No entity, an unavailable one, or a state Home
+   * Assistant adds in future that this doesn't know about, all mean "no
+   * overlay" rather than a guess.
+   */
+  _weatherScene(healthScore) {
+    const entityId = healthScore.attributes.weather_entity;
+    if (!entityId) return null;
+    const state = this._hass.states[entityId];
+    if (!state) return null;
+    return WEATHER_SCENES[state.state] || null;
+  }
+
+  /**
+   * Builds the overlay markup for one weather scene.
+   *
+   * Deliberately rebuilt only when the weather actually changes (see
+   * _weatherKey in _render): every element here is CSS-animated, and
+   * re-rendering identical markup would restart all of it mid-drift -
+   * the same mistake that once made the wheel stutter.
+   */
+  _weatherOverlay(scene) {
+    if (!scene) return "";
+
+    // Deterministic pseudo-random placement: a fixed seed keeps drops
+    // and clouds in the same spots between renders, so nothing visibly
+    // jumps when an unrelated attribute updates.
+    let seed = 7;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+
+    const clouds = Array.from({ length: scene.clouds || 0 }, (_, i) => {
+      const top = 6 + rand() * 44;
+      const scale = 0.55 + rand() * 0.75;
+      const duration = (scene.wind ? 14 : 38) + rand() * 16;
+      const delay = -rand() * duration;
+      return `
+        <div class="hdn-cloud" style="
+          top: ${top.toFixed(1)}%;
+          --s: ${scale.toFixed(2)};
+          animation-duration: ${duration.toFixed(1)}s;
+          animation-delay: ${delay.toFixed(1)}s;
+        "></div>`;
+    }).join("");
+
+    const drops = Array.from({ length: scene.drops || 0 }, () => {
+      const left = rand() * 100;
+      const duration = (scene.dropKind === "snow" ? 4.5 : 1.1) + rand() * 0.9;
+      const delay = -rand() * duration;
+      return `
+        <div class="hdn-drop hdn-drop-${scene.dropKind}" style="
+          left: ${left.toFixed(1)}%;
+          animation-duration: ${duration.toFixed(2)}s;
+          animation-delay: ${delay.toFixed(2)}s;
+        "></div>`;
+    }).join("");
+
+    return `
+      ${scene.dim ? `<div class="hdn-weather-dim" style="opacity: ${scene.dim}"></div>` : ""}
+      ${scene.fog ? `<div class="hdn-fog"></div>` : ""}
+      ${clouds}
+      ${drops}
+      ${scene.lightning ? `<div class="hdn-lightning"></div>` : ""}
+    `;
   }
 
   _isNight(ambientLx) {
@@ -649,6 +760,20 @@ class HamsterDayNightCard extends HTMLElement {
     // Sky decoration and scene are only rebuilt when they actually change
     // mode - rebuilding them every update is what used to restart the
     // wheel animation mid-spin.
+    // Same reasoning as the decoration below: every element in the
+    // weather overlay is CSS-animated, so rebuilding identical markup
+    // would restart clouds and rain mid-drift.
+    const weatherKey =
+      (healthScore.attributes.weather_entity &&
+        this._hass.states[healthScore.attributes.weather_entity]?.state) ||
+      "none";
+    if (weatherKey !== this._weatherKey) {
+      this._weatherEl.innerHTML = this._weatherOverlay(
+        this._weatherScene(healthScore)
+      );
+      this._weatherKey = weatherKey;
+    }
+
     const decorMode = this._isNight(ambientLx) ? "night" : "day";
     if (decorMode !== this._decorMode) {
       this._decorEl.innerHTML =
@@ -812,6 +937,100 @@ HamsterDayNightCard.styles = `
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
   }
+  /* Weather overlay: sits above the sky gradient and the sun/moon, below
+     the header and the reading chips (which carry z-index 1-2), so rain
+     falls behind the text rather than over it. Never interactive. */
+  .hdn-weather {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .hdn-weather-dim {
+    position: absolute;
+    inset: 0;
+    background: #0B132B;
+  }
+  .hdn-fog {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0.22) 55%,
+      rgba(255, 255, 255, 0.05)
+    );
+    animation: hdnFog 18s ease-in-out infinite;
+  }
+  @keyframes hdnFog {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 0.95; }
+  }
+  .hdn-cloud {
+    position: absolute;
+    left: -30%;
+    width: 120px;
+    height: 38px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.42);
+    filter: blur(6px);
+    animation-name: hdnDrift;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  @keyframes hdnDrift {
+    from { transform: translateX(0) scale(var(--s, 1)); }
+    to { transform: translateX(360px) scale(var(--s, 1)); }
+  }
+  .hdn-drop {
+    position: absolute;
+    top: -12%;
+    animation-name: hdnFall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  .hdn-drop-rain,
+  .hdn-drop-sleet {
+    width: 2px;
+    height: 13px;
+    border-radius: 1px;
+    background: linear-gradient(
+      180deg,
+      rgba(180, 220, 255, 0),
+      rgba(180, 220, 255, 0.85)
+    );
+  }
+  .hdn-drop-hail {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(226, 244, 255, 0.95);
+  }
+  .hdn-drop-snow {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.92);
+  }
+  @keyframes hdnFall {
+    from { transform: translateY(0); }
+    to { transform: translateY(560px); }
+  }
+  /* A double flash, then a long dark gap - lightning that strobed evenly
+     would read as a broken screen rather than a storm. */
+  .hdn-lightning {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    opacity: 0;
+    animation: hdnFlash 7s linear infinite;
+  }
+  @keyframes hdnFlash {
+    0%, 3%, 6%, 100% { opacity: 0; }
+    1% { opacity: 0.5; }
+    4.5% { opacity: 0.32; }
+  }
+
   /* The other cards seat their header on a solid banner. This one sits
      straight on the live sky - gradient, stars, a sun - so it gets its
      own frosted strip instead, bled out to the card edges with negative
@@ -973,8 +1192,17 @@ HamsterDayNightCard.styles = `
     .hdn-hamster-run,
     .hdn-hamster-sleep,
     .hdn-zzz,
-    .hdn-sun {
+    .hdn-sun,
+    .hdn-cloud,
+    .hdn-drop,
+    .hdn-fog {
       animation: none;
+    }
+    /* Dropped entirely rather than merely paused: a full-card white
+       strobe is exactly the kind of flashing this setting exists to
+       avoid, and a frozen one would just sit there as a bright pane. */
+    .hdn-lightning {
+      display: none;
     }
   }
 

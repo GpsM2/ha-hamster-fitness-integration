@@ -140,7 +140,7 @@ function grid(entries, build) {
 
 // --- Nachgebauter hass-Zustand für einen Hamster ----------------------
 
-function baseHass({ night, active, speed, lightOn, paused, automationOn = true, coat = "#D48C46" }) {
+function baseHass({ night, active, speed, lightOn, paused, automationOn = true, coat = "#D48C46", weather = null }) {
   const pausedUntil = new Date(Date.now() + 22 * 60000).toISOString();
   return {
     language: LANG,
@@ -165,8 +165,14 @@ function baseHass({ night, active, speed, lightOn, paused, automationOn = true, 
       "light.cage": { state: lightOn ? "on" : "off", attributes: {} },
       "sensor.hamster_taco_health_score": {
         state: "88",
-        attributes: { temperature: 21.4, coat_color_hex: coat, acquisition_date: "2025-11-02" },
+        attributes: {
+          temperature: 21.4,
+          coat_color_hex: coat,
+          acquisition_date: "2025-11-02",
+          weather_entity: weather ? "weather.home" : null,
+        },
       },
+      ...(weather ? { "weather.home": { state: weather, attributes: {} } } : {}),
     },
     entities: {
       "sensor.hamster_taco_health_score": { device_id: "d1", translation_key: "health_score" },
@@ -295,6 +301,28 @@ place(
   makeCard("hamster-day-night-card", { entity: "sensor.hamster_taco_health_score" },
     baseHass({ night: true, active: true, speed: 6.5, lightOn: true })),
   "narrow"
+);
+
+// --- Wetter-Overlay (alle HA-Zustände) --------------------------------
+
+section("Day & Night – Wetter-Overlay, alle 15 HA-Zustände");
+grid(
+  [
+    ["sunny", "sunny"], ["clear-night", "clear-night"],
+    ["partlycloudy", "partlycloudy"], ["cloudy", "cloudy"],
+    ["rainy", "rainy"], ["pouring", "pouring"],
+    ["snowy", "snowy"], ["snowy-rainy", "snowy-rainy"],
+    ["hail", "hail"], ["fog", "fog"],
+    ["lightning", "lightning"], ["lightning-rainy", "lightning-rainy"],
+    ["windy", "windy"], ["windy-variant", "windy-variant"],
+    ["exceptional", "exceptional"],
+    ["kein Wetter-Entity (unverändert)", null],
+    ["unbekannter Zustand (kein Overlay)", "raining-frogs"],
+  ].map(([label, state]) => [label, state]),
+  (state) => makeCard("hamster-day-night-card",
+    { entity: "sensor.hamster_taco_health_score" },
+    baseHass({ night: state === "clear-night", active: true, speed: 4.2,
+               lightOn: false, weather: state }))
 );
 
 // --- Health Score -----------------------------------------------------

@@ -57,6 +57,7 @@ from .const import (
     CONF_LIGHT_ENTITY,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
+    CONF_WEATHER_ENTITY,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
     DAILY_RESET_HOUR,
@@ -1372,6 +1373,9 @@ def hamster_source_entities(
     return {
         "temperature_entity": entry.data.get(CONF_TEMPERATURE_SENSOR),
         "humidity_entity": entry.data.get(CONF_HUMIDITY_SENSOR) or None,
+        # The Day & Night card reads this one's *state* rather than
+        # deep-linking to it, to draw the weather over its scene.
+        "weather_entity": entry.data.get(CONF_WEATHER_ENTITY) or None,
     }
 
 
