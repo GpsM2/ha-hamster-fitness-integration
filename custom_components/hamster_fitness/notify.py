@@ -1,6 +1,6 @@
 """Notification logic for the Hamster Fitness integration.
 
-Three independent, options-gated notification flows:
+Four independent, options-gated notification flows:
 
 - A daily summary sent at the user-configured local time
   (`OPTION_NOTIFICATION_TIME`), comparing the current night-window
@@ -18,6 +18,12 @@ Three independent, options-gated notification flows:
   entered for `OPTION_WEIGHT_REMINDER_DAYS` days. Whoever weighs their
   hamster regularly never sees it. Gated by
   `OPTION_WEIGHT_REMINDER_ENABLED` (off by default).
+- A heat care reminder, also checked at that same daily time, when the
+  day's forecast high reaches `OPTION_HEAT_FORECAST_THRESHOLD_C`. Unlike
+  the others this one looks *forward*: the point is to act before the
+  cage gets hot, not to report that it already is (the climate pillar
+  covers that). Gated by `OPTION_HEAT_FORECAST_ENABLED` (off by default)
+  and needs `CONF_WEATHER_ENTITY`.
 
 Every message is sent with the hamster's name as the notification title
 (`title`) and the actual text as `message`, so both flows can be toggled
@@ -46,21 +52,29 @@ from homeassistant.util import dt as dt_util
 from .const import (
     CONF_HAMSTER_NAME,
     CONF_NOTIFY_SERVICES,
+    CONF_WEATHER_ENTITY,
     DEFAULT_DAILY_SUMMARY_ENABLED,
+    DEFAULT_HEAT_FORECAST_ENABLED,
+    DEFAULT_HEAT_FORECAST_THRESHOLD_C,
     DEFAULT_NOTIFICATION_TIME,
     DEFAULT_WARNINGS_ENABLED,
     DEFAULT_WEIGHT_REMINDER_DAYS,
     DEFAULT_WEIGHT_REMINDER_ENABLED,
     DOMAIN,
+    HEAT_REMINDER_COOLDOWN_HOURS,
     NOTIFY_DOMAIN,
     NOTIFY_SERVICE_SEND_MESSAGE,
     OPTION_DAILY_SUMMARY_ENABLED,
+    OPTION_HEAT_FORECAST_ENABLED,
+    OPTION_HEAT_FORECAST_THRESHOLD_C,
     OPTION_NOTIFICATION_TIME,
     OPTION_WARNINGS_ENABLED,
     OPTION_WEIGHT_REMINDER_DAYS,
     OPTION_WEIGHT_REMINDER_ENABLED,
     STORAGE_VERSION,
     WARNING_NOTIFICATION_COOLDOWN_HOURS,
+    WEATHER_DOMAIN,
+    WEATHER_SERVICE_GET_FORECASTS,
 )
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
 from .runtime_text import format_number, render_message
@@ -71,7 +85,7 @@ WARNING_COOLDOWN = timedelta(hours=WARNING_NOTIFICATION_COOLDOWN_HOURS)
 
 
 class HamsterFitnessNotifier:
-    """Owns both notification flows for one config entry."""
+    """Owns every notification flow for one config entry."""
 
     def __init__(
         self,
@@ -96,6 +110,12 @@ class HamsterFitnessNotifier:
         # Erinnerung ab dem Fälligkeitstag jeden Tag aufs Neue kommt,
         # solange niemand ein Gewicht einträgt.
         self._last_weight_reminder_at: datetime | None = None
+        # Wetter-Entity für die Hitze-Erinnerung (optional, siehe
+        # CONF_WEATHER_ENTITY) und der Zeitpunkt der letzten solchen
+        # Erinnerung - eine Hitzewelle dauert mehrere Tage, die Tipps sind
+        # nach dem ersten Morgen bekannt.
+        self._weather_entity: str | None = entry.data.get(CONF_WEATHER_ENTITY)
+        self._last_heat_reminder_at: datetime | None = None
 
         self._last_sent: dict[str, datetime] = {}  # warning code -> UTC timestamp
         self._previous_reason_codes: set[str] = set()
@@ -104,8 +124,8 @@ class HamsterFitnessNotifier:
         """Register listeners according to the *current* options.
 
         Called once from async_setup_entry(). Each flow is registered
-        independently, gated by its own option - if both are disabled,
-        this is a no-op and nothing is ever sent.
+        independently, gated by its own option - with all of them
+        disabled this is a no-op and nothing is ever sent.
         """
         stored = await self._store.async_load()
         if stored:
@@ -114,10 +134,19 @@ class HamsterFitnessNotifier:
             self._last_weight_reminder_at = (
                 dt_util.parse_datetime(reminder_raw) if reminder_raw else None
             )
+            heat_raw = stored.get("last_heat_reminder_at")
+            self._last_heat_reminder_at = (
+                dt_util.parse_datetime(heat_raw) if heat_raw else None
+            )
 
-        # Both time-based flows share one timer at the same local time -
-        # registering two identical ones would only mean two wake-ups.
-        if self._daily_summary_enabled or self._weight_reminder_enabled:
+        # The time-based flows share one timer at the same local time -
+        # registering several identical ones would only mean several
+        # wake-ups for the same instant.
+        if (
+            self._daily_summary_enabled
+            or self._weight_reminder_enabled
+            or self._heat_forecast_enabled
+        ):
             summary_time = self._summary_time
             self._entry.async_on_unload(
                 async_track_time_change(
@@ -130,8 +159,8 @@ class HamsterFitnessNotifier:
             )
         else:
             _LOGGER.debug(
-                "Hamster Fitness (%s): Tageszusammenfassung und "
-                "Wiege-Erinnerung deaktiviert, kein Listener registriert",
+                "Hamster Fitness (%s): Tageszusammenfassung, Wiege- und "
+                "Hitze-Erinnerung deaktiviert, kein Listener registriert",
                 self._hamster_name,
             )
 
@@ -179,6 +208,30 @@ class HamsterFitnessNotifier:
         )
 
     @property
+    def _heat_forecast_enabled(self) -> bool:
+        """Whether to look ahead at all - needs a weather entity too.
+
+        The option alone isn't enough: without something to ask for a
+        forecast there is nothing to check, and gating here keeps every
+        later step from having to re-test it.
+        """
+        if not self._weather_entity:
+            return False
+        return bool(
+            self._entry.options.get(
+                OPTION_HEAT_FORECAST_ENABLED, DEFAULT_HEAT_FORECAST_ENABLED
+            )
+        )
+
+    @property
+    def _heat_forecast_threshold(self) -> float:
+        return float(
+            self._entry.options.get(
+                OPTION_HEAT_FORECAST_THRESHOLD_C, DEFAULT_HEAT_FORECAST_THRESHOLD_C
+            )
+        )
+
+    @property
     def _weight_reminder_interval(self) -> timedelta:
         days = self._entry.options.get(
             OPTION_WEIGHT_REMINDER_DAYS, DEFAULT_WEIGHT_REMINDER_DAYS
@@ -202,18 +255,19 @@ class HamsterFitnessNotifier:
 
     @callback
     def _async_handle_daily_time(self, now: datetime) -> None:
-        """Run both time-based flows at the configured local time.
+        """Run every time-based flow at the configured local time.
 
-        Both stay quiet while the hamster is away (boarding mode): a
-        summary repeating a frozen distance, or a nudge to weigh a
-        hamster that is at the vet, is noise the user can do nothing
-        about. Warnings are already silent - the coordinator stops
-        producing reasons while paused.
+        All stay quiet while the hamster is away (boarding mode): a
+        summary repeating a frozen distance, a nudge to weigh a hamster
+        that is at the vet, or advice to shade a cage the hamster isn't
+        in, is noise the user can do nothing about. Warnings are already
+        silent - the coordinator stops producing reasons while paused.
         """
         if self._coordinator.boarding:
             _LOGGER.debug(
                 "Hamster Fitness (%s): vorübergehend abwesend, "
-                "Tageszusammenfassung und Wiege-Erinnerung übersprungen",
+                "Tageszusammenfassung, Wiege- und Hitze-Erinnerung "
+                "übersprungen",
                 self._hamster_name,
             )
             return
@@ -221,6 +275,8 @@ class HamsterFitnessNotifier:
             self._async_send_daily_summary()
         if self._weight_reminder_enabled:
             self._async_check_weight_reminder()
+        if self._heat_forecast_enabled:
+            self._hass.async_create_task(self._async_check_heat_forecast())
 
     @callback
     def _async_send_daily_summary(self) -> None:
@@ -289,6 +345,100 @@ class HamsterFitnessNotifier:
                 days=str((now - last_weighed).days),
             )
         self._hass.async_create_task(self._async_send_weight_reminder(message, now))
+
+    # ------------------------------------------------------------------
+    # Hitze-Erinnerung (vorausschauend, nur bei konfigurierter Wetter-Entity)
+    # ------------------------------------------------------------------
+
+    async def _async_check_heat_forecast(self) -> None:
+        """Warn ahead of a hot day, while there is still time to act.
+
+        Deliberately forward-looking: by the time the cage is actually
+        too warm the climate pillar has already docked points and the
+        useful moment has passed. Shade, cooling and fresh water all have
+        to happen before the heat arrives.
+
+        Silent unless today's forecast high reaches the configured
+        threshold, and then at most once per HEAT_REMINDER_COOLDOWN_HOURS
+        - a heatwave runs for days, and repeating identical advice every
+        morning only teaches the user to swipe it away.
+        """
+        now = dt_util.utcnow()
+        cooldown = timedelta(hours=HEAT_REMINDER_COOLDOWN_HOURS)
+        if (
+            self._last_heat_reminder_at is not None
+            and now - self._last_heat_reminder_at < cooldown
+        ):
+            return
+
+        high = await self._async_forecast_high()
+        if high is None or high < self._heat_forecast_threshold:
+            return
+
+        message = render_message(
+            self._hass,
+            "notify.heat_forecast",
+            temperature=format_number(self._hass, high, 0),
+        )
+        await self._async_send(message)
+        self._last_heat_reminder_at = now
+        await self._async_save()
+
+    async def _async_forecast_high(self) -> float | None:
+        """Today's forecast high from the configured weather entity.
+
+        Uses the `weather.get_forecasts` service rather than the entity's
+        old `forecast` state attribute - modern Home Assistant dropped
+        that attribute, so the service call is the only supported route.
+
+        Returns None whenever the answer isn't usable (entity gone, the
+        integration returned nothing, no temperature in the first daily
+        entry). None means "don't know", never "not hot" - the caller
+        stays silent either way, which is the safe direction for a
+        reminder nobody asked to be woken by.
+        """
+        assert self._weather_entity is not None  # gated by _heat_forecast_enabled
+        try:
+            response = await self._hass.services.async_call(
+                WEATHER_DOMAIN,
+                WEATHER_SERVICE_GET_FORECASTS,
+                {"entity_id": self._weather_entity, "type": "daily"},
+                blocking=True,
+                return_response=True,
+            )
+        except Exception:  # noqa: BLE001 - a broken forecast must not crash HA
+            _LOGGER.exception(
+                "Hamster Fitness (%s): Wettervorhersage konnte nicht "
+                "abgerufen werden",
+                self._hamster_name,
+            )
+            return None
+
+        # The response is only loosely typed (it comes back as plain JSON),
+        # and its shape is up to whichever weather integration answered.
+        # Each level is checked rather than assumed: a provider returning
+        # something unexpected should mean "no forecast", not a traceback
+        # in the middle of the morning notification run.
+        if not isinstance(response, dict):
+            return None
+        entity_result = response.get(self._weather_entity)
+        if not isinstance(entity_result, dict):
+            return None
+        forecasts = entity_result.get("forecast")
+        if not isinstance(forecasts, list) or not forecasts:
+            return None
+        today = forecasts[0]
+        if not isinstance(today, dict):
+            return None
+
+        # "native_temperature" is the daily high in Home Assistant's daily
+        # forecasts; "temperature" is the older spelling some integrations
+        # still use.
+        for key in ("native_temperature", "temperature"):
+            value = today.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+        return None
 
     def _weight_entity_id(self) -> str | None:
         """Resolve this hamster's weight entity, for the reminder's deep link.
@@ -373,6 +523,11 @@ class HamsterFitnessNotifier:
                 "last_weight_reminder_at": (
                     self._last_weight_reminder_at.isoformat()
                     if self._last_weight_reminder_at
+                    else None
+                ),
+                "last_heat_reminder_at": (
+                    self._last_heat_reminder_at.isoformat()
+                    if self._last_heat_reminder_at
                     else None
                 ),
             }
