@@ -40,7 +40,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=8";
+} from "./hamster-fitness-shared.js?v=9";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -66,6 +66,11 @@ const BREED_KEYS = new Set([
   "chinese",
   "other",
 ]);
+const BREEDS = [...BREED_KEYS];
+const BREED_OTHER = "other";
+
+// Mirrors const.py's COAT_COLORS/COAT_COLOR_HEX.
+const COAT_COLORS = ["golden_brown", "silver_grey", "cream_sand", "black"];
 
 // Small hamster silhouette, tinted per row with that hamster's own colour.
 const HAMSTER_MARK = `
@@ -107,6 +112,7 @@ class HamsterChronicleCard extends HTMLElement {
           <div class="hch-root">
             <div class="hch-banner"></div>
             <div class="hch-body"></div>
+            <div class="hch-modal-host"></div>
           </div>
         </ha-card>
         <style>${HamsterChronicleCard.styles}</style>
@@ -114,6 +120,7 @@ class HamsterChronicleCard extends HTMLElement {
       this._root = this.querySelector(".hch-root");
       this._bannerEl = this.querySelector(".hch-banner");
       this._bodyEl = this.querySelector(".hch-body");
+      this._modalHost = this.querySelector(".hch-modal-host");
 
       const openMoreInfo = (target) => {
         this.dispatchEvent(
@@ -125,24 +132,67 @@ class HamsterChronicleCard extends HTMLElement {
         );
       };
       this._root.addEventListener("click", (ev) => {
+        if (ev.target.closest(".hch-modal-host")) return;
+        if (ev.target.closest("[data-action='add-past']")) {
+          this._openAddPastDialog();
+          return;
+        }
         const target = ev.target.closest("[data-entity]");
         if (target) openMoreInfo(target);
       });
       this._root.addEventListener("keydown", (ev) => {
         if (ev.key !== "Enter" && ev.key !== " ") return;
+        if (ev.target.closest(".hch-modal-host")) return;
+        if (ev.target.closest("[data-action='add-past']")) {
+          ev.preventDefault();
+          this._openAddPastDialog();
+          return;
+        }
         const target = ev.target.closest("[data-entity]");
         if (!target) return;
         ev.preventDefault();
         openMoreInfo(target);
       });
+
+      // Same overlay pattern as the health-score card's pillar modal: a
+      // plain absolutely-positioned div rather than <ha-dialog>, so the
+      // card keeps working in the dashboard editor preview.
+      this._modalHost.addEventListener("click", (ev) => {
+        if (ev.target.closest("[data-action='save-past']")) {
+          this._saveAddPastEntry();
+          return;
+        }
+        if (
+          ev.target.closest("[data-close]") ||
+          ev.target === this._modalHost.firstElementChild
+        ) {
+          this._closeAddPastDialog();
+        }
+      });
+      this._onKeyDown = (ev) => {
+        if (ev.key === "Escape" && this._modalHost.hasChildNodes()) {
+          this._closeAddPastDialog();
+        }
+      };
     }
     this._render();
+  }
+
+  connectedCallback() {
+    if (this._onKeyDown) document.addEventListener("keydown", this._onKeyDown);
+  }
+
+  disconnectedCallback() {
+    if (this._onKeyDown) document.removeEventListener("keydown", this._onKeyDown);
   }
 
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
     if (first) this._loadArchive();
+    // The add-past dialog's <ha-form> needs a live hass reference of its
+    // own to render at all - see _openAddPastDialog().
+    if (this._addPastForm) this._addPastForm.hass = hass;
     this._render();
   }
 
@@ -314,6 +364,144 @@ class HamsterChronicleCard extends HTMLElement {
     `;
   }
 
+  /**
+   * A hamster from before this integration existed: no sensors, no
+   * device, so no config flow can create it. This is the only way in -
+   * a form that writes straight to the lifetime archive via the
+   * `hamster_fitness/add_historical_hamster` WebSocket command (see
+   * __init__.py), the same store live departures land in.
+   */
+  _openAddPastDialog() {
+    const breedOptions = BREEDS.map((value) => ({
+      value,
+      label: t(this._hass, `breed.${value}`),
+    }));
+    const coatOptions = COAT_COLORS.map((value) => ({
+      value,
+      label: t(this._hass, `coatColor.${value}`),
+    }));
+    const fieldLabels = {
+      name: "chronicle.fieldName",
+      breed: "chronicle.fieldBreed",
+      breed_other: "chronicle.fieldBreedOther",
+      coat_color: "chronicle.fieldCoatColor",
+      acquisition_date: "chronicle.fieldAcquisitionDate",
+      departure_date: "chronicle.fieldDepartureDate",
+    };
+    const schema = [
+      { name: "name", required: true, selector: { text: {} } },
+      {
+        name: "breed",
+        required: true,
+        selector: { select: { mode: "dropdown", options: breedOptions } },
+      },
+      { name: "breed_other", selector: { text: {} } },
+      {
+        name: "coat_color",
+        required: true,
+        selector: { select: { mode: "dropdown", options: coatOptions } },
+      },
+      { name: "acquisition_date", required: true, selector: { date: {} } },
+      { name: "departure_date", required: true, selector: { date: {} } },
+    ];
+
+    this._modalHost.innerHTML = `
+      <div class="hch-overlay">
+        <div class="hch-modal" role="dialog" aria-modal="true"
+             aria-label="${t(this._hass, "chronicle.addPastTitle")}">
+          <div class="hch-modal-head">
+            <span class="hch-modal-title">${t(this._hass, "chronicle.addPastTitle")}</span>
+            <button class="hch-modal-close" data-close type="button"
+                    aria-label="${t(this._hass, "chronicle.cancel")}">×</button>
+          </div>
+          <div class="hch-modal-body">
+            <p class="hch-modal-desc">${t(this._hass, "chronicle.addPastDescription")}</p>
+            <div class="hch-form-host"></div>
+            <div class="hch-form-error" hidden></div>
+            <div class="hch-modal-actions">
+              <button class="hch-modal-cancel" data-close type="button">
+                ${t(this._hass, "chronicle.cancel")}
+              </button>
+              <button class="hch-modal-save hch-modal-primary" data-action="save-past" type="button">
+                ${t(this._hass, "chronicle.save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this._addPastErrorEl = this._modalHost.querySelector(".hch-form-error");
+    this._addPastData = { breed: BREEDS[0], coat_color: COAT_COLORS[0] };
+
+    this._addPastForm = document.createElement("ha-form");
+    this._addPastForm.hass = this._hass;
+    this._addPastForm.schema = schema;
+    this._addPastForm.data = this._addPastData;
+    this._addPastForm.computeLabel = (item) =>
+      t(this._hass, fieldLabels[item.name] || item.name);
+    this._addPastForm.addEventListener("value-changed", (ev) => {
+      ev.stopPropagation();
+      this._addPastData = ev.detail.value;
+      this._addPastForm.data = this._addPastData;
+    });
+    this._modalHost.querySelector(".hch-form-host").appendChild(this._addPastForm);
+
+    const closeButton = this._modalHost.querySelector(".hch-modal-close");
+    if (closeButton) closeButton.focus();
+  }
+
+  _closeAddPastDialog() {
+    this._modalHost.innerHTML = "";
+    this._addPastForm = null;
+    this._addPastData = null;
+    this._addPastErrorEl = null;
+  }
+
+  _showAddPastError(message) {
+    if (!this._addPastErrorEl) return;
+    this._addPastErrorEl.textContent = message;
+    this._addPastErrorEl.hidden = false;
+  }
+
+  async _saveAddPastEntry() {
+    if (!this._hass || !this._addPastData) return;
+    const data = this._addPastData;
+    const name = (data.name || "").trim();
+    const breed = data.breed || BREEDS[0];
+    const breedOther = (data.breed_other || "").trim();
+
+    if (!name) {
+      this._showAddPastError(t(this._hass, "chronicle.nameRequired"));
+      return;
+    }
+    if (breed === BREED_OTHER && !breedOther) {
+      this._showAddPastError(t(this._hass, "chronicle.breedOtherRequired"));
+      return;
+    }
+    if (!data.acquisition_date || !data.departure_date) {
+      this._showAddPastError(t(this._hass, "chronicle.datesRequired"));
+      return;
+    }
+
+    try {
+      const result = await this._hass.callWS({
+        type: "hamster_fitness/add_historical_hamster",
+        name,
+        breed,
+        breed_other: breedOther,
+        coat_color: data.coat_color || COAT_COLORS[0],
+        acquisition_date: data.acquisition_date,
+        departure_date: data.departure_date,
+      });
+      this._archive = (result && result.hamsters) || this._archive;
+      this._closeAddPastDialog();
+      this._render();
+    } catch (err) {
+      this._showAddPastError(t(this._hass, "chronicle.addPastFailed"));
+    }
+  }
+
   _render() {
     if (!this._hass || !this._root || !this._config) return;
 
@@ -329,7 +517,12 @@ class HamsterChronicleCard extends HTMLElement {
       logoSvg: LOGO_CHRONICLE,
       title: (this._config.title || t(this._hass, "chronicle.title")).toUpperCase(),
       subtitle: t(this._hass, "chronicle.subtitle"),
-      badgeHtml: `<span class="hf-badge">${t(this._hass, "chronicle.count", { count: rows.length })}</span>`,
+      badgeHtml: `
+        <span class="hf-badge">${t(this._hass, "chronicle.count", { count: rows.length })}</span>
+        <button class="hch-add-btn" data-action="add-past" type="button"
+                title="${t(this._hass, "chronicle.addPast")}"
+                aria-label="${t(this._hass, "chronicle.addPast")}">+</button>
+      `,
     });
 
     if (rows.length === 0) {
@@ -361,8 +554,118 @@ HamsterChronicleCard.styles = `
     padding: 14px 16px;
     background: linear-gradient(135deg, #5c4a3a, #8B5A2B);
   }
+  .hch-add-btn {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    font-size: 1.1em;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+  .hch-add-btn:hover,
+  .hch-add-btn:focus-visible {
+    background: rgba(255, 255, 255, 0.32);
+    outline: none;
+  }
   .hch-body {
     padding: 10px 12px 14px;
+  }
+
+  /* "Add a past hamster" dialog - same plain-overlay pattern as the
+     health-score card's pillar modal (see hamster-fitness-card.js),
+     kept local rather than shared since only these two cards need it. */
+  .hch-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+  }
+  .hch-modal {
+    width: 100%;
+    max-width: 420px;
+    max-height: 100%;
+    overflow: auto;
+    border-radius: 18px;
+    background: var(--card-background-color, #fff);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+    animation: hchModalIn 0.16s ease-out;
+  }
+  @keyframes hchModalIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+  }
+  .hch-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 14px;
+    color: #fff;
+    background: linear-gradient(135deg, #5c4a3a, #8B5A2B);
+  }
+  .hch-modal-title {
+    font-weight: 800;
+  }
+  .hch-modal-close {
+    margin-left: auto;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-size: 1.1em;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .hch-modal-body {
+    padding: 14px;
+  }
+  .hch-modal-desc {
+    margin: 0 0 12px;
+    font-size: 0.85em;
+    color: var(--secondary-text-color);
+    line-height: 1.4;
+  }
+  .hch-form-error {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(228, 92, 92, 0.14);
+    color: #c0392b;
+    font-size: 0.85em;
+  }
+  .hch-modal-actions {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .hch-modal-cancel,
+  .hch-modal-save {
+    padding: 9px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: var(--card-background-color, #fff);
+    color: var(--primary-text-color);
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.88em;
+    cursor: pointer;
+  }
+  .hch-modal-primary {
+    border-color: var(--primary-color, #03a9f4);
+    background: var(--primary-color, #03a9f4);
+    color: #fff;
   }
   .hch-empty,
   .hch-note {

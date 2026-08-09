@@ -198,6 +198,27 @@ const STRINGS = {
     "chronicle.pickerName": "Hamster Fitness: Chronicle",
     "chronicle.pickerDescription":
       "Every hamster in this Home Assistant at a glance - current and long departed, with their dates and the stats you choose.",
+    "chronicle.addPast": "Add past hamster",
+    "chronicle.addPastTitle": "Add a past hamster",
+    "chronicle.addPastDescription":
+      "For a hamster from before this integration existed - no sensors, no health score, just the record.",
+    "chronicle.fieldName": "Name",
+    "chronicle.fieldBreed": "Breed",
+    "chronicle.fieldBreedOther": "Breed (if \"Other\")",
+    "chronicle.fieldCoatColor": "Coat colour",
+    "chronicle.fieldAcquisitionDate": "Move-in date",
+    "chronicle.fieldDepartureDate": "Move-out date",
+    "chronicle.save": "Save",
+    "chronicle.cancel": "Cancel",
+    "chronicle.nameRequired": "Enter a name.",
+    "chronicle.breedOtherRequired": "Describe the breed.",
+    "chronicle.datesRequired": "Enter both the move-in and move-out date.",
+    "chronicle.addPastFailed": "Could not save - please try again.",
+
+    "coatColor.golden_brown": "Golden brown",
+    "coatColor.silver_grey": "Silver grey",
+    "coatColor.cream_sand": "Cream / sand",
+    "coatColor.black": "Black / dark",
 
     // Breeds (mirrors const.py's BREEDS)
     "breed.golden": "Syrian / golden hamster",
@@ -362,6 +383,27 @@ const STRINGS = {
     "chronicle.pickerName": "Hamster Fitness: Chronik",
     "chronicle.pickerDescription":
       "Alle Hamster dieses Home Assistant auf einen Blick - aktuelle und längst ausgezogene, mit Zeitraum und wählbaren Kennzahlen.",
+    "chronicle.addPast": "Vergangenen Hamster nachtragen",
+    "chronicle.addPastTitle": "Vergangenen Hamster nachtragen",
+    "chronicle.addPastDescription":
+      "Für einen Hamster von vor dieser Integration - ohne Sensoren, ohne Health Score, nur der Eintrag.",
+    "chronicle.fieldName": "Name",
+    "chronicle.fieldBreed": "Rasse",
+    "chronicle.fieldBreedOther": "Rasse (bei „Sonstige“)",
+    "chronicle.fieldCoatColor": "Fellfarbe",
+    "chronicle.fieldAcquisitionDate": "Einzugsdatum",
+    "chronicle.fieldDepartureDate": "Auszugsdatum",
+    "chronicle.save": "Speichern",
+    "chronicle.cancel": "Abbrechen",
+    "chronicle.nameRequired": "Bitte einen Namen eingeben.",
+    "chronicle.breedOtherRequired": "Bitte die Rasse beschreiben.",
+    "chronicle.datesRequired": "Bitte Einzugs- und Auszugsdatum eingeben.",
+    "chronicle.addPastFailed": "Konnte nicht gespeichert werden - bitte erneut versuchen.",
+
+    "coatColor.golden_brown": "Goldbraun",
+    "coatColor.silver_grey": "Silbergrau",
+    "coatColor.cream_sand": "Creme / Sand",
+    "coatColor.black": "Schwarz / Dunkel",
 
     "breed.golden": "Goldhamster (Syrer)",
     "breed.teddy": "Teddyhamster",

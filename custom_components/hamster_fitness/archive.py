@@ -20,6 +20,7 @@ entity states otherwise, and archived hamsters no longer have any.
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -94,4 +95,25 @@ async def async_record_departure(
     await store.async_save({"hamsters": hamsters})
     _LOGGER.debug(
         "Hamster Fitness: %s ins Lebenslauf-Archiv übernommen", record.get("name")
+    )
+
+
+async def async_add_manual_entry(hass: HomeAssistant, record: dict[str, Any]) -> None:
+    """Add a purely historical hamster that never had a config entry.
+
+    Same store, same record shape as `async_record_departure` - the
+    chronicle card can't tell the two apart, which is the point: a
+    hamster from before this integration existed belongs in the same
+    list as one it tracked itself. Keyed by a random id rather than an
+    entry_id, since there is no config entry behind it to key on.
+    """
+    key = f"manual_{uuid.uuid4().hex}"
+    store = _store(hass)
+    stored = await store.async_load() or {}
+    hamsters: dict[str, Any] = stored.get("hamsters", {})
+    hamsters[key] = record
+    await store.async_save({"hamsters": hamsters})
+    _LOGGER.debug(
+        "Hamster Fitness: %s manuell ins Lebenslauf-Archiv eingetragen",
+        record.get("name"),
     )

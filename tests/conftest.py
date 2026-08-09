@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from collections.abc import AsyncGenerator, Generator
 
+import aiohttp.connector
+import aiohttp.resolver
 import pytest
 import pytest_socket
 from homeassistant import config_entries
@@ -58,6 +60,23 @@ if sys.platform == "win32":
         pytest_socket.socket_allow_hosts(["127.0.0.1", "::1"])
 
     pytest_socket.disable_socket = _allow_loopback_sockets
+
+    # aiohttp picks AsyncResolver (backed by aiodns) as its DefaultResolver
+    # whenever aiodns is merely importable, with no way to opt out short of
+    # not having it installed - and aiodns hard-requires a SelectorEventLoop,
+    # which Windows has not defaulted to since Python 3.8. Any test that
+    # opens a real aiohttp connection (hass_ws_client, hass_client) then
+    # fails with "aiodns needs a SelectorEventLoop on Windows" before it
+    # gets anywhere near this integration's own code.
+    #
+    # Tests only ever talk to 127.0.0.1, so real DNS resolution never
+    # happens either way - ThreadedResolver is a functionally identical,
+    # SelectorEventLoop-free substitute for that. Patched on
+    # aiohttp.connector (where TCPConnector actually looks it up, via
+    # `from .resolver import DefaultResolver`) rather than on
+    # aiohttp.resolver: that import already copied the old reference in,
+    # so patching the source module would be invisible to it.
+    aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver
 
 
 @pytest.fixture(autouse=True)

@@ -9,10 +9,16 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, Event, HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util import dt as dt_util
 
 from . import archive, runtime_text
 from .const import (
+    BREED_OTHER,
+    BREEDS,
+    COAT_COLOR_HEX,
+    COAT_COLORS,
     CONF_HAMSTER_NAME,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_DIAMETER_SYNC_ENTITY,
@@ -49,6 +55,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _register_frontend)
 
     websocket_api.async_register_command(hass, _ws_history)
+    websocket_api.async_register_command(hass, _ws_add_historical_hamster)
 
     return True
 
@@ -71,6 +78,59 @@ async def _ws_history(
     archive is shared by all hamsters and has to answer even when no
     config entry exists at all any more.
     """
+    connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/add_historical_hamster",
+        vol.Required("name"): str,
+        vol.Required("breed"): vol.In(BREEDS),
+        vol.Optional("breed_other", default=""): str,
+        vol.Required("coat_color"): vol.In(COAT_COLORS),
+        vol.Required("acquisition_date"): cv.date,
+        vol.Required("departure_date"): cv.date,
+    }
+)
+@websocket_api.async_response
+async def _ws_add_historical_hamster(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Add a hamster from before this integration existed.
+
+    For a hamster with no sensors, no device and therefore no health
+    score to speak of - see the chronicle card's "add a past hamster"
+    dialog. The record carries no distance/speed/score fields at all
+    (rather than zeroes, which would read as "a hamster that never
+    moved"); the chronicle card already renders a missing value as
+    "–", the same way it does for the two other optional stat columns.
+    """
+    name = msg["name"].strip()
+    if not name:
+        connection.send_error(msg["id"], "invalid_format", "Name is required")
+        return
+    breed_other = msg["breed_other"].strip()
+    if msg["breed"] == BREED_OTHER and not breed_other:
+        connection.send_error(
+            msg["id"], "invalid_format", "Breed description is required for 'Other'"
+        )
+        return
+
+    await archive.async_add_manual_entry(
+        hass,
+        {
+            "name": name,
+            "breed": msg["breed"],
+            "breed_other": breed_other if msg["breed"] == BREED_OTHER else None,
+            "coat_color": msg["coat_color"],
+            "coat_color_hex": COAT_COLOR_HEX.get(msg["coat_color"]),
+            "acquisition_date": msg["acquisition_date"].isoformat(),
+            "departure_date": msg["departure_date"].isoformat(),
+            "archived_at": dt_util.utcnow().isoformat(),
+        },
+    )
     connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 
