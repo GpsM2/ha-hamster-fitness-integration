@@ -706,11 +706,24 @@ class HamsterDayNightCard extends HTMLElement {
       );
     }
     if (this._config.show_distance) {
+      // The average, not the distance alone, says something about HOW the
+      // hamster ran tonight - distance over the time it actually spent
+      // running (see coordinator.py's night_avg_speed_kmh), not over
+      // wall-clock hours, so a hamster that slept most of the night isn't
+      // read as "slow". Missing until at least a minute of that running
+      // time has piled up - a fresher average than that is really just
+      // the current speed again.
+      const nightAvgSpeed = healthScore.attributes.night_avg_speed_kmh;
+      const distanceText = fmtNumber(this._hass, nightDistance && nightDistance.state, 2, "km");
+      const value =
+        nightAvgSpeed === null || nightAvgSpeed === undefined
+          ? distanceText
+          : `${distanceText} · ${fmtNumber(this._hass, nightAvgSpeed, 1, "km/h")}`;
       chips.push(
         this._chip({
           icon: ICONS.distance,
           label: t(this._hass, "dayNight.thisNight"),
-          value: fmtNumber(this._hass, nightDistance && nightDistance.state, 2, "km"),
+          value,
           entity: this._entityId("night_distance"),
         })
       );

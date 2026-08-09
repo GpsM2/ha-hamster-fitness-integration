@@ -41,6 +41,13 @@ running or resting, current speed, distance this night, temperature and
 humidity, and the cage light. Every chip is tappable and opens that
 reading's own history.
 
+**The "this night" chip** adds the night's average speed alongside the
+distance once at least a minute of running has piled up — distance over
+the time actually spent running, not over wall-clock hours, so a hamster
+that slept through most of the night reads as well-rested, not slow. It
+covers every session since the night began, not just the one currently
+running.
+
 **The resting chip** carries a **lid open** badge whenever the cage is
 open while the hamster rests — the moment most likely to interrupt a
 nap, and exactly what the sleep pillar of the health score scores.

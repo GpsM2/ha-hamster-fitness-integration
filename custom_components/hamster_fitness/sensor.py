@@ -120,6 +120,7 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
         return {
             **self._profile,
             "night_distance_km": data.night_distance_km,
+            "night_avg_speed_kmh": data.night_avg_speed_kmh,
             "last_completed_night_km": data.last_completed_night_km,
             "daily_distance_km": data.daily_distance_km,
             "temperature": data.temperature,
