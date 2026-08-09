@@ -88,6 +88,10 @@ _LOGGER = logging.getLogger(__name__)
 
 CM_PER_KM: Final = 100_000.0
 SESSION_END_GAP: Final = timedelta(minutes=SESSION_END_GAP_MINUTES)
+# Below this, night_avg_speed_kmh stays None rather than dividing by a
+# near-zero denominator - a few seconds into a session, distance/time
+# would just read back the instantaneous speed, not a meaningful average.
+MIN_ACTIVE_MINUTES_FOR_AVERAGE: Final = 1.0
 
 # Interne Formel-Konstanten (kein Options-Flow-Bezug, siehe _*_penalty()).
 _DISTANCE_MODERATE_PENALTY_MAX = 25.0
@@ -132,6 +136,13 @@ class HamsterFitnessData:
     # DAILY_RESET_HOUR gekappt, sondern deckt die tatsächliche nächtliche
     # Aktivitätsphase ab.
     night_distance_km: float = 0.0
+    # night_distance_km / tatsächlich gelaufene Zeit dieses Nachtfensters
+    # (nicht Wanduhrzeit seit Fensterstart) - siehe
+    # HamsterFitnessCoordinator._night_active_minutes. None, solange noch
+    # keine volle Minute Laufzeit vorliegt: ein Schnitt über wenige
+    # Sekunden würde nur die gerade aktuelle Geschwindigkeit wiedergeben,
+    # nicht "wie ist der Hamster heute Nacht gelaufen".
+    night_avg_speed_kmh: float | None = None
     # Endstand des zuletzt ABGESCHLOSSENEN Nachtfensters (eingefroren beim
     # Reset um NIGHT_WINDOW_START_HOUR). Zusammen mit night_distance_km die
     # Grundlage des Bewegungs-Abzugs, siehe _effective_distance_km() - ohne
@@ -259,6 +270,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._max_speed_tonight_kmh: float | None = None
         self._lifetime_max_speed_kmh: float | None = None
         self._last_completed_night_km: float = 0.0
+        # Tatsächlich gelaufene Minuten seit dem letzten Nachtfenster-Start
+        # (Summe über ALLE Lauf-Sessions dieser Nacht, nicht nur die
+        # aktuelle) - siehe _update_activity_session(). Wie
+        # _max_speed_tonight_kmh bewusst nicht persistiert: rein kosmetisch
+        # für den Ø-Geschwindigkeits-Chip, kein Neustart-kritischer Wert.
+        self._night_active_minutes: float = 0.0
+        self._last_activity_tick_at: datetime | None = None
 
         # Störungszähler der laufenden Schlafphase (siehe _sleep_penalty()).
         # Werden bei jedem Tages-Reset geleert und persistiert, damit ein
@@ -657,6 +675,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
         self._max_speed_tonight_kmh = None
+        self._night_active_minutes = 0.0
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
 
@@ -1001,7 +1020,38 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         Session-Start" semantics chosen for this. Only persisted at the
         start/end boundary (not on every pulse) to avoid writing to disk
         on every single wheel rotation during an active run.
+
+        Also accumulates _night_active_minutes, the running total this
+        method's docstring above doesn't otherwise track: night_active_
+        duration_min covers only the *current* session, but the night's
+        average speed (see night_avg_speed_kmh) needs the sum across
+        every session tonight. Credited BEFORE the state below changes
+        _session_start_at - the elapsed interval belongs to whatever was
+        true for its whole span, including the tail end of a session that
+        happens to be ending, or the lead-up to one that's starting, right
+        at this exact call.
+
+        The credited interval is capped at the session's own end boundary
+        (last activity + SESSION_END_GAP), not run all the way to `now`.
+        Without that cap, a tick that happens to land long after a
+        session quietly expired - the next sensor event might not fire
+        for hours - would credit the entire idle gap as active, the same
+        way night_active_duration_min would visibly keep counting up
+        through the grace period if nothing checked it sooner. Capping
+        matches what that display would have shown at the moment the
+        session actually ended, not one silent tick later.
         """
+        if self._session_start_at is not None and self._last_activity_tick_at is not None:
+            session_end_boundary = (
+                self._last_activity_at + SESSION_END_GAP
+                if self._last_activity_at is not None
+                else now
+            )
+            credit_until = min(now, session_end_boundary)
+            elapsed_min = (credit_until - self._last_activity_tick_at).total_seconds() / 60
+            self._night_active_minutes += max(0.0, elapsed_min)
+        self._last_activity_tick_at = now
+
         if activity_detected:
             self._last_activity_at = now
             if self._session_start_at is None:
@@ -1062,10 +1112,16 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 (self._lifetime_offset_count + current_count)
                 * self._wheel_circumference_cm
             ) / CM_PER_KM
+            night_avg_speed_kmh = (
+                round(night_distance_km / (self._night_active_minutes / 60), 1)
+                if self._night_active_minutes >= MIN_ACTIVE_MINUTES_FOR_AVERAGE
+                else None
+            )
         else:
             distance_km = self.data.daily_distance_km if self.data else 0.0
             night_distance_km = self.data.night_distance_km if self.data else 0.0
             lifetime_distance_km = self.data.lifetime_distance_km if self.data else 0.0
+            night_avg_speed_kmh = self.data.night_avg_speed_kmh if self.data else None
 
         temp_state = self.hass.states.get(self._temperature_sensor)
         temperature = _as_float(temp_state.state) if temp_state else None
@@ -1210,6 +1266,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             daily_distance_km=round(distance_km, 3),
             previous_day_distance_km=self._previous_day_distance_km,
             night_distance_km=round(night_distance_km, 3),
+            night_avg_speed_kmh=night_avg_speed_kmh,
             last_completed_night_km=round(self._last_completed_night_km, 3),
             lifetime_distance_km=round(lifetime_distance_km, 3),
             temperature=temperature,
