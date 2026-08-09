@@ -3,58 +3,89 @@
 Covers both layers: the storage helper directly (archive.py), and the
 `hamster_fitness/add_historical_hamster` WebSocket command the chronicle
 card's "add a past hamster" dialog calls.
+
+The WS layer is exercised without a real network connection. A real one
+(pytest-homeassistant-custom-component's `hass_ws_client`) turned out to
+be unusable in CI: aiohttp's DefaultResolver is AsyncResolver (backed by
+aiodns) whenever aiodns is importable, and ThreadedResolver otherwise:
+- AsyncResolver requires a SelectorEventLoop, which Windows has not
+  defaulted to since Python 3.8 - every real aiohttp connection crashed
+  locally before reaching any of this integration's own code.
+- ThreadedResolver keeps a worker thread alive past the connection,
+  which pytest-homeassistant-custom-component's strict thread-leak
+  check does not tolerate - the very first CI run of this file failed
+  there instead, on a completely clean Ubuntu runner.
+
+Testing the command directly sidesteps both: run the message through its
+real voluptuous schema (`_ws_schema`, same validation a real WS message
+gets) to prove the schema itself rejects bad input, then call the
+handler's own coroutine directly (`.__wrapped__`, bypassing only the
+background-task scheduling `@websocket_api.async_response` adds for the
+live server's benefit) to prove its business logic. No socket, no
+thread, no event-loop requirement - and arguably a more precise test,
+since a schema rejection and a handler-level rejection are genuinely
+different things that a full round-trip WS test would have blurred
+together into one "success: false".
 """
 
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
+import voluptuous as vol
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-from pytest_homeassistant_custom_component.typing import WebSocketGenerator
 
-from custom_components.hamster_fitness import archive
-from custom_components.hamster_fitness.const import (
-    CONF_ACQUISITION_DATE,
-    CONF_BREED,
-    CONF_DOOR_SENSOR,
-    CONF_HAMSTER_NAME,
-    CONF_TEMPERATURE_SENSOR,
-    CONF_WHEEL_DIAMETER,
-    CONF_WHEEL_SENSOR,
-    DOMAIN,
-)
+from custom_components.hamster_fitness import _ws_add_historical_hamster, archive
+from custom_components.hamster_fitness.const import DOMAIN
 
-WHEEL_SENSOR = "sensor.wheel_rotations"
-TEMPERATURE_SENSOR = "sensor.cage_temperature"
-DOOR_SENSOR = "binary_sensor.cage_door"
+COMMAND_TYPE = f"{DOMAIN}/add_historical_hamster"
 
 
-async def _setup_any_entry(hass: HomeAssistant) -> None:
-    """Get the domain (and its WebSocket commands) registered.
+class _FakeConnection:
+    """Records what the handler would have sent over the wire."""
 
-    The command is registered domain-wide in `async_setup`, which a bare
-    `hass` fixture never triggers on its own - it needs at least one
-    config entry to be set up first.
-    """
-    hass.states.async_set(WHEEL_SENSOR, "0")
-    hass.states.async_set(TEMPERATURE_SENSOR, "22")
-    hass.states.async_set(DOOR_SENSOR, "off")
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        unique_id="taco",
-        title="Taco",
-        data={
-            CONF_HAMSTER_NAME: "Taco",
-            CONF_ACQUISITION_DATE: "2024-01-01",
-            CONF_BREED: "golden",
-            CONF_WHEEL_DIAMETER: 28.0,
-            CONF_WHEEL_SENSOR: WHEEL_SENSOR,
-            CONF_TEMPERATURE_SENSOR: TEMPERATURE_SENSOR,
-            CONF_DOOR_SENSOR: DOOR_SENSOR,
-        },
-    )
-    entry.add_to_hass(hass)
-    assert await hass.config_entries.async_setup(entry.entry_id)
-    await hass.async_block_till_done()
+    def __init__(self) -> None:
+        self.result: dict[str, Any] | None = None
+        self.error: tuple[str, str] | None = None
+
+    def send_result(self, msg_id: int, data: dict[str, Any]) -> None:
+        self.result = data
+
+    def send_error(self, msg_id: int, code: str, message: str) -> None:
+        self.error = (code, message)
+
+
+def _validate(msg: dict[str, Any]) -> dict[str, Any]:
+    """Run `msg` through the command's real schema, like the WS router would."""
+    schema: vol.Schema = _ws_add_historical_hamster._ws_schema
+    return schema(msg)
+
+
+async def _call(hass: HomeAssistant, msg: dict[str, Any]) -> _FakeConnection:
+    """Validate `msg`, then run the handler inline, and return what it sent."""
+    validated = _validate(msg)
+    connection = _FakeConnection()
+    await _ws_add_historical_hamster.__wrapped__(hass, connection, validated)
+    return connection
+
+
+def _msg(**overrides: Any) -> dict[str, Any]:
+    # "id" is the WS protocol's own message-id envelope field, normally
+    # added by the connection layer before a handler's schema ever runs -
+    # BASE_COMMAND_MESSAGE_SCHEMA (which every command schema extends)
+    # requires it too, so a realistic message needs one even here.
+    base = {
+        "id": 1,
+        "type": COMMAND_TYPE,
+        "name": "Pepper",
+        "breed": "chinese",
+        "coat_color": "black",
+        "acquisition_date": "2019-02-11",
+        "departure_date": "2021-05-30",
+    }
+    base.update(overrides)
+    return base
 
 
 # --- archive.async_add_manual_entry -------------------------------------
@@ -107,35 +138,48 @@ async def test_manual_entries_get_distinct_keys(hass: HomeAssistant) -> None:
     assert len(hamsters) == 2
 
 
-# --- The WebSocket command -----------------------------------------------
+# --- The WebSocket command's schema --------------------------------------
 
 
-async def test_ws_add_historical_hamster(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
-) -> None:
+def test_ws_schema_rejects_an_unknown_breed() -> None:
+    """A breed outside the known list is a client bug, not free text."""
+    with pytest.raises(vol.Invalid):
+        _validate(_msg(breed="dragon"))
+
+
+def test_ws_schema_rejects_an_unknown_coat_color() -> None:
+    with pytest.raises(vol.Invalid):
+        _validate(_msg(coat_color="rainbow"))
+
+
+def test_ws_schema_rejects_an_unparsable_date() -> None:
+    with pytest.raises(vol.Invalid):
+        _validate(_msg(acquisition_date="not a date"))
+
+
+def test_ws_schema_converts_dates() -> None:
+    """cv.date turns the wire's ISO strings into real date objects."""
+    from datetime import date
+
+    validated = _validate(_msg())
+    assert validated["acquisition_date"] == date(2019, 2, 11)
+    assert validated["departure_date"] == date(2021, 5, 30)
+
+
+# --- The WebSocket command's handler --------------------------------------
+
+
+async def test_ws_add_historical_hamster(hass: HomeAssistant) -> None:
     """A complete, valid submission is stored and echoed back."""
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
+    connection = await _call(hass, _msg())
 
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "Pepper",
-            "breed": "chinese",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
-    )
-    response = await client.receive_json()
-
-    assert response["success"], response
-    names = [h["name"] for h in response["result"]["hamsters"]]
+    assert connection.error is None
+    names = [h["name"] for h in connection.result["hamsters"]]
     assert "Pepper" in names
 
 
 async def test_ws_add_historical_hamster_has_no_activity_data(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
+    hass: HomeAssistant,
 ) -> None:
     """No distance/speed/score - never tracked, so nothing to report.
 
@@ -143,119 +187,45 @@ async def test_ws_add_historical_hamster_has_no_activity_data(
     one that never moved. The chronicle card already renders a missing
     stat as "-", so omitting the fields is enough.
     """
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
+    connection = await _call(hass, _msg())
 
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "Pepper",
-            "breed": "chinese",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
-    )
-    response = await client.receive_json()
-
-    record = next(
-        h for h in response["result"]["hamsters"] if h["name"] == "Pepper"
-    )
+    record = next(h for h in connection.result["hamsters"] if h["name"] == "Pepper")
     assert "lifetime_distance_km" not in record
     assert "lifetime_max_speed_kmh" not in record
     assert "final_health_score" not in record
 
 
-async def test_ws_add_historical_hamster_requires_a_name(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
-) -> None:
-    """A blank (or whitespace-only) name is rejected, not silently stored."""
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
+async def test_ws_add_historical_hamster_requires_a_name(hass: HomeAssistant) -> None:
+    """A blank (or whitespace-only) name is rejected, not silently stored.
 
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "   ",
-            "breed": "chinese",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
-    )
-    response = await client.receive_json()
+    The schema only demands a string, not a non-blank one - this is the
+    handler's own check, not vol.In or similar.
+    """
+    connection = await _call(hass, _msg(name="   "))
 
-    assert not response["success"]
+    assert connection.error is not None
+    assert connection.result is None
     assert await archive.async_load(hass) == []
 
 
 async def test_ws_add_historical_hamster_other_breed_needs_a_description(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
+    hass: HomeAssistant,
 ) -> None:
     """Breed "other" with nothing to say what it actually is gets rejected."""
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
+    connection = await _call(hass, _msg(breed="other"))
 
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "Pepper",
-            "breed": "other",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
-    )
-    response = await client.receive_json()
-
-    assert not response["success"]
+    assert connection.error is not None
     assert await archive.async_load(hass) == []
 
 
 async def test_ws_add_historical_hamster_other_breed_with_description(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
+    hass: HomeAssistant,
 ) -> None:
     """The same submission succeeds once breed_other is filled in."""
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
-
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "Pepper",
-            "breed": "other",
-            "breed_other": "Mischling",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
+    connection = await _call(
+        hass, _msg(breed="other", breed_other="Mischling")
     )
-    response = await client.receive_json()
 
-    assert response["success"], response
-    record = next(
-        h for h in response["result"]["hamsters"] if h["name"] == "Pepper"
-    )
+    assert connection.error is None
+    record = next(h for h in connection.result["hamsters"] if h["name"] == "Pepper")
     assert record["breed_other"] == "Mischling"
-
-
-async def test_ws_add_historical_hamster_rejects_unknown_breed(
-    hass: HomeAssistant, hass_ws_client: WebSocketGenerator
-) -> None:
-    """A breed outside the known list is a client bug, not free text."""
-    await _setup_any_entry(hass)
-    client = await hass_ws_client(hass)
-
-    await client.send_json_auto_id(
-        {
-            "type": f"{DOMAIN}/add_historical_hamster",
-            "name": "Pepper",
-            "breed": "dragon",
-            "coat_color": "black",
-            "acquisition_date": "2019-02-11",
-            "departure_date": "2021-05-30",
-        }
-    )
-    response = await client.receive_json()
-
-    assert not response["success"]
