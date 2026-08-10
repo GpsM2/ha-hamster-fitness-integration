@@ -353,7 +353,7 @@ class HamsterChronicleCard extends HTMLElement {
         <span class="hch-mark">${HAMSTER_MARK}</span>
         <div class="hch-ident">
           <span class="hch-name">
-            ${row.name}
+            <span class="hch-name-text">${row.name}</span>
             ${row.departureDate ? `<span class="hch-tag">${t(this._hass, "chronicle.movedOut")}</span>` : ""}
             ${row.archived ? `<span class="hch-tag hch-tag-archive">${t(this._hass, "chronicle.archived")}</span>` : ""}
           </span>
@@ -549,6 +549,7 @@ HamsterChronicleCard.styles = `
   ha-card {
     padding: 0;
     overflow: hidden;
+    container-type: inline-size;
   }
   .hch-banner {
     padding: 14px 16px;
@@ -710,9 +711,17 @@ HamsterChronicleCard.styles = `
   .hch-name {
     display: flex;
     align-items: center;
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 4px 6px;
     font-weight: 700;
     color: var(--primary-text-color);
+  }
+  .hch-name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex-shrink: 1;
   }
   .hch-tag {
     font-size: 0.62em;
@@ -723,6 +732,7 @@ HamsterChronicleCard.styles = `
     border-radius: 999px;
     background: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
     color: var(--secondary-text-color);
+    flex-shrink: 0;
   }
   .hch-tag-archive {
     background: rgba(139, 90, 43, 0.18);
@@ -759,7 +769,11 @@ HamsterChronicleCard.styles = `
     white-space: nowrap;
   }
 
-  @media (max-width: 460px) {
+  /* A dashboard column is often narrower than the browser window, so this
+     has to react to the card's own rendered width, not the viewport's -
+     a plain @media query would stay dormant in exactly the layouts where
+     the row actually needs to wrap. */
+  @container (max-width: 460px) {
     .hch-row {
       flex-wrap: wrap;
     }
