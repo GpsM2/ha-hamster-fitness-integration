@@ -452,6 +452,11 @@ class HamsterChronicleCard extends HTMLElement {
       ? "chronicle.editPastDescription"
       : "chronicle.addPastDescription";
 
+    // A card with only a row or two is shorter than this six-field form
+    // wants - grow it for the duration of the dialog rather than cram
+    // the form into a tiny scrollable box. See _closePastDialog().
+    this._root.classList.add("hch-dialog-open");
+
     this._modalHost.innerHTML = `
       <div class="hch-overlay">
         <div class="hch-modal" role="dialog" aria-modal="true"
@@ -553,6 +558,7 @@ class HamsterChronicleCard extends HTMLElement {
   }
 
   _closePastDialog() {
+    this._root.classList.remove("hch-dialog-open");
     this._modalHost.innerHTML = "";
     this._pastForm = null;
     this._pastData = null;
@@ -679,6 +685,20 @@ HamsterChronicleCard.styles = `
     padding: 0;
     overflow: hidden;
     container-type: inline-size;
+  }
+  .hch-root {
+    /* The dialog overlay below is absolutely positioned with inset 0
+       and needs this to size against the card, not against whatever
+       positioned ancestor happens to sit further up the page. */
+    position: relative;
+  }
+  .hch-root.hch-dialog-open {
+    /* A card with only one or two rows is short enough that, without
+       this, the six-field "add/edit past hamster" form has to scroll
+       inside a cramped box. Growing the card while the dialog is open
+       gives it room instead; it shrinks back the moment the dialog
+       closes. */
+    min-height: 560px;
   }
   .hch-banner {
     padding: 14px 16px;
