@@ -1074,6 +1074,18 @@ HamsterDayNightCard.styles = `
     backdrop-filter: blur(6px);
     color: #ffffff;
   }
+  /* Only the light chip carries a trailing button (the pause button)
+     alongside its label/value text - the other chips are just icon+text
+     and never need this. At some widths "Cage light" + "Light off" +
+     "Pause 30 min" no longer fit on one line; the value text is nowrap
+     (see .hdn-chip-value below) and the button doesn't shrink either, so
+     without somewhere to go the button used to sit on top of the text.
+     Wrapping lets the button drop to its own line instead - the gap: 9px
+     set above already doubles as the row-gap between the two lines once
+     it wraps, so nothing else needs to change. */
+  .hdn-chip-wide {
+    flex-wrap: wrap;
+  }
   .hdn-chip-icon {
     width: 19px;
     height: 19px;
