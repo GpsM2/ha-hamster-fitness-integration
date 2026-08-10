@@ -102,6 +102,11 @@ SKIP_VALIDATION_STATES: Final[set[str]] = {"unknown", "unavailable"}
 OPTION_IDEAL_TEMP_MIN: Final = "ideal_temp_min"
 OPTION_IDEAL_TEMP_MAX: Final = "ideal_temp_max"
 OPTION_MIN_DISTANCE_KM: Final = "min_distance_km"
+# Sieben Felder rund um Benachrichtigungen, im Options-Flow als
+# eingeklappte Section NOTIFICATION_SECTION gruppiert - gespeichert werden
+# sie aber flach wie alle anderen Options auch, siehe _flatten_options()
+# in config_flow.py.
+NOTIFICATION_SECTION: Final = "notification_settings"
 OPTION_WARNINGS_ENABLED: Final = "warnings_enabled"
 OPTION_DAILY_SUMMARY_ENABLED: Final = "daily_summary_enabled"
 OPTION_NOTIFICATION_TIME: Final = "notification_time"

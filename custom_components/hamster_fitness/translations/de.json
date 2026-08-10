@@ -114,28 +114,36 @@
         "data": {
           "ideal_temp_min": "Ideal-Temperatur (min)",
           "ideal_temp_max": "Ideal-Temperatur (max)",
-          "min_distance_km": "Mindeststrecke pro Nacht",
-          "warnings_enabled": "Warnungen senden",
-          "daily_summary_enabled": "Tageszusammenfassung senden",
-          "notification_time": "Uhrzeit der Tageszusammenfassung",
-          "weight_reminder_enabled": "Ans Wiegen erinnern",
-          "weight_reminder_days": "Wiege-Intervall",
-          "heat_forecast_enabled": "Hitze-Erinnerung",
-          "heat_forecast_threshold_c": "Schwellwert der Hitze-Erinnerung"
+          "min_distance_km": "Mindeststrecke pro Nacht"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
           "ideal_temp_max": "Obergrenze des idealen Käfig-Temperaturbereichs.",
-          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat.",
-          "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
-          "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
-          "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
-          "weight_reminder_enabled": "Meldet sich nur, wenn das Wiegen wirklich überfällig ist - wer regelmäßig einen neuen Wert einträgt, bekommt diese Erinnerung nie. Versand zur oben eingestellten Uhrzeit der Tageszusammenfassung.",
-          "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird.",
-          "heat_forecast_enabled": "Schickt morgens eine Erinnerung, wenn die vorhergesagte Tageshöchsttemperatur den Schwellwert unten erreicht - Schatten für den Käfig, Raum tagsüber kühl halten, Wasser öfter nachfüllen. Setzt eine bei der Einrichtung gewählte Wetter-Entity voraus; ohne die passiert nichts.",
-          "heat_forecast_threshold_c": "Vorhergesagte AUSSEN-Höchsttemperatur, ab der erinnert wird - nicht die Käfigtemperatur. Beide hängen nicht 1:1 zusammen: Klimaanlage, Keller oder Nordseite ändern, wie viel der Außenhitze am Käfig ankommt."
+          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat."
         },
         "sections": {
+          "notification_settings": {
+            "name": "Benachrichtigungen",
+            "description": "Alle Benachrichtigungen von Hamster Fitness an einem Ort - Warnungen, Tageszusammenfassung sowie Wiege- und Hitze-Erinnerung. Standardmäßig eingeklappt, weil hier meistens nichts zu ändern ist.",
+            "data": {
+              "warnings_enabled": "Warnungen senden",
+              "daily_summary_enabled": "Tageszusammenfassung senden",
+              "notification_time": "Uhrzeit der Tageszusammenfassung",
+              "weight_reminder_enabled": "Ans Wiegen erinnern",
+              "weight_reminder_days": "Wiege-Intervall",
+              "heat_forecast_enabled": "Hitze-Erinnerung",
+              "heat_forecast_threshold_c": "Schwellwert der Hitze-Erinnerung"
+            },
+            "data_description": {
+              "warnings_enabled": "Deaktivieren, um sofortige Warnungen (Temperatur, vernachlässigter Käfig, niedriger Score, zu wenig Bewegung) stummzuschalten.",
+              "daily_summary_enabled": "Deaktivieren, um die nächtliche Distanz-Zusammenfassung abzuschalten.",
+              "notification_time": "Lokale Uhrzeit, zu der die Tageszusammenfassung gesendet wird.",
+              "weight_reminder_enabled": "Meldet sich nur, wenn das Wiegen wirklich überfällig ist - wer regelmäßig einen neuen Wert einträgt, bekommt diese Erinnerung nie. Versand zur oben eingestellten Uhrzeit der Tageszusammenfassung.",
+              "weight_reminder_days": "Wie viele Tage ohne neuen Gewichtswert vergehen dürfen, bevor erinnert wird.",
+              "heat_forecast_enabled": "Schickt morgens eine Erinnerung, wenn die vorhergesagte Tageshöchsttemperatur den Schwellwert unten erreicht - Schatten für den Käfig, Raum tagsüber kühl halten, Wasser öfter nachfüllen. Setzt eine bei der Einrichtung gewählte Wetter-Entity voraus; ohne die passiert nichts.",
+              "heat_forecast_threshold_c": "Vorhergesagte AUSSEN-Höchsttemperatur, ab der erinnert wird - nicht die Käfigtemperatur. Beide hängen nicht 1:1 zusammen: Klimaanlage, Keller oder Nordseite ändern, wie viel der Außenhitze am Käfig ankommt."
+            }
+          },
           "light_settings": {
             "name": "Käfigbeleuchtung",
             "description": "Wirkt nur, wenn im Sensoren-Schritt eine Käfigbeleuchtung ausgewählt wurde. Standardmäßig eingeklappt, weil hier meistens nichts zu ändern ist.",

@@ -77,6 +77,7 @@ from .const import (
     MIN_HEAT_FORECAST_THRESHOLD_C,
     MIN_WEIGHT_REMINDER_DAYS,
     MIN_WHEEL_DIAMETER_CM,
+    NOTIFICATION_SECTION,
     OPTION_DAILY_SUMMARY_ENABLED,
     OPTION_HEAT_FORECAST_ENABLED,
     OPTION_HEAT_FORECAST_THRESHOLD_C,
@@ -442,68 +443,88 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                     mode=NumberSelectorMode.BOX,
                 )
             ),
-            vol.Required(
-                OPTION_WARNINGS_ENABLED,
-                default=current.get(OPTION_WARNINGS_ENABLED, DEFAULT_WARNINGS_ENABLED),
-            ): BooleanSelector(),
-            vol.Required(
-                OPTION_DAILY_SUMMARY_ENABLED,
-                default=current.get(
-                    OPTION_DAILY_SUMMARY_ENABLED, DEFAULT_DAILY_SUMMARY_ENABLED
+            # Sieben Felder rund um Benachrichtigungen, als eingeklappte
+            # Section gruppiert wie die Käfigbeleuchtung unten - anders als
+            # dort ist hier nichts an eine optionale Sensor-Auswahl
+            # gebunden, es geht nur darum, das Formular nicht mit
+            # Benachrichtigungs-Feldern zu überladen.
+            vol.Required(NOTIFICATION_SECTION): section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            OPTION_WARNINGS_ENABLED,
+                            default=current.get(
+                                OPTION_WARNINGS_ENABLED, DEFAULT_WARNINGS_ENABLED
+                            ),
+                        ): BooleanSelector(),
+                        vol.Required(
+                            OPTION_DAILY_SUMMARY_ENABLED,
+                            default=current.get(
+                                OPTION_DAILY_SUMMARY_ENABLED,
+                                DEFAULT_DAILY_SUMMARY_ENABLED,
+                            ),
+                        ): BooleanSelector(),
+                        vol.Required(
+                            OPTION_NOTIFICATION_TIME,
+                            default=current.get(
+                                OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
+                            ),
+                        ): TimeSelector(),
+                        # Teilt sich die Uhrzeit oben mit der
+                        # Tageszusammenfassung - erinnert aber nur, wenn
+                        # tatsächlich zu lange nicht gewogen wurde, siehe
+                        # notify.py.
+                        vol.Required(
+                            OPTION_WEIGHT_REMINDER_ENABLED,
+                            default=current.get(
+                                OPTION_WEIGHT_REMINDER_ENABLED,
+                                DEFAULT_WEIGHT_REMINDER_ENABLED,
+                            ),
+                        ): BooleanSelector(),
+                        vol.Required(
+                            OPTION_WEIGHT_REMINDER_DAYS,
+                            default=current.get(
+                                OPTION_WEIGHT_REMINDER_DAYS,
+                                DEFAULT_WEIGHT_REMINDER_DAYS,
+                            ),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=MIN_WEIGHT_REMINDER_DAYS,
+                                max=MAX_WEIGHT_REMINDER_DAYS,
+                                step=1,
+                                unit_of_measurement="d",
+                                mode=NumberSelectorMode.BOX,
+                            )
+                        ),
+                        # Greift nur, wenn CONF_WEATHER_ENTITY gesetzt ist
+                        # (siehe notify.py). Der Schwellwert meint die
+                        # vorhergesagte Außen-Tageshöchsttemperatur, nicht
+                        # die Käfigtemperatur.
+                        vol.Required(
+                            OPTION_HEAT_FORECAST_ENABLED,
+                            default=current.get(
+                                OPTION_HEAT_FORECAST_ENABLED,
+                                DEFAULT_HEAT_FORECAST_ENABLED,
+                            ),
+                        ): BooleanSelector(),
+                        vol.Required(
+                            OPTION_HEAT_FORECAST_THRESHOLD_C,
+                            default=current.get(
+                                OPTION_HEAT_FORECAST_THRESHOLD_C,
+                                DEFAULT_HEAT_FORECAST_THRESHOLD_C,
+                            ),
+                        ): NumberSelector(
+                            NumberSelectorConfig(
+                                min=MIN_HEAT_FORECAST_THRESHOLD_C,
+                                max=MAX_HEAT_FORECAST_THRESHOLD_C,
+                                step=0.5,
+                                unit_of_measurement="°C",
+                                mode=NumberSelectorMode.BOX,
+                            )
+                        ),
+                    }
                 ),
-            ): BooleanSelector(),
-            vol.Required(
-                OPTION_NOTIFICATION_TIME,
-                default=current.get(
-                    OPTION_NOTIFICATION_TIME, DEFAULT_NOTIFICATION_TIME
-                ),
-            ): TimeSelector(),
-            # Teilt sich die Uhrzeit oben mit der Tageszusammenfassung -
-            # erinnert aber nur, wenn tatsächlich zu lange nicht gewogen
-            # wurde, siehe notify.py.
-            vol.Required(
-                OPTION_WEIGHT_REMINDER_ENABLED,
-                default=current.get(
-                    OPTION_WEIGHT_REMINDER_ENABLED, DEFAULT_WEIGHT_REMINDER_ENABLED
-                ),
-            ): BooleanSelector(),
-            vol.Required(
-                OPTION_WEIGHT_REMINDER_DAYS,
-                default=current.get(
-                    OPTION_WEIGHT_REMINDER_DAYS, DEFAULT_WEIGHT_REMINDER_DAYS
-                ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=MIN_WEIGHT_REMINDER_DAYS,
-                    max=MAX_WEIGHT_REMINDER_DAYS,
-                    step=1,
-                    unit_of_measurement="d",
-                    mode=NumberSelectorMode.BOX,
-                )
-            ),
-            # Greift nur, wenn CONF_WEATHER_ENTITY gesetzt ist (siehe
-            # notify.py). Der Schwellwert meint die vorhergesagte
-            # Außen-Tageshöchsttemperatur, nicht die Käfigtemperatur.
-            vol.Required(
-                OPTION_HEAT_FORECAST_ENABLED,
-                default=current.get(
-                    OPTION_HEAT_FORECAST_ENABLED, DEFAULT_HEAT_FORECAST_ENABLED
-                ),
-            ): BooleanSelector(),
-            vol.Required(
-                OPTION_HEAT_FORECAST_THRESHOLD_C,
-                default=current.get(
-                    OPTION_HEAT_FORECAST_THRESHOLD_C,
-                    DEFAULT_HEAT_FORECAST_THRESHOLD_C,
-                ),
-            ): NumberSelector(
-                NumberSelectorConfig(
-                    min=MIN_HEAT_FORECAST_THRESHOLD_C,
-                    max=MAX_HEAT_FORECAST_THRESHOLD_C,
-                    step=0.5,
-                    unit_of_measurement="°C",
-                    mode=NumberSelectorMode.BOX,
-                )
+                {"collapsed": True},
             ),
             # Vier Felder, die nur greifen, wenn CONF_LIGHT_ENTITY gesetzt
             # ist (siehe door_light.py) - als eingeklappte Section, damit
@@ -573,17 +594,21 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
     )
 
 
+_OPTION_SECTIONS = (LIGHT_SECTION, NOTIFICATION_SECTION)
+
+
 def _flatten_options(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Merge the light section back up into a flat options dict.
+    """Merge every section's values back up into a flat options dict.
 
     A `section` in the schema means Home Assistant hands the values back
-    nested under LIGHT_SECTION. Everything that reads options at runtime
+    nested under its own key. Everything that reads options at runtime
     (door_light.py, notify.py, the coordinator) expects them flat, and
     entries saved before this grouping existed are flat too - so the nest
     is undone here rather than teaching every reader about it.
     """
-    flattened = {k: v for k, v in user_input.items() if k != LIGHT_SECTION}
-    flattened.update(user_input.get(LIGHT_SECTION, {}))
+    flattened = {k: v for k, v in user_input.items() if k not in _OPTION_SECTIONS}
+    for section_key in _OPTION_SECTIONS:
+        flattened.update(user_input.get(section_key, {}))
     return flattened
 
 

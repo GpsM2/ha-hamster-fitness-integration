@@ -114,28 +114,36 @@
         "data": {
           "ideal_temp_min": "Ideal temperature (min)",
           "ideal_temp_max": "Ideal temperature (max)",
-          "min_distance_km": "Minimum nightly distance",
-          "warnings_enabled": "Send warning notifications",
-          "daily_summary_enabled": "Send daily summary",
-          "notification_time": "Daily summary time",
-          "weight_reminder_enabled": "Remind me to weigh the hamster",
-          "weight_reminder_days": "Weigh-in interval",
-          "heat_forecast_enabled": "Heat care reminder",
-          "heat_forecast_threshold_c": "Heat reminder threshold"
+          "min_distance_km": "Minimum nightly distance"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
           "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
-          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started.",
-          "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
-          "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
-          "notification_time": "Local time at which the daily summary is sent.",
-          "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
-          "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
-          "heat_forecast_enabled": "Sends a morning reminder when the day's forecast high reaches the threshold below - shade the cage, keep the room cool, refill the water more often. Needs a weather entity picked during setup; without one this does nothing.",
-          "heat_forecast_threshold_c": "Forecast OUTDOOR high that triggers the reminder - not the cage temperature. The two don't map onto each other: air conditioning, a basement, or a north-facing room all change how much of the outside heat reaches the cage."
+          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started."
         },
         "sections": {
+          "notification_settings": {
+            "name": "Notifications",
+            "description": "Every notification Hamster Fitness can send, in one place - warnings, the daily summary, and the weigh-in and heat reminders. Collapsed by default; most of the time there is nothing to change here.",
+            "data": {
+              "warnings_enabled": "Send warning notifications",
+              "daily_summary_enabled": "Send daily summary",
+              "notification_time": "Daily summary time",
+              "weight_reminder_enabled": "Remind me to weigh the hamster",
+              "weight_reminder_days": "Weigh-in interval",
+              "heat_forecast_enabled": "Heat care reminder",
+              "heat_forecast_threshold_c": "Heat reminder threshold"
+            },
+            "data_description": {
+              "warnings_enabled": "Turn off to silence immediate warnings (temperature, neglected cage, low score, too little exercise).",
+              "daily_summary_enabled": "Turn off to stop the nightly distance summary.",
+              "notification_time": "Local time at which the daily summary is sent.",
+              "weight_reminder_enabled": "Only nags when the weight is actually overdue - if you enter a new value regularly, this reminder never fires. Sent at the daily summary time above.",
+              "weight_reminder_days": "How many days may pass without a new weight before the reminder is sent.",
+              "heat_forecast_enabled": "Sends a morning reminder when the day's forecast high reaches the threshold below - shade the cage, keep the room cool, refill the water more often. Needs a weather entity picked during setup; without one this does nothing.",
+              "heat_forecast_threshold_c": "Forecast OUTDOOR high that triggers the reminder - not the cage temperature. The two don't map onto each other: air conditioning, a basement, or a north-facing room all change how much of the outside heat reaches the cage."
+            }
+          },
           "light_settings": {
             "name": "Cage light",
             "description": "Only takes effect if you picked a cage light in the sensors step. Collapsed by default, since most of the time there is nothing to change here.",
