@@ -204,6 +204,9 @@ const STRINGS = {
     "chronicle.addPastTitle": "Add a past hamster",
     "chronicle.addPastDescription":
       "For a hamster from before this integration existed - no sensors, no health score, just the record.",
+    "chronicle.editPast": "Edit",
+    "chronicle.editPastTitle": "Edit hamster",
+    "chronicle.editPastDescription": "Update this hamster's record.",
     "chronicle.fieldName": "Name",
     "chronicle.fieldBreed": "Breed",
     "chronicle.fieldBreedOther": "Breed (if \"Other\")",
@@ -212,10 +215,15 @@ const STRINGS = {
     "chronicle.fieldDepartureDate": "Move-out date",
     "chronicle.save": "Save",
     "chronicle.cancel": "Cancel",
+    "chronicle.delete": "Delete",
+    "chronicle.deleteConfirmBody":
+      "This removes this entry from the chronicle for good. This can't be undone.",
+    "chronicle.deleteConfirmYes": "Yes, delete",
     "chronicle.nameRequired": "Enter a name.",
     "chronicle.breedOtherRequired": "Describe the breed.",
     "chronicle.datesRequired": "Enter both the move-in and move-out date.",
     "chronicle.addPastFailed": "Could not save - please try again.",
+    "chronicle.deleteFailed": "Could not delete - please try again.",
 
     "coatColor.golden_brown": "Golden brown",
     "coatColor.silver_grey": "Silver grey",
@@ -391,6 +399,9 @@ const STRINGS = {
     "chronicle.addPastTitle": "Vergangenen Hamster nachtragen",
     "chronicle.addPastDescription":
       "Für einen Hamster von vor dieser Integration - ohne Sensoren, ohne Health Score, nur der Eintrag.",
+    "chronicle.editPast": "Bearbeiten",
+    "chronicle.editPastTitle": "Hamster bearbeiten",
+    "chronicle.editPastDescription": "Diesen Eintrag aktualisieren.",
     "chronicle.fieldName": "Name",
     "chronicle.fieldBreed": "Rasse",
     "chronicle.fieldBreedOther": "Rasse (bei „Sonstige“)",
@@ -399,10 +410,15 @@ const STRINGS = {
     "chronicle.fieldDepartureDate": "Auszugsdatum",
     "chronicle.save": "Speichern",
     "chronicle.cancel": "Abbrechen",
+    "chronicle.delete": "Löschen",
+    "chronicle.deleteConfirmBody":
+      "Dadurch wird dieser Eintrag endgültig aus der Chronik entfernt. Das lässt sich nicht rückgängig machen.",
+    "chronicle.deleteConfirmYes": "Ja, löschen",
     "chronicle.nameRequired": "Bitte einen Namen eingeben.",
     "chronicle.breedOtherRequired": "Bitte die Rasse beschreiben.",
     "chronicle.datesRequired": "Bitte Einzugs- und Auszugsdatum eingeben.",
     "chronicle.addPastFailed": "Konnte nicht gespeichert werden - bitte erneut versuchen.",
+    "chronicle.deleteFailed": "Konnte nicht gelöscht werden - bitte erneut versuchen.",
 
     "coatColor.golden_brown": "Goldbraun",
     "coatColor.silver_grey": "Silbergrau",

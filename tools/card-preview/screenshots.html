@@ -191,7 +191,8 @@ function chronicleHass() {
   return {
     language: LANG, states, entities, devices,
     callWS: async () => ({ hamsters: [
-      { name: "Mochi", breed: "roborovski", coat_color_hex: "#E8D3A7",
+      { id: "manual_demo", name: "Mochi", breed: "roborovski",
+        coat_color: "cream_sand", coat_color_hex: "#E8D3A7",
         acquisition_date: "2021-06-01", departure_date: "2023-09-12",
         lifetime_distance_km: 611.4, lifetime_max_speed_kmh: 8.2,
         final_health_score: 84, days_with_you: 833 },

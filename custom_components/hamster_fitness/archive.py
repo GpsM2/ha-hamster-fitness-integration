@@ -53,9 +53,17 @@ def _store(hass: HomeAssistant) -> Store[dict[str, Any]]:
 
 
 async def async_load(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """Return every archived hamster, most recently departed first."""
+    """Return every archived hamster, most recently departed first.
+
+    Each record carries its storage key as `id` - the chronicle card needs
+    it to tell a manually-added entry (editable/deletable through the
+    card) apart from a real hamster's departure record (managed by its
+    coordinator instead), and to target the right record when it does.
+    """
     stored = await _store(hass).async_load() or {}
-    hamsters: list[dict[str, Any]] = list(stored.get("hamsters", {}).values())
+    hamsters: list[dict[str, Any]] = [
+        {**record, "id": key} for key, record in stored.get("hamsters", {}).items()
+    ]
     hamsters.sort(key=lambda item: item.get("departure_date") or "", reverse=True)
     return hamsters
 
@@ -117,3 +125,48 @@ async def async_add_manual_entry(hass: HomeAssistant, record: dict[str, Any]) ->
         "Hamster Fitness: %s manuell ins Lebenslauf-Archiv eingetragen",
         record.get("name"),
     )
+
+
+def _is_manual_entry_id(entry_id: str) -> bool:
+    """Whether `entry_id` names a manually-added entry, not a real hamster's.
+
+    Both `async_update_manual_entry` and `async_remove_manual_entry` check
+    this before touching the store - the chronicle card only ever offers
+    editing/deleting for entries it created itself, but the WebSocket
+    commands behind that UI are the actual safety boundary: a real
+    hamster's departure record must stay under its coordinator's control.
+    """
+    return entry_id.startswith("manual_")
+
+
+async def async_update_manual_entry(
+    hass: HomeAssistant, entry_id: str, record: dict[str, Any]
+) -> bool:
+    """Overwrite a manually-added entry in place. Returns whether it existed."""
+    if not _is_manual_entry_id(entry_id):
+        return False
+    store = _store(hass)
+    stored = await store.async_load() or {}
+    hamsters: dict[str, Any] = stored.get("hamsters", {})
+    if entry_id not in hamsters:
+        return False
+    hamsters[entry_id] = record
+    await store.async_save({"hamsters": hamsters})
+    _LOGGER.debug(
+        "Hamster Fitness: manueller Archiv-Eintrag %s aktualisiert", entry_id
+    )
+    return True
+
+
+async def async_remove_manual_entry(hass: HomeAssistant, entry_id: str) -> bool:
+    """Delete a manually-added entry. Returns whether it existed."""
+    if not _is_manual_entry_id(entry_id):
+        return False
+    store = _store(hass)
+    stored = await store.async_load() or {}
+    hamsters: dict[str, Any] = stored.get("hamsters", {})
+    if hamsters.pop(entry_id, None) is None:
+        return False
+    await store.async_save({"hamsters": hamsters})
+    _LOGGER.debug("Hamster Fitness: manueller Archiv-Eintrag %s gelöscht", entry_id)
+    return True
