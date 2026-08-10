@@ -52,3 +52,20 @@ jobs:
 
       - name: pytest
         run: pytest tests/ -q
+
+  frontend-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Check every card loads as a valid ES module
+        run: python tools/check_frontend_syntax.py
