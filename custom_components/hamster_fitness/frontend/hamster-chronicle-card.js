@@ -40,7 +40,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=10";
+} from "./hamster-fitness-shared.js?v=11";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -134,7 +134,12 @@ class HamsterChronicleCard extends HTMLElement {
       this._root.addEventListener("click", (ev) => {
         if (ev.target.closest(".hch-modal-host")) return;
         if (ev.target.closest("[data-action='add-past']")) {
-          this._openAddPastDialog();
+          this._openPastDialog();
+          return;
+        }
+        const manualTarget = ev.target.closest("[data-manual-entry]");
+        if (manualTarget) {
+          this._openPastDialog(manualTarget.dataset.manualEntry);
           return;
         }
         const target = ev.target.closest("[data-entity]");
@@ -145,7 +150,13 @@ class HamsterChronicleCard extends HTMLElement {
         if (ev.target.closest(".hch-modal-host")) return;
         if (ev.target.closest("[data-action='add-past']")) {
           ev.preventDefault();
-          this._openAddPastDialog();
+          this._openPastDialog();
+          return;
+        }
+        const manualTarget = ev.target.closest("[data-manual-entry]");
+        if (manualTarget) {
+          ev.preventDefault();
+          this._openPastDialog(manualTarget.dataset.manualEntry);
           return;
         }
         const target = ev.target.closest("[data-entity]");
@@ -159,19 +170,33 @@ class HamsterChronicleCard extends HTMLElement {
       // card keeps working in the dashboard editor preview.
       this._modalHost.addEventListener("click", (ev) => {
         if (ev.target.closest("[data-action='save-past']")) {
-          this._saveAddPastEntry();
+          this._savePastEntry();
+          return;
+        }
+        if (ev.target.closest("[data-action='delete-past']")) {
+          this._confirmingDelete = true;
+          this._renderPastDialogFooter();
+          return;
+        }
+        if (ev.target.closest("[data-action='cancel-delete-past']")) {
+          this._confirmingDelete = false;
+          this._renderPastDialogFooter();
+          return;
+        }
+        if (ev.target.closest("[data-action='confirm-delete-past']")) {
+          this._deletePastEntry();
           return;
         }
         if (
           ev.target.closest("[data-close]") ||
           ev.target === this._modalHost.firstElementChild
         ) {
-          this._closeAddPastDialog();
+          this._closePastDialog();
         }
       });
       this._onKeyDown = (ev) => {
         if (ev.key === "Escape" && this._modalHost.hasChildNodes()) {
-          this._closeAddPastDialog();
+          this._closePastDialog();
         }
       };
     }
@@ -279,6 +304,8 @@ class HamsterChronicleCard extends HTMLElement {
       // up twice; the live entry wins, since its numbers keep updating.
       .filter((record) => !liveNames.has(record.name))
       .map((record) => ({
+        id: record.id,
+        manual: typeof record.id === "string" && record.id.startsWith("manual_"),
         entityId: null,
         name: record.name,
         breed: record.breed,
@@ -343,11 +370,13 @@ class HamsterChronicleCard extends HTMLElement {
 
     const clickable = row.entityId
       ? `data-entity="${row.entityId}" tabindex="0" role="button"`
+      : row.manual
+      ? `data-manual-entry="${row.id}" tabindex="0" role="button" aria-label="${t(this._hass, "chronicle.editPast")}"`
       : "";
     const breed = this._breedLabel(row);
 
     return `
-      <div class="hch-row${row.entityId ? " hch-clickable" : ""}${row.departureDate ? " hch-past" : ""}"
+      <div class="hch-row${row.entityId || row.manual ? " hch-clickable" : ""}${row.departureDate ? " hch-past" : ""}"
            style="--row-fur: ${row.coatHex}; --row-fur-light: ${shade(row.coatHex, 0.18)}; --row-fur-dark: ${shade(row.coatHex, -0.4)}"
            ${clickable}>
         <span class="hch-mark">${HAMSTER_MARK}</span>
@@ -364,14 +393,27 @@ class HamsterChronicleCard extends HTMLElement {
     `;
   }
 
+  /** The raw archive record behind a manually-added row's data-manual-entry id. */
+  _findArchiveRecord(entryId) {
+    return (this._archive || []).find((record) => record.id === entryId) || null;
+  }
+
   /**
    * A hamster from before this integration existed: no sensors, no
    * device, so no config flow can create it. This is the only way in -
    * a form that writes straight to the lifetime archive via the
    * `hamster_fitness/add_historical_hamster` WebSocket command (see
    * __init__.py), the same store live departures land in.
+   *
+   * Doubles as the editor for an entry added this way: pass the id from
+   * its `data-manual-entry` attribute and the form pre-fills from the
+   * matching archive record instead of starting blank.
    */
-  _openAddPastDialog() {
+  _openPastDialog(editEntryId = null) {
+    const editRecord = editEntryId ? this._findArchiveRecord(editEntryId) : null;
+    this._editingEntryId = editRecord ? editEntryId : null;
+    this._confirmingDelete = false;
+
     const breedOptions = BREEDS.map((value) => ({
       value,
       label: t(this._hass, `breed.${value}`),
@@ -405,100 +447,187 @@ class HamsterChronicleCard extends HTMLElement {
       { name: "departure_date", required: true, selector: { date: {} } },
     ];
 
+    const titleKey = this._editingEntryId ? "chronicle.editPastTitle" : "chronicle.addPastTitle";
+    const descKey = this._editingEntryId
+      ? "chronicle.editPastDescription"
+      : "chronicle.addPastDescription";
+
     this._modalHost.innerHTML = `
       <div class="hch-overlay">
         <div class="hch-modal" role="dialog" aria-modal="true"
-             aria-label="${t(this._hass, "chronicle.addPastTitle")}">
+             aria-label="${t(this._hass, titleKey)}">
           <div class="hch-modal-head">
-            <span class="hch-modal-title">${t(this._hass, "chronicle.addPastTitle")}</span>
+            <span class="hch-modal-title">${t(this._hass, titleKey)}</span>
             <button class="hch-modal-close" data-close type="button"
                     aria-label="${t(this._hass, "chronicle.cancel")}">×</button>
           </div>
           <div class="hch-modal-body">
-            <p class="hch-modal-desc">${t(this._hass, "chronicle.addPastDescription")}</p>
+            <p class="hch-modal-desc">${t(this._hass, descKey)}</p>
             <div class="hch-form-host"></div>
             <div class="hch-form-error" hidden></div>
-            <div class="hch-modal-actions">
-              <button class="hch-modal-cancel" data-close type="button">
-                ${t(this._hass, "chronicle.cancel")}
-              </button>
-              <button class="hch-modal-save hch-modal-primary" data-action="save-past" type="button">
-                ${t(this._hass, "chronicle.save")}
-              </button>
-            </div>
+            <div class="hch-modal-footer"></div>
           </div>
         </div>
       </div>
     `;
 
-    this._addPastErrorEl = this._modalHost.querySelector(".hch-form-error");
-    this._addPastData = { breed: BREEDS[0], coat_color: COAT_COLORS[0] };
+    this._pastErrorEl = this._modalHost.querySelector(".hch-form-error");
+    this._pastData = editRecord
+      ? {
+          name: editRecord.name,
+          breed: editRecord.breed || BREEDS[0],
+          breed_other: editRecord.breed_other || "",
+          coat_color: editRecord.coat_color || COAT_COLORS[0],
+          acquisition_date: editRecord.acquisition_date,
+          departure_date: editRecord.departure_date,
+        }
+      : { breed: BREEDS[0], coat_color: COAT_COLORS[0] };
 
-    this._addPastForm = document.createElement("ha-form");
-    this._addPastForm.hass = this._hass;
-    this._addPastForm.schema = schema;
-    this._addPastForm.data = this._addPastData;
-    this._addPastForm.computeLabel = (item) =>
+    this._pastForm = document.createElement("ha-form");
+    this._pastForm.hass = this._hass;
+    this._pastForm.schema = schema;
+    this._pastForm.data = this._pastData;
+    this._pastForm.computeLabel = (item) =>
       t(this._hass, fieldLabels[item.name] || item.name);
-    this._addPastForm.addEventListener("value-changed", (ev) => {
+    this._pastForm.addEventListener("value-changed", (ev) => {
       ev.stopPropagation();
-      this._addPastData = ev.detail.value;
-      this._addPastForm.data = this._addPastData;
+      this._pastData = ev.detail.value;
+      this._pastForm.data = this._pastData;
     });
-    this._modalHost.querySelector(".hch-form-host").appendChild(this._addPastForm);
+    this._modalHost.querySelector(".hch-form-host").appendChild(this._pastForm);
+
+    this._renderPastDialogFooter();
 
     const closeButton = this._modalHost.querySelector(".hch-modal-close");
     if (closeButton) closeButton.focus();
   }
 
-  _closeAddPastDialog() {
+  /**
+   * Rebuilt on its own (rather than re-running _openPastDialog) so toggling
+   * the delete confirmation doesn't tear down and recreate the <ha-form>,
+   * which would lose whatever the user has typed.
+   */
+  _renderPastDialogFooter() {
+    const footerEl = this._modalHost.querySelector(".hch-modal-footer");
+    if (!footerEl) return;
+
+    // Hidden rather than removed while confirming, so cancelling just
+    // un-hides the form with everything the user already typed intact.
+    const descEl = this._modalHost.querySelector(".hch-modal-desc");
+    const formHostEl = this._modalHost.querySelector(".hch-form-host");
+    if (descEl) descEl.hidden = this._confirmingDelete;
+    if (formHostEl) formHostEl.hidden = this._confirmingDelete;
+
+    if (this._confirmingDelete) {
+      footerEl.innerHTML = `
+        <p class="hch-modal-desc">${t(this._hass, "chronicle.deleteConfirmBody")}</p>
+        <div class="hch-modal-actions">
+          <button class="hch-modal-cancel" data-action="cancel-delete-past" type="button">
+            ${t(this._hass, "chronicle.cancel")}
+          </button>
+          <button class="hch-modal-save hch-modal-danger" data-action="confirm-delete-past" type="button">
+            ${t(this._hass, "chronicle.deleteConfirmYes")}
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    footerEl.innerHTML = `
+      <div class="hch-modal-actions">
+        ${
+          this._editingEntryId
+            ? `<button class="hch-modal-delete" data-action="delete-past" type="button">
+                 ${t(this._hass, "chronicle.delete")}
+               </button>`
+            : ""
+        }
+        <button class="hch-modal-cancel" data-close type="button">
+          ${t(this._hass, "chronicle.cancel")}
+        </button>
+        <button class="hch-modal-save hch-modal-primary" data-action="save-past" type="button">
+          ${t(this._hass, "chronicle.save")}
+        </button>
+      </div>
+    `;
+  }
+
+  _closePastDialog() {
     this._modalHost.innerHTML = "";
-    this._addPastForm = null;
-    this._addPastData = null;
-    this._addPastErrorEl = null;
+    this._pastForm = null;
+    this._pastData = null;
+    this._pastErrorEl = null;
+    this._editingEntryId = null;
+    this._confirmingDelete = false;
   }
 
-  _showAddPastError(message) {
-    if (!this._addPastErrorEl) return;
-    this._addPastErrorEl.textContent = message;
-    this._addPastErrorEl.hidden = false;
+  _showPastError(message) {
+    if (!this._pastErrorEl) return;
+    this._pastErrorEl.textContent = message;
+    this._pastErrorEl.hidden = false;
   }
 
-  async _saveAddPastEntry() {
-    if (!this._hass || !this._addPastData) return;
-    const data = this._addPastData;
+  async _savePastEntry() {
+    if (!this._hass || !this._pastData) return;
+    const data = this._pastData;
     const name = (data.name || "").trim();
     const breed = data.breed || BREEDS[0];
     const breedOther = (data.breed_other || "").trim();
 
     if (!name) {
-      this._showAddPastError(t(this._hass, "chronicle.nameRequired"));
+      this._showPastError(t(this._hass, "chronicle.nameRequired"));
       return;
     }
     if (breed === BREED_OTHER && !breedOther) {
-      this._showAddPastError(t(this._hass, "chronicle.breedOtherRequired"));
+      this._showPastError(t(this._hass, "chronicle.breedOtherRequired"));
       return;
     }
     if (!data.acquisition_date || !data.departure_date) {
-      this._showAddPastError(t(this._hass, "chronicle.datesRequired"));
+      this._showPastError(t(this._hass, "chronicle.datesRequired"));
       return;
     }
 
+    const payload = {
+      name,
+      breed,
+      breed_other: breedOther,
+      coat_color: data.coat_color || COAT_COLORS[0],
+      acquisition_date: data.acquisition_date,
+      departure_date: data.departure_date,
+    };
+
     try {
-      const result = await this._hass.callWS({
-        type: "hamster_fitness/add_historical_hamster",
-        name,
-        breed,
-        breed_other: breedOther,
-        coat_color: data.coat_color || COAT_COLORS[0],
-        acquisition_date: data.acquisition_date,
-        departure_date: data.departure_date,
-      });
+      const result = await this._hass.callWS(
+        this._editingEntryId
+          ? {
+              type: "hamster_fitness/update_historical_hamster",
+              entry_id: this._editingEntryId,
+              ...payload,
+            }
+          : { type: "hamster_fitness/add_historical_hamster", ...payload }
+      );
       this._archive = (result && result.hamsters) || this._archive;
-      this._closeAddPastDialog();
+      this._closePastDialog();
       this._render();
     } catch (err) {
-      this._showAddPastError(t(this._hass, "chronicle.addPastFailed"));
+      this._showPastError(t(this._hass, "chronicle.addPastFailed"));
+    }
+  }
+
+  async _deletePastEntry() {
+    if (!this._hass || !this._editingEntryId) return;
+    try {
+      const result = await this._hass.callWS({
+        type: "hamster_fitness/remove_historical_hamster",
+        entry_id: this._editingEntryId,
+      });
+      this._archive = (result && result.hamsters) || this._archive;
+      this._closePastDialog();
+      this._render();
+    } catch (err) {
+      this._confirmingDelete = false;
+      this._showPastError(t(this._hass, "chronicle.deleteFailed"));
+      this._renderPastDialogFooter();
     }
   }
 
@@ -652,7 +781,8 @@ HamsterChronicleCard.styles = `
     gap: 8px;
   }
   .hch-modal-cancel,
-  .hch-modal-save {
+  .hch-modal-save,
+  .hch-modal-delete {
     padding: 9px 16px;
     border-radius: 999px;
     border: 1px solid var(--divider-color, #e0e0e0);
@@ -666,6 +796,18 @@ HamsterChronicleCard.styles = `
   .hch-modal-primary {
     border-color: var(--primary-color, #03a9f4);
     background: var(--primary-color, #03a9f4);
+    color: #fff;
+  }
+  .hch-modal-delete {
+    /* Pushes Cancel/Save to the trailing edge while this stays leading,
+       without a second flex row just for one button. */
+    margin-right: auto;
+    border-color: rgba(211, 47, 47, 0.4);
+    color: #d32f2f;
+  }
+  .hch-modal-danger {
+    border-color: #d32f2f;
+    background: #d32f2f;
     color: #fff;
   }
   .hch-empty,

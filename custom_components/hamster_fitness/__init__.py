@@ -57,6 +57,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     websocket_api.async_register_command(hass, _ws_history)
     websocket_api.async_register_command(hass, _ws_add_historical_hamster)
+    websocket_api.async_register_command(hass, _ws_update_historical_hamster)
+    websocket_api.async_register_command(hass, _ws_remove_historical_hamster)
 
     # Raises a Repairs entry when HACS has written a new version to disk
     # but Home Assistant is still running the old one. Domain-wide, like
@@ -138,6 +140,82 @@ async def _ws_add_historical_hamster(
             "archived_at": dt_util.utcnow().isoformat(),
         },
     )
+    connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/update_historical_hamster",
+        vol.Required("entry_id"): str,
+        vol.Required("name"): str,
+        vol.Required("breed"): vol.In(BREEDS),
+        vol.Optional("breed_other", default=""): str,
+        vol.Required("coat_color"): vol.In(COAT_COLORS),
+        vol.Required("acquisition_date"): cv.date,
+        vol.Required("departure_date"): cv.date,
+    }
+)
+@websocket_api.async_response
+async def _ws_update_historical_hamster(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Edit a hamster previously added through the "add a past hamster" dialog.
+
+    Same fields and validation as adding one - `archive.async_update_manual_entry`
+    is the actual safety boundary, rejecting anything that isn't a manually-added
+    entry's own id, so this can't be used to rewrite a real hamster's departure
+    record.
+    """
+    name = msg["name"].strip()
+    if not name:
+        connection.send_error(msg["id"], "invalid_format", "Name is required")
+        return
+    breed_other = msg["breed_other"].strip()
+    if msg["breed"] == BREED_OTHER and not breed_other:
+        connection.send_error(
+            msg["id"], "invalid_format", "Breed description is required for 'Other'"
+        )
+        return
+
+    updated = await archive.async_update_manual_entry(
+        hass,
+        msg["entry_id"],
+        {
+            "name": name,
+            "breed": msg["breed"],
+            "breed_other": breed_other if msg["breed"] == BREED_OTHER else None,
+            "coat_color": msg["coat_color"],
+            "coat_color_hex": COAT_COLOR_HEX.get(msg["coat_color"]),
+            "acquisition_date": msg["acquisition_date"].isoformat(),
+            "departure_date": msg["departure_date"].isoformat(),
+            "archived_at": dt_util.utcnow().isoformat(),
+        },
+    )
+    if not updated:
+        connection.send_error(msg["id"], "not_found", "No such manual entry")
+        return
+    connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/remove_historical_hamster",
+        vol.Required("entry_id"): str,
+    }
+)
+@websocket_api.async_response
+async def _ws_remove_historical_hamster(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Delete a hamster added through the "add a past hamster" dialog."""
+    removed = await archive.async_remove_manual_entry(hass, msg["entry_id"])
+    if not removed:
+        connection.send_error(msg["id"], "not_found", "No such manual entry")
+        return
     connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 

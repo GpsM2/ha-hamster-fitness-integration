@@ -33,6 +33,20 @@ integration) does not erase the hamster. The card reads it over the
 If a hamster appears both live and in the archive, the live entry wins,
 since its numbers still update.
 
+### Adding a hamster from before this integration existed
+
+The **+** button in the banner opens a form for a hamster that never had
+sensors, a device, or a health score — just a name, breed, coat colour
+and the two dates. It's stored in the same archive file as a real
+departure, and shows up the same way, tagged **Archiv**.
+
+Since it's the only way in, it's also the only way to fix a typo or
+delete one again: click anywhere on that row to reopen the same form,
+pre-filled, with a **Delete** option. A hamster whose config entry was
+simply deleted (an **Archiv** row that isn't one you added this way)
+stays read-only — the archive record is tied to its coordinator, not to
+this dialog.
+
 ## Options
 
 | Option | Default | What it does |
