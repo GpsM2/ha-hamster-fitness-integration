@@ -334,7 +334,7 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "8",
+        "version": "9",
     },
     {
         "name": "Hamster Weight Card",
