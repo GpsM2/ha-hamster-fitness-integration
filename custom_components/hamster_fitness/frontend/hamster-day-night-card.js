@@ -749,13 +749,13 @@ class HamsterDayNightCard extends HTMLElement {
       this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
     this._titleEl.textContent = title.toUpperCase();
 
+    // The badge used to show whether the hamster was active or resting -
+    // but the wheel scene already makes that obvious at a glance, while
+    // "is the sensor actually reporting" has no other indicator on this
+    // card at all.
     const status = this._connectionStatus(this._entityId("current_speed"));
     this._statusDotEl.style.background = status.color;
-    this._statusLabelEl.textContent = t(
-      this._hass,
-      isActive ? "dayNight.active" : "dayNight.resting"
-    );
-    this._statusLabelEl.title = t(this._hass, status.key);
+    this._statusLabelEl.textContent = t(this._hass, status.key);
 
     // Sky decoration and scene are only rebuilt when they actually change
     // mode - rebuilding them every update is what used to restart the

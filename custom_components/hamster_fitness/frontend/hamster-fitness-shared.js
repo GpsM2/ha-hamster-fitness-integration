@@ -49,8 +49,6 @@ const STRINGS = {
 
     // Day & Night card
     "dayNight.subtitle": "Day &amp; Night",
-    "dayNight.active": "Active",
-    "dayNight.resting": "Resting",
     "dayNight.runningFor": "Running for",
     "dayNight.restingFor": "Resting for",
     "dayNight.speed": "Speed",
@@ -241,6 +239,7 @@ const STRINGS = {
   },
 
   de: {
+    "common.online": "Online",
     "common.offline": "Offline",
     "common.unavailable": "Nicht verfügbar",
     "common.notFound":
@@ -252,8 +251,6 @@ const STRINGS = {
     "common.wrongEntity":
       "{card}: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score).",
 
-    "dayNight.active": "Aktiv",
-    "dayNight.resting": "Ruht",
     "dayNight.runningFor": "Läuft seit",
     "dayNight.restingFor": "Ruht seit",
     "dayNight.speed": "Geschwindigkeit",
