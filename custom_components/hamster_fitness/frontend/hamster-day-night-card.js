@@ -75,6 +75,11 @@ const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
 // to interpolate through.
 const AMBIENT_NIGHT_LX = 5;
 const AMBIENT_DAY_LX = 150;
+// How bright the lux reading may push the sky once the real sun is below
+// the horizon. A lit room at 10pm is still a lit room - but rendering it
+// as full midday reads as broken, however accurate the lux value is. This
+// caps it at dusk instead: clearly still evening, just not pitch black.
+const AMBIENT_NIGHT_CEILING = 0.3;
 
 /**
  * Every weather state Home Assistant defines, mapped to what the scene
@@ -158,7 +163,31 @@ const LOGO_DUMBBELL_SVG = `
 // Applied to an OUTER group, never to .hdn-sun itself: that element's
 // pulse animation sets `transform` in CSS, and a CSS transform replaces
 // the SVG presentation attribute outright rather than composing with it.
-const CELESTIAL_OFFSET = "translate(-198, 46)";
+const CELESTIAL_X = -198;
+const CELESTIAL_Y = 46;
+const CELESTIAL_OFFSET = `translate(${CELESTIAL_X}, ${CELESTIAL_Y})`;
+
+// The sun's height tracks sun.sun's elevation: low near sunrise and
+// sunset, high around solar noon. Only the sun moves - the moon keeps the
+// fixed offset above, since its own elevation isn't something sun.sun
+// reports.
+//
+// SUN_ELEVATION_ZENITH_AT is deliberately larger than
+// DAY_ELEVATION_FULL_AT (which fades the sky's colour and saturates much
+// earlier): the point here is visible travel across the day. It also
+// means the sun honestly stays low all day in midwinter at high
+// latitudes, where it never climbs anywhere near 50 degrees.
+// The travel range is anchored so that solar noon reproduces the position
+// the sun always had, and low elevations sink it from there - rather than
+// lifting it above where the layout was ever designed for. Measured
+// against the real card: from y=54 down the disc clears the frosted
+// header strip completely, and at the long-standing y=46 only about 5% of
+// it sits behind that (translucent) strip, which is what the card has
+// always looked like. Pushing the zenith higher hid the disc behind the
+// header outright, which looked broken rather than sunny.
+const SUN_ELEVATION_ZENITH_AT = 50;
+const SUN_Y_HORIZON = 76;
+const SUN_Y_ZENITH = CELESTIAL_Y;
 
 const ICONS = {
   speed: "M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Zm1 4v7h-2V6h2Z",
@@ -372,12 +401,46 @@ class HamsterDayNightCard extends HTMLElement {
     return Number.isFinite(value) ? value : null;
   }
 
+  /**
+   * Whether sun.sun reports the sun below the horizon, or null when there
+   * is no sun entity to ask - Home Assistant can run without one, and
+   * "no answer" has to stay distinguishable from "no, it's up".
+   */
+  _sunBelowHorizon() {
+    const sun = this._hass.states["sun.sun"];
+    if (!sun) return null;
+    return sun.state === "below_horizon";
+  }
+
+  /** sun.sun's elevation in degrees, or null if unavailable. */
+  _sunElevation() {
+    const sun = this._hass.states["sun.sun"];
+    const elevation = Number(sun && sun.attributes && sun.attributes.elevation);
+    return Number.isFinite(elevation) ? elevation : null;
+  }
+
+  /**
+   * Where the sun sits inside the decoration viewBox, following the real
+   * one's elevation. Falls back to the fixed offset (which is also where
+   * the moon always sits) when there is no elevation to read.
+   */
+  _sunTransform() {
+    const elevation = this._sunElevation();
+    if (elevation === null) return CELESTIAL_OFFSET;
+    const t = Math.min(1, Math.max(0, elevation / SUN_ELEVATION_ZENITH_AT));
+    const y = SUN_Y_HORIZON + (SUN_Y_ZENITH - SUN_Y_HORIZON) * t;
+    return `translate(${CELESTIAL_X}, ${y.toFixed(1)})`;
+  }
+
   _backgroundGradient(ambientLx) {
     if (ambientLx !== null) {
-      const t = Math.min(
+      let t = Math.min(
         1,
         Math.max(0, (ambientLx - AMBIENT_NIGHT_LX) / (AMBIENT_DAY_LX - AMBIENT_NIGHT_LX))
       );
+      // The real sun outranks the lux reading: once it has set, no amount
+      // of room light may render the sky as daytime.
+      if (this._sunBelowHorizon()) t = Math.min(t, AMBIENT_NIGHT_CEILING);
       const from = lerpColor(NIGHT_GRADIENT[0], DAY_GRADIENT_MIDDAY[0], t);
       const to = lerpColor(NIGHT_GRADIENT[1], DAY_GRADIENT_MIDDAY[1], t);
       return `linear-gradient(180deg, ${from}, ${to})`;
@@ -387,10 +450,11 @@ class HamsterDayNightCard extends HTMLElement {
     if (!sun || sun.state === "below_horizon") {
       return `linear-gradient(180deg, ${NIGHT_GRADIENT[0]}, ${NIGHT_GRADIENT[1]})`;
     }
-    const elevation = Number(sun.attributes && sun.attributes.elevation);
-    const t = Number.isFinite(elevation)
-      ? Math.min(1, Math.max(0, elevation / DAY_ELEVATION_FULL_AT))
-      : 1;
+    const elevation = this._sunElevation();
+    const t =
+      elevation === null
+        ? 1
+        : Math.min(1, Math.max(0, elevation / DAY_ELEVATION_FULL_AT));
     const from = lerpColor(DAY_GRADIENT_HORIZON[0], DAY_GRADIENT_MIDDAY[0], t);
     const to = lerpColor(DAY_GRADIENT_HORIZON[1], DAY_GRADIENT_MIDDAY[1], t);
     return `linear-gradient(180deg, ${from}, ${to})`;
@@ -468,10 +532,22 @@ class HamsterDayNightCard extends HTMLElement {
     `;
   }
 
+  /**
+   * Night decides which sky decoration and scene are drawn.
+   *
+   * The real sun wins outright once it has set: a lit room at 10pm used
+   * to keep the sun icon in the sky, which reads as broken however
+   * accurate the lux reading is. While the sun is up, the lux sensor
+   * still decides - that is the whole point of configuring one, so a
+   * covered or blacked-out cage reads as night even at noon.
+   */
   _isNight(ambientLx) {
+    const belowHorizon = this._sunBelowHorizon();
+    if (belowHorizon) return true;
     if (ambientLx !== null) return ambientLx <= AMBIENT_NIGHT_LX;
-    const sun = this._hass.states["sun.sun"];
-    return !sun || sun.state === "below_horizon";
+    // No lux sensor and no sun entity either: nothing says otherwise, so
+    // keep the card's long-standing "assume night" fallback.
+    return belowHorizon === null;
   }
 
   /**
@@ -621,7 +697,7 @@ class HamsterDayNightCard extends HTMLElement {
   _sunSvg() {
     return `
       <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin meet" aria-hidden="true">
-        <g transform="${CELESTIAL_OFFSET}">
+        <g class="hdn-celestial" transform="${this._sunTransform()}">
         <g class="hdn-sun">
           <circle cx="266" cy="32" r="16" fill="#FFD166"/>
           <g stroke="#FFD166" stroke-width="3" stroke-linecap="round" opacity="0.85">
@@ -779,6 +855,13 @@ class HamsterDayNightCard extends HTMLElement {
       this._decorEl.innerHTML =
         decorMode === "night" ? this._moonSvg() : this._sunSvg();
       this._decorMode = decorMode;
+      this._celestialEl = this._decorEl.querySelector(".hdn-celestial");
+    }
+    // Moved by attribute rather than by re-rendering the SVG: the sun's
+    // pulse is a CSS animation on a child element, and rebuilding the
+    // markup every time the elevation ticks would restart it mid-beat.
+    if (decorMode === "day" && this._celestialEl) {
+      this._celestialEl.setAttribute("transform", this._sunTransform());
     }
 
     const sceneMode = isActive ? "run" : "rest";

@@ -24,6 +24,10 @@ moon, or a daytime gradient. The two layers are deliberately independent
 sprinting just because it is dark.
 
 By default the sky follows `sun.sun`, shifting with the sun's elevation.
+**The sun itself moves with it**, sitting high around solar noon and
+sinking towards the horizon in the morning and evening — so in midwinter
+at northern latitudes it honestly stays low all day, because it does.
+
 If you picked an **ambient light sensor** during setup, the card uses its
 actual reading instead — closer to reality for a cage behind curtains,
 in a basement, or under a cover, where the sun's position outside says
@@ -32,6 +36,12 @@ light itself can't fool it: while the light is on, the card holds the
 brightness reading from just before it switched on, rather than reading
 the lit room as broad daylight. No illuminance sensor configured? The
 card falls back to `sun.sun` exactly as before — nothing to set up.
+
+Once the real sun has set, it outranks that sensor: a brightly lit room
+at 10 PM dims the sky to dusk rather than full daylight, and the moon
+stays in the sky instead of the sun. While the sun is up, the sensor
+still decides on its own — that is the whole point of having one, so a
+covered cage reads as night even at noon.
 
 **The weather** drifts over the scene when a weather entity was picked
 during setup: clouds, rain, snow, sleet, hail, fog, wind and lightning,
