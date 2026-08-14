@@ -12,6 +12,12 @@
 # text sounds like both a bug report and a feature request can end up with
 # both. That is deliberate: a human glance is cheaper than a missed label.
 #
+# Matching runs against the issue TITLE ONLY (include-body: 0 in the
+# workflow). Everything below is therefore written for a one-line summary,
+# not for prose - patterns may be a little broad, because a title that
+# says "distance" really is about distance, whereas a body says it in
+# passing all the time.
+#
 # The generic word "sensor" (DE and EN) is deliberately left out of
 # "hardware" - it also appears constantly in normal integration reports
 # ("temperature sensor won't select", "door sensor unavailable") and would
@@ -55,8 +61,13 @@ documentation:
 hardware:
   - '/esphome|d1[ -]?mini|esp8266|esp32|tcrt5000|wiring|verkabelung|soldering|löten|photo ?sensor|opto ?sensor|lichtschranke/i'
 
+# The scoring ALGORITHM, not "anything involving running". `distance`,
+# `distanz`, `laufstrecke`, `umdrehung` and `rotation` used to live here
+# and were the worst over-matchers in the whole config - almost every
+# issue about the wheel, the Running card or a chip value mentions a
+# distance without being about how the score is computed.
 health-score:
-  - '/algorithm(us)?|health[ -]?score|gesundheit(swert)?|laufstrecke|distanz|distance|umdrehung(en)?|rotation(en)?|penalty|punktabzug|warnschwelle|warning threshold/i'
+  - '/algorithm(us)?|health[ -]?score|gesundheit(swert)?|penalty|punktabzug|warnschwelle|warning threshold|score[ -]?berechnung|score calculation|bewertung/i'
 
 weather:
   - '/\bweather\b|\bwetter\b|forecast|vorhersage|wettervorhersage|hitzewarn|heat ?wave|hitzewelle|\bregen\b|\brain\b|gewitter|thunderstorm|weather\.[a-z_]+/i'
@@ -69,8 +80,11 @@ weather:
 'card: health-score':
   - '/hamster-fitness-card|health[ -]?score[ -]?card|karte.{0,20}health[ -]?score|health[ -]?score.{0,20}(card|karte)|säulen|pillars|smart insight|trend[ -]?(chart|diagramm)|4[ -]?säulen/i'
 
+# `\bchips?\b` used to be here and was dropped: every card has chips or
+# pills of some kind, so it tagged this card for layout reports about all
+# the others.
 'card: day-night':
-  - '/hamster-day-night-card|day ?& ?night|day[ -]?and[ -]?night|tag ?& ?nacht|laufrad[ -]?animation|wheel animation|nest[ -]?szene|schlafszene|\bchips?\b/i'
+  - '/hamster-day-night-card|day ?& ?night|day[ -]?and[ -]?night|tag ?& ?nacht|laufrad[ -]?animation|wheel animation|nest[ -]?szene|schlafszene|nachthimmel|night sky|k(ä|ae)figlicht|cage light/i'
 
 'card: ranking':
   - '/hamster-fitness-ranking-card|ranking[ -]?(card|karte)|bestenliste|rangliste|leaderboard/i'
@@ -80,3 +94,9 @@ weather:
 
 'card: weighing':
   - '/hamster-weight-card|weigh(ing|t|[ -]?in)[ -]?(card|karte)|wiege[ -]?(karte|erinnerung)|gewichts?[ -]?(karte|eingabe)|track weight|gewicht erfassen|dial scale|zifferblatt|_weight\b/i'
+
+# Not built yet (see the Running card issue) - the rule exists ahead of
+# the card so the issues planning it are grouped from the start rather
+# than being relabelled later.
+'card: running':
+  - '/hamster-running-card|running[ -]?(card|karte)|lauf[ -]?(karte|historie|statistik)|running (history|session)|laufsession|nacht[ -]?historie|night history|bestleistung|personal best|pers(ö|oe)nliche bestzeit/i'

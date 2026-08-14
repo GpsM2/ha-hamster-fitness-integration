@@ -18,4 +18,17 @@ jobs:
           configuration-path: .github/issue-labeler.yml
           enable-versioned-regex: 0
           include-title: 1
-          include-body: 1
+          # Title only, deliberately. Matching the body meant every card
+          # merely *mentioned* in passing got its label: an issue about
+          # the share button picked up all five `card:` labels because it
+          # explains what each card would contribute, and one about
+          # running sessions picked up `card: day-night` for referencing
+          # that card's chip. A title is a considered one-line summary of
+          # what the issue is actually about; a body is prose full of
+          # incidental references.
+          #
+          # The cost is that a vaguely titled issue now gets no labels at
+          # all. That is the intended trade - the same "a wrong label is
+          # worse than none" reasoning the config file already applies to
+          # its keyword choices.
+          include-body: 0

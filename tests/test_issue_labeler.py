@@ -119,6 +119,10 @@ def test_every_bundled_card_has_a_label_rule() -> None:
         ("Day & Night card: the wheel animation stutters", "card: day-night"),
         ("Tag & Nacht Karte friert ein", "card: day-night"),
         ("Die Säulen im Health Score sind nicht antippbar", "card: health-score"),
+        # The Running card, in the words its own planning issues use.
+        ("New card: Running - 7-night history with personal bests", "card: running"),
+        ("Track running sessions per night", "card: running"),
+        ("Lauf-Historie der letzten 7 Nächte", "card: running"),
     ],
 )
 def test_representative_issues_get_their_label(text: str, expected: str) -> None:
@@ -140,6 +144,21 @@ def test_representative_issues_get_their_label(text: str, expected: str) -> None
         ("Die Bestenliste zeigt falsche Werte", "card: chronicle"),
         # A pure bug report shouldn't be dressed up as a feature request.
         ("The card is broken and throws an exception", "enhancement"),
+        # `health-score` is the scoring algorithm, not anything that
+        # happens to involve a distance. These titles all used to match it
+        # via the old `distance|distanz|laufstrecke|umdrehung|rotation`
+        # alternatives.
+        ("New card: Running - 7-night history with personal bests", "health-score"),
+        ("Track running sessions per night", "health-score"),
+        ("Die Distanz wird auf der Karte abgeschnitten", "health-score"),
+        # Every card has chips of some kind, so `chip` must not imply
+        # Day & Night specifically.
+        ("Chip values overflow their pill on the weight card", "card: day-night"),
+        # Real titles from the milestone planning that previously drew
+        # labels from unrelated areas via body matching.
+        ("Day & Night: make the night sky's stars twinkle", "weather"),
+        ("Share button: generate a shareable stats image from any card", "weather"),
+        ("Make the integration installable via HACS", "bug"),
     ],
 )
 def test_patterns_do_not_over_match(text: str, forbidden: str) -> None:
