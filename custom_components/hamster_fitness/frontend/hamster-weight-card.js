@@ -708,6 +708,10 @@ window.customCards.push({
   type: "hamster-weight-card",
   name: t(null, "weight.pickerName"),
   description: t(null, "weight.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 const WEIGHT_EDITOR_SCHEMA = [
