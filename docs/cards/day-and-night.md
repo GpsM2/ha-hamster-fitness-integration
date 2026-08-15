@@ -21,7 +21,9 @@ doing right now, with the readings sitting inside the picture.
 **The sky** is driven separately from the scene: a starry night with the
 moon, or a daytime gradient. The two layers are deliberately independent
 — a hamster dozing at 2 AM is drawn sleeping under a night sky, not
-sprinting just because it is dark.
+sprinting just because it is dark. The stars twinkle, each at its own
+pace so they never blink in unison; with **Reduce motion** switched on in
+your system settings they simply hold still at full brightness.
 
 By default the sky follows `sun.sun`, shifting with the sun's elevation.
 **The sun itself moves with it**, sitting high around solar noon and
