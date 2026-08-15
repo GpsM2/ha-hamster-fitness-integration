@@ -146,6 +146,11 @@ class HamsterFitnessData:
     # Sekunden würde nur die gerade aktuelle Geschwindigkeit wiedergeben,
     # nicht "wie ist der Hamster heute Nacht gelaufen".
     night_avg_speed_kmh: float | None = None
+    # Anzahl getrennter Lauf-Sessions in diesem Nachtfenster (Pausen
+    # < SESSION_END_GAP trennen nicht, siehe _update_activity_session).
+    # Die Gesamtzeit allein verschweigt das Muster: 90 Minuten am Stück
+    # und sechsmal 15 Minuten ergeben dieselbe Summe.
+    night_sessions: int = 0
     # Endstand des zuletzt ABGESCHLOSSENEN Nachtfensters (eingefroren beim
     # Reset um NIGHT_WINDOW_START_HOUR). Zusammen mit night_distance_km die
     # Grundlage des Bewegungs-Abzugs, siehe _effective_distance_km() - ohne
@@ -313,6 +318,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # Summen laufen über dasselbe Fenster wie night_distance_km und
         # werden beim Nachtfenster-Reset in einen Mittelwert aufgelöst.
         self._night_history: list[dict[str, Any]] = []
+        # Wie viele getrennte Lauf-Sessions dieses Nachtfenster hatte.
+        # Aussagekräftig zusätzlich zur Gesamtzeit: 90 Minuten am Stück
+        # sehen anders aus als sechsmal 15 Minuten, obwohl die Summe
+        # gleich ist. Wie _night_active_minutes bewusst nicht persistiert.
+        self._night_sessions: int = 0
         self._night_temp_sum: float = 0.0
         self._night_temp_samples: int = 0
         self._night_humidity_sum: float = 0.0
@@ -726,6 +736,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         )
         self._max_speed_tonight_kmh = None
         self._night_active_minutes = 0.0
+        self._night_sessions = 0
         self._night_temp_sum = 0.0
         self._night_temp_samples = 0
         self._night_humidity_sum = 0.0
@@ -770,6 +781,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             "distance_km": round(self.data.night_distance_km, 3),
             "avg_speed_kmh": self.data.night_avg_speed_kmh,
             "max_speed_kmh": self._max_speed_tonight_kmh,
+            "sessions": self._night_sessions,
             "temperature_c": (
                 round(self._night_temp_sum / self._night_temp_samples, 1)
                 if self._night_temp_samples
@@ -1170,6 +1182,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._last_activity_at = now
             if self._session_start_at is None:
                 self._session_start_at = now
+                # Counted for the night, whenever it happens. The sleep
+                # counter below is a different question - it asks whether
+                # the hamster was woken, and only fires during the day.
+                self._night_sessions += 1
                 if _in_sleep_phase(now):
                     # Der Hamster läuft mitten in seiner Hauptschlafphase -
                     # meist ein Zeichen dafür, dass ihn etwas geweckt hat.
@@ -1384,6 +1400,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             previous_day_distance_km=self._previous_day_distance_km,
             night_distance_km=round(night_distance_km, 3),
             night_avg_speed_kmh=night_avg_speed_kmh,
+            night_sessions=self._night_sessions,
             last_completed_night_km=round(self._last_completed_night_km, 3),
             lifetime_distance_km=round(lifetime_distance_km, 3),
             temperature=temperature,

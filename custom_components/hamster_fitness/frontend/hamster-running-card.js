@@ -33,7 +33,7 @@ import {
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=12";
+} from "./hamster-fitness-shared.js?v=13";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -153,6 +153,10 @@ class HamsterRunningCard extends HTMLElement {
       avg_speed_kmh: _num(item.avg_speed_kmh),
       temperature_c: _num(item.temperature_c),
       humidity_pct: _num(item.humidity_pct),
+      // Absent on nights recorded before session counting existed - the
+      // history survives upgrades, so old entries simply have no number
+      // rather than a misleading zero.
+      sessions: _num(item.sessions),
     }));
   }
 
@@ -187,6 +191,29 @@ class HamsterRunningCard extends HTMLElement {
           <text class="hrc-xlabel" x="${x.toFixed(1)}" y="${CHART_H - 5}"
                 text-anchor="middle">${fmtWeekday(this._hass, night.date)}</text>
         `;
+      })
+      .join("");
+  }
+
+  /**
+   * The per-night session counts, drawn inside the top of each bar.
+   *
+   * A count, not a measurement - so it rides in the bar rather than
+   * earning a fourth axis for a single-digit integer. Rendered after the
+   * overlay lines on purpose: the speed line runs right across the bar
+   * tops and was striking the digits through.
+   */
+  _sessionLabels(nights, max) {
+    const slot = PLOT_W / nights.length;
+    return nights
+      .map((night, i) => {
+        const h = Number.isFinite(night.distance) ? (night.distance / max) * PLOT_H : 0;
+        // Skip bars too short to hold the digit inside them.
+        if (!Number.isFinite(night.sessions) || night.sessions <= 0 || h <= 16) return "";
+        const x = PAD_LEFT + slot * (i + 0.5);
+        const y = PAD_TOP + PLOT_H - h + 11;
+        return `<text class="hrc-sessions" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+                      text-anchor="middle">${night.sessions}</text>`;
       })
       .join("");
   }
@@ -280,11 +307,12 @@ class HamsterRunningCard extends HTMLElement {
         ${this._rule(average, max, "hrc-rule-avg")}
         ${this._rule(goal, max, "hrc-rule-goal")}
         ${lines}
+        ${this._sessionLabels(nights, max)}
       </svg>
     `;
   }
 
-  _legend(goal) {
+  _legend(goal, nights) {
     const goalText =
       goal > 0
         ? `<span class="hrc-legend-item"><i class="hrc-swatch hrc-swatch-goal"></i>${t(
@@ -292,6 +320,14 @@ class HamsterRunningCard extends HTMLElement {
             "running.goal"
           )} ${fmtNumber(this._hass, goal, 1, "km")}</span>`
         : "";
+    // Only explained when a number is actually on a bar - nights recorded
+    // before session counting existed carry none.
+    const sessionsText = nights.some((n) => Number.isFinite(n.sessions) && n.sessions > 0)
+      ? `<span class="hrc-legend-item"><i class="hrc-swatch hrc-swatch-sessions"></i>${t(
+          this._hass,
+          "running.sessions"
+        )}</span>`
+      : "";
     return `
       <div class="hrc-legend">
         <span class="hrc-legend-item"><i class="hrc-swatch hrc-swatch-avg"></i>${t(
@@ -299,6 +335,7 @@ class HamsterRunningCard extends HTMLElement {
           "running.average"
         )}</span>
         ${goalText}
+        ${sessionsText}
       </div>
     `;
   }
@@ -394,7 +431,7 @@ class HamsterRunningCard extends HTMLElement {
     this._bodyEl.innerHTML = nights.length
       ? `
         ${this._chart(nights, goal)}
-        ${this._legend(goal)}
+        ${this._legend(goal, nights)}
         ${this._toggles()}
         ${this._records(attrs)}
       `
@@ -475,6 +512,19 @@ HamsterRunningCard.styles = `
     font-size: 9px;
     font-family: inherit;
   }
+  /* Sits on the bar itself, so it needs to read against the coat colour
+     rather than against the card background. */
+  .hrc-sessions {
+    fill: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: inherit;
+    /* Outlined in the bar's own colour and painted stroke-first, so a
+       line crossing the bar top cannot cut the digit in half. */
+    stroke: var(--hf-fur, #D48C46);
+    stroke-width: 2.5;
+    paint-order: stroke;
+  }
   .hrc-rule-goal {
     stroke: #2a9d8f;
     stroke-width: 1.5;
@@ -521,6 +571,12 @@ HamsterRunningCard.styles = `
   }
   .hrc-swatch-avg {
     background: var(--secondary-text-color);
+  }
+  .hrc-swatch-sessions {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--hf-fur, #D48C46);
   }
   .hrc-toggle {
     display: inline-flex;

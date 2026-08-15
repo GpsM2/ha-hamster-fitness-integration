@@ -18,6 +18,11 @@ answers "is that normal". Seven bars, one per completed night, with:
 - **Average speed** as a line over the bars, on by default. Distance says
   how much the hamster ran; speed says how hard. A short but fast night
   looks quite different from a short, listless one.
+- **Runs per night** as a small number inside each bar: how many
+  separate sessions that night's distance was made of. The total time
+  alone hides the pattern — ninety minutes in one go and six bursts of
+  fifteen add up the same, but they are not the same night. Nights
+  recorded before this existed simply show no number.
 - **Personal bests**: the longest single night and the fastest speed ever
   measured, each with the date it happened. Neither is capped to the
   seven-night window — a record set months ago still stands.
