@@ -35,6 +35,7 @@ SHOTS = {
     "shot-day-night": "card-day-night-active.png",
     "shot-day-night-rest": "card-day-night-resting.png",
     "shot-day-night-weather": "card-day-night-weather.png",
+    "shot-running": "card-running.png",
     "shot-chronicle": "card-chronicle.png",
     "shot-ranking": "card-ranking.png",
     "shot-weight": "card-weight-syrian.png",

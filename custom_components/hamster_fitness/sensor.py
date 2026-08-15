@@ -111,10 +111,11 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose the score breakdown and the hamster's profile.
 
-        `score_history` backs the health-score card's 7-day trend chart
-        and the profile fields (coat colour, acquisition date) let the
-        cards tint the illustration and work out "with you for X months",
-        all without a second entity to look up.
+        `score_history` backs the health-score card's 7-day trend chart,
+        `night_history` and the record fields back the Running card, and
+        the profile fields (coat colour, acquisition date) let the cards
+        tint the illustration and work out "with you for X months", all
+        without a second entity to look up.
         """
         data = self.coordinator.data
         return {
@@ -134,6 +135,15 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
             "weight_status": data.weight_status,
             "weight_g": data.weight_g,
             "score_history": data.score_history,
+            "night_history": data.night_history,
+            "best_night_km": data.best_night_km,
+            "best_night_date": data.best_night_date,
+            "min_distance_km": data.min_distance_km,
+            # Computed and persisted since the beginning, but never
+            # surfaced for a living hamster until the Running card - it
+            # only ever showed up in the archive once one had departed.
+            "lifetime_max_speed_kmh": data.lifetime_max_speed_kmh,
+            "lifetime_max_speed_date": data.lifetime_max_speed_date,
         }
 
 

@@ -1,0 +1,655 @@
+/**
+ * Hamster Fitness: Running
+ *
+ * One bar per night for the last week, so a run can be read against the
+ * nights around it rather than on its own. The Day & Night card shows
+ * what is happening now; this one shows whether that is normal.
+ *
+ * Everything comes from attributes on the health-score sensor, the same
+ * entity every other per-hamster card takes:
+ *
+ * - `night_history`   one entry per completed night (see coordinator.py's
+ *                     _record_night). Climate values are averages across
+ *                     that night, not closing snapshots.
+ * - `best_night_km` / `lifetime_max_speed_kmh` and their dates - personal
+ *                     bests, deliberately not capped to the seven nights.
+ * - `min_distance_km` the health score's own activity threshold, reused
+ *                     here as the goal line so the card cannot disagree
+ *                     with the score about what "enough" means.
+ *
+ * Config:
+ *   type: custom:hamster-running-card
+ *   entity: sensor.hamster_<name>_health_score
+ *   title: Laufleistung     # optional
+ */
+
+import {
+  HEADER_STYLES,
+  applyFur,
+  coatColor,
+  fmtDate,
+  fmtNumber,
+  fmtWeekday,
+  renderCardHeader,
+  deviceDisplayName,
+  t,
+} from "./hamster-fitness-shared.js?v=12";
+
+const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
+
+// Chart geometry, in SVG user units - layout proportions, not pixels.
+//
+// The viewBox ratio is deliberately wide (3:1). The SVG scales
+// UNIFORMLY (no preserveAspectRatio="none"), because the overlay dots
+// are circles and the axis labels are real text: stretching the
+// coordinate system would turn the dots into ellipses and squash the
+// lettering, the same trap the Day & Night sky decoration fell into.
+// Uniform scaling means the height follows the width, so a wide ratio
+// is what keeps the chart from becoming absurdly tall on a wide card -
+// with a max-height in the CSS as the backstop.
+const CHART_W = 360;
+const CHART_H = 120;
+const PAD_LEFT = 30;
+const PAD_RIGHT = 8;
+const PAD_TOP = 10;
+const PAD_BOTTOM = 18;
+const PLOT_W = CHART_W - PAD_LEFT - PAD_RIGHT;
+const PLOT_H = CHART_H - PAD_TOP - PAD_BOTTOM;
+
+// Which optional overlays exist, and how each reads its value out of a
+// night entry. Adding one here is enough to get its toggle, its line and
+// its colour - nothing else in the card enumerates them.
+const OVERLAYS = {
+  speed: { key: "avg_speed_kmh", color: "#4EA8DE", label: "running.avgSpeed", unit: "km/h" },
+  temperature: { key: "temperature_c", color: "#F4A261", label: "running.temperature", unit: "°C" },
+  humidity: { key: "humidity_pct", color: "#84DCC6", label: "running.humidity", unit: "%" },
+};
+
+const LOGO_RUNNING_SVG = `
+<svg viewBox="0 0 200 200" width="34" height="34" aria-hidden="true">
+  <circle cx="100" cy="100" r="72" fill="none" stroke="#AEB6BF" stroke-width="9"/>
+  <circle cx="100" cy="100" r="60" fill="none" stroke="#C19A6B" stroke-width="8" opacity="0.75"/>
+  <g stroke="#AEB6BF" stroke-width="5" stroke-linecap="round">
+    <line x1="100" y1="32" x2="100" y2="168"/>
+    <line x1="32" y1="100" x2="168" y2="100"/>
+    <line x1="52" y1="52" x2="148" y2="148"/>
+    <line x1="148" y1="52" x2="52" y2="148"/>
+  </g>
+  <circle cx="100" cy="100" r="11" fill="#8A929A"/>
+  <ellipse cx="104" cy="132" rx="27" ry="19" fill="var(--hf-fur)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+  <circle cx="126" cy="120" r="13" fill="var(--hf-fur-light)" stroke="var(--hf-fur-dark)" stroke-width="3"/>
+  <circle cx="130" cy="116" r="2.6" fill="#3a2a1a"/>
+</svg>
+`;
+
+class HamsterRunningCard extends HTMLElement {
+  setConfig(config) {
+    if (!config || !config.entity) {
+      throw new Error(t(null, "common.needEntity", { card: "Running" }));
+    }
+    if (!ENTITY_PATTERN.test(config.entity)) {
+      throw new Error(t(null, "common.wrongEntity", { card: "Running" }));
+    }
+    this._config = { ...config };
+
+    if (!this._root) {
+      this.innerHTML = `
+        <ha-card>
+          <div class="hrc-root">
+            <div class="hrc-error" hidden></div>
+            <div class="hrc-banner"></div>
+            <div class="hrc-body"></div>
+          </div>
+        </ha-card>
+        <style>${HamsterRunningCard.styles}</style>
+      `;
+      this._root = this.querySelector(".hrc-root");
+      this._errorEl = this.querySelector(".hrc-error");
+      this._bannerEl = this.querySelector(".hrc-banner");
+      this._bodyEl = this.querySelector(".hrc-body");
+
+      // Which overlays are switched on. Card-local UI state on purpose:
+      // it is a way of looking at the data, not a property of the
+      // hamster, so it does not belong in the dashboard config.
+      this._overlays = { speed: true, temperature: false, humidity: false };
+
+      this._bodyEl.addEventListener("click", (ev) => {
+        const toggle = ev.target.closest("[data-overlay]");
+        if (!toggle) return;
+        const name = toggle.dataset.overlay;
+        this._overlays[name] = !this._overlays[name];
+        this._render();
+      });
+    }
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  getCardSize() {
+    return 5;
+  }
+
+  static getConfigElement() {
+    return document.createElement("hamster-running-card-editor");
+  }
+
+  static getStubConfig(hass) {
+    const entity = Object.keys(hass?.states || {}).find((id) =>
+      ENTITY_PATTERN.test(id)
+    );
+    return { entity: entity || "sensor.hamster_health_score" };
+  }
+
+  /** Completed nights, oldest first, with everything coerced to numbers. */
+  _nights(attrs) {
+    const history = Array.isArray(attrs.night_history) ? attrs.night_history : [];
+    return history.map((item) => ({
+      date: item.date,
+      distance: Number(item.distance_km),
+      avg_speed_kmh: _num(item.avg_speed_kmh),
+      temperature_c: _num(item.temperature_c),
+      humidity_pct: _num(item.humidity_pct),
+    }));
+  }
+
+  /**
+   * The distance axis: 0 up to a rounded ceiling above both the longest
+   * bar and the goal line.
+   *
+   * The goal is included deliberately - a week that never reached it
+   * would otherwise draw the line off the top of the chart, which is
+   * exactly the week where seeing how far short it fell matters most.
+   */
+  _distanceMax(nights, goal) {
+    const values = nights.map((n) => n.distance).filter(Number.isFinite);
+    const peak = Math.max(...values, goal || 0, 0.1);
+    const step = peak <= 2 ? 0.5 : peak <= 10 ? 1 : 5;
+    return Math.ceil(peak / step) * step;
+  }
+
+  _bars(nights, max) {
+    const slot = PLOT_W / nights.length;
+    const width = Math.min(26, slot * 0.55);
+    return nights
+      .map((night, i) => {
+        const x = PAD_LEFT + slot * (i + 0.5);
+        const valid = Number.isFinite(night.distance);
+        const h = valid ? (night.distance / max) * PLOT_H : 0;
+        const y = PAD_TOP + PLOT_H - h;
+        return `
+          <rect class="hrc-bar" x="${(x - width / 2).toFixed(1)}" y="${y.toFixed(1)}"
+                width="${width.toFixed(1)}" height="${Math.max(h, valid ? 1.5 : 0).toFixed(1)}"
+                rx="${Math.min(3, width / 2).toFixed(1)}"/>
+          <text class="hrc-xlabel" x="${x.toFixed(1)}" y="${CHART_H - 5}"
+                text-anchor="middle">${fmtWeekday(this._hass, night.date)}</text>
+        `;
+      })
+      .join("");
+  }
+
+  /** A dashed rule across the plot, used for the goal and the average. */
+  _rule(value, max, className) {
+    if (!Number.isFinite(value) || value <= 0 || value > max) return "";
+    const y = PAD_TOP + PLOT_H - (value / max) * PLOT_H;
+    return `<line class="${className}" x1="${PAD_LEFT}" y1="${y.toFixed(1)}"
+                  x2="${CHART_W - PAD_RIGHT}" y2="${y.toFixed(1)}"/>`;
+  }
+
+  /**
+   * One overlay as a polyline on its own scale.
+   *
+   * Each overlay is normalised against its own maximum rather than the
+   * distance axis: they are different units entirely, and forcing
+   * humidity onto a kilometre scale would flatten it into a straight
+   * line at the bottom. The shape is what these lines are for - whether
+   * the hamster ran faster on the colder nights - not the absolute
+   * value, which the tooltip gives exactly.
+   */
+  _overlayLine(nights, name) {
+    const spec = OVERLAYS[name];
+    const values = nights.map((n) => n[spec.key]);
+    const known = values.filter(Number.isFinite);
+    if (known.length < 2) return "";
+
+    const min = Math.min(...known);
+    const max = Math.max(...known);
+    const span = max - min || 1;
+    const slot = PLOT_W / nights.length;
+    // Inset so a flat line doesn't sit exactly on the axis or the top.
+    const top = PAD_TOP + PLOT_H * 0.12;
+    const height = PLOT_H * 0.76;
+
+    const points = values
+      .map((value, i) =>
+        Number.isFinite(value)
+          ? `${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)},${(
+              top + height - ((value - min) / span) * height
+            ).toFixed(1)}`
+          : null
+      )
+      .filter(Boolean)
+      .join(" ");
+
+    const dots = values
+      .map((value, i) =>
+        Number.isFinite(value)
+          ? `<circle cx="${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)}" cy="${(
+              top + height - ((value - min) / span) * height
+            ).toFixed(1)}" r="2.4" fill="${spec.color}"/>`
+          : ""
+      )
+      .join("");
+
+    return `<polyline class="hrc-overlay" points="${points}" stroke="${spec.color}"/>${dots}`;
+  }
+
+  _yAxis(max) {
+    return [0, max / 2, max]
+      .map((value) => {
+        const y = PAD_TOP + PLOT_H - (value / max) * PLOT_H;
+        return `
+          <line class="hrc-grid" x1="${PAD_LEFT}" y1="${y.toFixed(1)}"
+                x2="${CHART_W - PAD_RIGHT}" y2="${y.toFixed(1)}"/>
+          <text class="hrc-ylabel" x="${PAD_LEFT - 5}" y="${(y + 3).toFixed(1)}"
+                text-anchor="end">${_axisLabel(value)}</text>
+        `;
+      })
+      .join("");
+  }
+
+  _chart(nights, goal) {
+    const max = this._distanceMax(nights, goal);
+    const average =
+      nights.reduce((sum, n) => sum + (Number.isFinite(n.distance) ? n.distance : 0), 0) /
+      nights.length;
+
+    const lines = Object.keys(OVERLAYS)
+      .filter((name) => this._overlays[name])
+      .map((name) => this._overlayLine(nights, name))
+      .join("");
+
+    return `
+      <svg class="hrc-chart" viewBox="0 0 ${CHART_W} ${CHART_H}" role="img"
+           aria-label="${t(this._hass, "running.distance")}">
+        ${this._yAxis(max)}
+        ${this._bars(nights, max)}
+        ${this._rule(average, max, "hrc-rule-avg")}
+        ${this._rule(goal, max, "hrc-rule-goal")}
+        ${lines}
+      </svg>
+    `;
+  }
+
+  _legend(goal) {
+    const goalText =
+      goal > 0
+        ? `<span class="hrc-legend-item"><i class="hrc-swatch hrc-swatch-goal"></i>${t(
+            this._hass,
+            "running.goal"
+          )} ${fmtNumber(this._hass, goal, 1, "km")}</span>`
+        : "";
+    return `
+      <div class="hrc-legend">
+        <span class="hrc-legend-item"><i class="hrc-swatch hrc-swatch-avg"></i>${t(
+          this._hass,
+          "running.average"
+        )}</span>
+        ${goalText}
+      </div>
+    `;
+  }
+
+  _toggles() {
+    return `
+      <div class="hrc-toggles">
+        ${Object.entries(OVERLAYS)
+          .map(
+            ([name, spec]) => `
+            <button class="hrc-toggle${this._overlays[name] ? " hrc-toggle-on" : ""}"
+                    data-overlay="${name}" type="button"
+                    aria-pressed="${this._overlays[name] ? "true" : "false"}">
+              <i class="hrc-swatch" style="background: ${spec.color}"></i>
+              ${t(this._hass, spec.label)}
+            </button>`
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  _records(attrs) {
+    const bestKm = _num(attrs.best_night_km);
+    const fastest = _num(attrs.lifetime_max_speed_kmh);
+    const none = t(this._hass, "running.noRecord");
+
+    const cell = (labelKey, value, dateIso) => `
+      <div class="hrc-record">
+        <span class="hrc-record-label">${t(this._hass, labelKey)}</span>
+        <span class="hrc-record-value">${value}</span>
+        <span class="hrc-record-date">${dateIso ? fmtDate(this._hass, dateIso) : ""}</span>
+      </div>
+    `;
+
+    return `
+      <div class="hrc-section-label">${t(this._hass, "running.records")}</div>
+      <div class="hrc-records">
+        ${cell(
+          "running.bestNight",
+          bestKm === null ? none : fmtNumber(this._hass, bestKm, 2, "km"),
+          bestKm === null ? null : attrs.best_night_date
+        )}
+        ${cell(
+          "running.fastest",
+          fastest === null ? none : fmtNumber(this._hass, fastest, 1, "km/h"),
+          fastest === null ? null : attrs.lifetime_max_speed_date
+        )}
+      </div>
+    `;
+  }
+
+  _render() {
+    if (!this._hass || !this._root || !this._config) return;
+
+    const state = this._hass.states[this._config.entity];
+    if (!state) {
+      this._errorEl.textContent = t(this._hass, "common.notFound", {
+        entity: this._config.entity,
+      });
+      this._errorEl.hidden = false;
+      this._bodyEl.innerHTML = "";
+      return;
+    }
+    this._errorEl.hidden = true;
+
+    const attrs = state.attributes || {};
+    applyFur(this._root, coatColor(state));
+
+    const nights = this._nights(attrs);
+    const goal = _num(attrs.min_distance_km) || 0;
+    const weekTotal = nights.reduce(
+      (sum, n) => sum + (Number.isFinite(n.distance) ? n.distance : 0),
+      0
+    );
+
+    const title =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._config.entity.match(ENTITY_PATTERN)[1].replace(/_/g, " ");
+
+    this._bannerEl.innerHTML = renderCardHeader({
+      logoSvg: LOGO_RUNNING_SVG,
+      title: String(title).toUpperCase(),
+      subtitle: t(this._hass, "running.subtitle"),
+      badgeHtml: nights.length
+        ? `<span class="hf-badge">${t(this._hass, "running.weekTotal", {
+            value: fmtNumber(this._hass, weekTotal, 1, "km"),
+          })}</span>`
+        : "",
+    });
+
+    this._bodyEl.innerHTML = nights.length
+      ? `
+        ${this._chart(nights, goal)}
+        ${this._legend(goal)}
+        ${this._toggles()}
+        ${this._records(attrs)}
+      `
+      : `
+        <div class="hrc-empty">${t(this._hass, "running.empty")}</div>
+        ${this._records(attrs)}
+      `;
+  }
+}
+
+/** Number or null - attributes arrive as strings, nulls and undefineds. */
+function _num(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/** Axis labels stay short: "0", "2.5", "10" rather than "10.00". */
+function _axisLabel(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+HamsterRunningCard.styles = `
+  ${HEADER_STYLES}
+
+  ha-card {
+    padding: 0;
+    overflow: hidden;
+    container-type: inline-size;
+  }
+  .hrc-root {
+    position: relative;
+  }
+  .hrc-banner {
+    padding: 14px 16px;
+    background: linear-gradient(135deg, #1f4e5f, #2a7f8f);
+  }
+  .hrc-body {
+    padding: 12px 14px 14px;
+  }
+  .hrc-error {
+    margin: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(228, 92, 92, 0.14);
+    color: #c0392b;
+    font-size: 0.9em;
+  }
+  .hrc-empty {
+    padding: 14px 4px;
+    font-size: 0.88em;
+    line-height: 1.45;
+    color: var(--secondary-text-color);
+  }
+  /* height: auto lets the viewBox's own ratio set the height, which is
+     what keeps the scaling uniform - the dots stay round and the axis
+     labels stay legible. max-height stops a very wide card from turning
+     a 3:1 chart into a very tall one; past that point it simply centres
+     itself instead of growing further. */
+  .hrc-chart {
+    width: 100%;
+    height: auto;
+    max-height: 190px;
+    display: block;
+    overflow: visible;
+  }
+  .hrc-bar {
+    fill: var(--hf-fur, #D48C46);
+  }
+  .hrc-grid {
+    stroke: var(--divider-color, #e0e0e0);
+    stroke-width: 1;
+    opacity: 0.55;
+  }
+  .hrc-ylabel,
+  .hrc-xlabel {
+    fill: var(--secondary-text-color);
+    font-size: 9px;
+    font-family: inherit;
+  }
+  .hrc-rule-goal {
+    stroke: #2a9d8f;
+    stroke-width: 1.5;
+    stroke-dasharray: 5 3;
+  }
+  .hrc-rule-avg {
+    stroke: var(--secondary-text-color);
+    stroke-width: 1.2;
+    stroke-dasharray: 2 3;
+    opacity: 0.8;
+  }
+  .hrc-overlay {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .hrc-legend,
+  .hrc-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin-top: 8px;
+  }
+  .hrc-legend {
+    font-size: 0.74em;
+    color: var(--secondary-text-color);
+  }
+  .hrc-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .hrc-swatch {
+    width: 10px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    background: currentColor;
+  }
+  .hrc-swatch-goal {
+    background: #2a9d8f;
+  }
+  .hrc-swatch-avg {
+    background: var(--secondary-text-color);
+  }
+  .hrc-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: transparent;
+    color: var(--secondary-text-color);
+    font-family: inherit;
+    font-size: 0.74em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .hrc-toggle-on {
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
+    color: var(--primary-text-color);
+  }
+  .hrc-toggle:focus-visible {
+    outline: 2px solid var(--primary-color, #03a9f4);
+    outline-offset: 2px;
+  }
+  .hrc-section-label {
+    margin-top: 14px;
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hrc-records {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .hrc-record {
+    flex: 1 1 130px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+  }
+  .hrc-record-label {
+    font-size: 0.68em;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hrc-record-value {
+    font-size: 1.05em;
+    font-weight: 800;
+    color: var(--primary-text-color);
+  }
+  .hrc-record-date {
+    font-size: 0.72em;
+    color: var(--secondary-text-color);
+  }
+
+  @container (max-width: 380px) {
+    /* Weekday labels and axis numbers are the first thing to get tight
+       on a narrow card, and they scale with the chart rather than with
+       the page, so they need their own nudge. */
+    .hrc-ylabel,
+    .hrc-xlabel {
+      font-size: 10px;
+    }
+  }
+`;
+
+customElements.define("hamster-running-card", HamsterRunningCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "hamster-running-card",
+  name: t(null, "running.pickerName"),
+  description: t(null, "running.pickerDescription"),
+});
+
+const RUNNING_EDITOR_SCHEMA = [
+  {
+    name: "entity",
+    required: true,
+    selector: { entity: { domain: "sensor" } },
+  },
+  { name: "title", selector: { text: {} } },
+];
+
+class HamsterRunningCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+    this._render();
+  }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (item) =>
+        item.name === "entity"
+          ? t(this._hass, "common.entityPicker")
+          : t(this._hass, "common.optionalTitle");
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config: ev.detail.value },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = RUNNING_EDITOR_SCHEMA;
+    this._form.data = this._config;
+  }
+}
+
+customElements.define("hamster-running-card-editor", HamsterRunningCardEditor);

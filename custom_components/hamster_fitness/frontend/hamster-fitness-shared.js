@@ -177,6 +177,26 @@ const STRINGS = {
     "ranking.pickerDescription":
       "Compares every hamster in this Home Assistant by lifetime distance - found automatically, no configuration needed.",
 
+    // Running card
+    "running.title": "Running",
+    "running.subtitle": "Last 7 nights",
+    "running.weekTotal": "{value} this week",
+    "running.empty":
+      "No completed nights recorded yet. The first bar appears after tonight's window closes.",
+    "running.distance": "Distance",
+    "running.avgSpeed": "Average speed",
+    "running.goal": "Goal",
+    "running.average": "Average",
+    "running.temperature": "Temperature",
+    "running.humidity": "Humidity",
+    "running.records": "Personal bests",
+    "running.bestNight": "Longest night",
+    "running.fastest": "Fastest ever",
+    "running.noRecord": "Not set yet",
+    "running.pickerName": "Hamster Fitness: Running",
+    "running.pickerDescription":
+      "One bar per night for the last week, with average speed, your distance goal and personal bests - plus optional climate overlays.",
+
     // Chronicle card
     "chronicle.title": "Hamster chronicle",
     "chronicle.subtitle": "Overview",
@@ -371,6 +391,25 @@ const STRINGS = {
       "Keine Hamster-Fitness-Hamster gefunden (kein sensor.hamster_<name>_lifetime_distance in diesem Home Assistant).",
     "ranking.pickerDescription":
       "Vergleicht alle Hamster in diesem Home Assistant nach Lebenszeit-Distanz - erkennt sie automatisch, keine Konfiguration nötig.",
+
+    "running.title": "Laufleistung",
+    "running.subtitle": "Letzte 7 Nächte",
+    "running.weekTotal": "{value} diese Woche",
+    "running.empty":
+      "Noch keine abgeschlossene Nacht aufgezeichnet. Der erste Balken erscheint, sobald das heutige Nachtfenster endet.",
+    "running.distance": "Strecke",
+    "running.avgSpeed": "Ø-Geschwindigkeit",
+    "running.goal": "Ziel",
+    "running.average": "Durchschnitt",
+    "running.temperature": "Temperatur",
+    "running.humidity": "Luftfeuchtigkeit",
+    "running.records": "Bestleistungen",
+    "running.bestNight": "Längste Nacht",
+    "running.fastest": "Schnellster Wert",
+    "running.noRecord": "Noch keine",
+    "running.pickerName": "Hamster Fitness: Laufleistung",
+    "running.pickerDescription":
+      "Ein Balken pro Nacht der letzten Woche, mit Ø-Geschwindigkeit, deinem Streckenziel und Bestleistungen - dazu optionale Klima-Überlagerungen.",
 
     "chronicle.title": "Hamster-Chronik",
     "chronicle.subtitle": "Gesamtübersicht",

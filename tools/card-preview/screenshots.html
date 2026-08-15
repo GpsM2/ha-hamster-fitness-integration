@@ -51,6 +51,7 @@ const BUST = `?t=${Date.now()}`;
 await import(`${FRONTEND}/hamster-fitness-card.js${BUST}`);
 await import(`${FRONTEND}/hamster-day-night-card.js${BUST}`);
 await import(`${FRONTEND}/hamster-chronicle-card.js${BUST}`);
+await import(`${FRONTEND}/hamster-running-card.js${BUST}`);
 await import(`${FRONTEND}/hamster-weight-card.js${BUST}`);
 
 const LANG = "en";
@@ -140,6 +141,20 @@ function healthHass() {
         { date: "2026-08-04", score: 70 },
         { date: "2026-08-05", score: 85 },
         { date: "2026-08-06", score: 88 },
+      ],
+      min_distance_km: 5,
+      best_night_km: 11.42,
+      best_night_date: "2026-06-18",
+      lifetime_max_speed_kmh: 12.8,
+      lifetime_max_speed_date: "2026-07-09",
+      night_history: [
+        { date: "2026-07-31", distance_km: 4.1, avg_speed_kmh: 2.6, max_speed_kmh: 9.4, temperature_c: 22.8, humidity_pct: 54 },
+        { date: "2026-08-01", distance_km: 6.7, avg_speed_kmh: 3.4, max_speed_kmh: 11.1, temperature_c: 21.9, humidity_pct: 51 },
+        { date: "2026-08-02", distance_km: 8.2, avg_speed_kmh: 3.9, max_speed_kmh: 12.0, temperature_c: 20.4, humidity_pct: 49 },
+        { date: "2026-08-03", distance_km: 5.4, avg_speed_kmh: 3.1, max_speed_kmh: 10.2, temperature_c: 23.6, humidity_pct: 57 },
+        { date: "2026-08-04", distance_km: 2.9, avg_speed_kmh: 2.2, max_speed_kmh: 7.8, temperature_c: 25.9, humidity_pct: 61 },
+        { date: "2026-08-05", distance_km: 7.1, avg_speed_kmh: 3.6, max_speed_kmh: 11.6, temperature_c: 21.2, humidity_pct: 50 },
+        { date: "2026-08-06", distance_km: 6.1, avg_speed_kmh: 3.3, max_speed_kmh: 10.8, temperature_c: 22.1, humidity_pct: 52 },
       ],
     },
   };
@@ -245,6 +260,9 @@ shot("shot-day-night-weather").appendChild(
   makeCard("hamster-day-night-card", { entity: HEALTH },
     baseHass({ night: false, active: true, speed: 4.2, lightOn: false,
                weather: "pouring" })));
+
+shot("shot-running").appendChild(
+  makeCard("hamster-running-card", { entity: HEALTH }, healthHass()));
 
 shot("shot-chronicle", true).appendChild(
   makeCard("hamster-chronicle-card",

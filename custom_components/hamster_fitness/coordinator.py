@@ -71,6 +71,7 @@ from .const import (
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
     NEGLECT_THRESHOLD_HOURS,
+    NIGHT_HISTORY_NIGHTS,
     NIGHT_WINDOW_START_HOUR,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
@@ -212,6 +213,24 @@ class HamsterFitnessData:
     # [{"date": "2026-08-05", "score": 88}, ...], maximal
     # SCORE_HISTORY_DAYS Einträge, ältester zuerst.
     score_history: list[dict[str, Any]] = field(default_factory=list)
+    # Rollierende Historie abgeschlossener NÄCHTE für die Running-Karte:
+    # [{"date", "distance_km", "avg_speed_kmh", "max_speed_kmh",
+    #   "temperature_c", "humidity_pct"}, ...], maximal
+    # NIGHT_HISTORY_NIGHTS Einträge, älteste zuerst. Klimawerte sind
+    # Mittelwerte über dasselbe Nachtfenster, nicht Momentaufnahmen -
+    # siehe _sample_night_climate().
+    night_history: list[dict[str, Any]] = field(default_factory=list)
+    # Bestleistungen. Anders als night_history NICHT auf sieben Nächte
+    # begrenzt - ein Rekord soll auch in einem Jahr noch dastehen.
+    best_night_km: float | None = None
+    best_night_date: str | None = None
+    # Die konfigurierte Mindeststrecke (Option). Als Attribut sichtbar,
+    # damit die Running-Karte ihre Ziellinie auf denselben Wert legen kann,
+    # den auch der Health-Score bewertet, statt einen eigenen zu erfinden.
+    min_distance_km: float = 0.0
+    # Datum zu lifetime_max_speed_kmh. Der Wert selbst wurde schon immer
+    # geführt, war bislang aber nirgends sichtbar.
+    lifetime_max_speed_date: str | None = None
     warning_on: bool = False
     # code -> lesbarer Text, z. B.
     # {"too_hot": "Im Käfig ist es ziemlich warm: 30,0 °C."}.
@@ -289,6 +308,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         # Abgeschlossene Tages-Scores für das Trend-Diagramm der Karte.
         self._score_history: list[dict[str, Any]] = []
+
+        # Nacht-Historie und Bestleistungen (Running-Karte). Die Klima-
+        # Summen laufen über dasselbe Fenster wie night_distance_km und
+        # werden beim Nachtfenster-Reset in einen Mittelwert aufgelöst.
+        self._night_history: list[dict[str, Any]] = []
+        self._night_temp_sum: float = 0.0
+        self._night_temp_samples: int = 0
+        self._night_humidity_sum: float = 0.0
+        self._night_humidity_samples: int = 0
+        self._best_night_km: float | None = None
+        self._best_night_date: str | None = None
+        self._lifetime_max_speed_date: str | None = None
         # Laufende Summe/Anzahl der Score-Stichproben des aktuellen Tages.
         # Abgetastet wird im Minutentakt (siehe
         # _async_handle_periodic_update), nicht bei jedem Sensor-Event -
@@ -434,6 +465,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._score_history = stored.get("score_history", [])
             self._score_sum_today = stored.get("score_sum_today", 0.0)
             self._score_samples_today = stored.get("score_samples_today", 0)
+            self._night_history = stored.get("night_history", [])
+            self._night_temp_sum = stored.get("night_temp_sum", 0.0)
+            self._night_temp_samples = stored.get("night_temp_samples", 0)
+            self._night_humidity_sum = stored.get("night_humidity_sum", 0.0)
+            self._night_humidity_samples = stored.get("night_humidity_samples", 0)
+            self._best_night_km = stored.get("best_night_km")
+            self._best_night_date = stored.get("best_night_date")
+            self._lifetime_max_speed_date = stored.get("lifetime_max_speed_date")
             self._light_automation_enabled = stored.get(
                 "light_automation_enabled", True
             )
@@ -554,6 +593,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "score_history": self._score_history,
                 "score_sum_today": self._score_sum_today,
                 "score_samples_today": self._score_samples_today,
+                "night_history": self._night_history,
+                "night_temp_sum": self._night_temp_sum,
+                "night_temp_samples": self._night_temp_samples,
+                "night_humidity_sum": self._night_humidity_sum,
+                "night_humidity_samples": self._night_humidity_samples,
+                "best_night_km": self._best_night_km,
+                "best_night_date": self._best_night_date,
+                "lifetime_max_speed_date": self._lifetime_max_speed_date,
                 "light_automation_enabled": self._light_automation_enabled,
                 "light_pause_until": (
                     self._light_pause_until.isoformat()
@@ -672,14 +719,78 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         """
         if self.data is not None:
             self._last_completed_night_km = self.data.night_distance_km
+            self._record_night()
         self._night_baseline_count = self._current_wheel_count() or 0.0
         self._night_window_start = _compute_window_start(
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
         self._max_speed_tonight_kmh = None
         self._night_active_minutes = 0.0
+        self._night_temp_sum = 0.0
+        self._night_temp_samples = 0
+        self._night_humidity_sum = 0.0
+        self._night_humidity_samples = 0
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
+
+    @callback
+    def _sample_night_climate(self) -> None:
+        """Add the current climate readings to this night's running average.
+
+        Sampled on the same one-minute tick as the score (see
+        _sample_score), so the average is evenly spaced regardless of how
+        often the source sensors happen to fire. Temperature and humidity
+        are counted separately: humidity is optional, and one missing
+        reading should not drag the other's average around.
+        """
+        if self._is_paused() or self.data is None:
+            return
+        if self.data.temperature is not None:
+            self._night_temp_sum += self.data.temperature
+            self._night_temp_samples += 1
+        if self.data.humidity is not None:
+            self._night_humidity_sum += self.data.humidity
+            self._night_humidity_samples += 1
+
+    def _record_night(self) -> None:
+        """Append the closing night to the rolling history, and score records.
+
+        Keyed by the date the window STARTED on, not the date it ends -
+        a night that runs from Friday evening into Saturday morning is
+        the user's "Friday night", and labelling it Saturday would put it
+        under the wrong bar on the chart.
+
+        Re-recording the same date overwrites, so a restart around the
+        reset hour cannot produce two entries for one night - the same
+        guard _record_daily_score() uses.
+        """
+        window_start = self._night_window_start or dt_util.now()
+        entry: dict[str, Any] = {
+            "date": dt_util.as_local(window_start).date().isoformat(),
+            "distance_km": round(self.data.night_distance_km, 3),
+            "avg_speed_kmh": self.data.night_avg_speed_kmh,
+            "max_speed_kmh": self._max_speed_tonight_kmh,
+            "temperature_c": (
+                round(self._night_temp_sum / self._night_temp_samples, 1)
+                if self._night_temp_samples
+                else None
+            ),
+            "humidity_pct": (
+                round(self._night_humidity_sum / self._night_humidity_samples, 1)
+                if self._night_humidity_samples
+                else None
+            ),
+        }
+        self._night_history = [
+            item for item in self._night_history if item.get("date") != entry["date"]
+        ]
+        self._night_history.append(entry)
+        self._night_history = self._night_history[-NIGHT_HISTORY_NIGHTS:]
+
+        # A personal best outlives the seven-night window on purpose.
+        if self._best_night_km is None or entry["distance_km"] > self._best_night_km:
+            self._best_night_km = entry["distance_km"]
+            self._best_night_date = entry["date"]
 
     @callback
     def _async_handle_periodic_update(self, now: datetime) -> None:
@@ -691,6 +802,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         """
         self.async_set_updated_data(self._calculate())
         self._sample_score()
+        self._sample_night_climate()
 
     # ------------------------------------------------------------------
     # Gewicht (siehe number.py und die Wiege-Erinnerung in notify.py)
@@ -1145,6 +1257,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 )
                 if current_speed_kmh > (self._lifetime_max_speed_kmh or 0.0):
                     self._lifetime_max_speed_kmh = current_speed_kmh
+                    # Dated so the Running card can say when the record
+                    # was set, not just what it is.
+                    self._lifetime_max_speed_date = dt_util.now().date().isoformat()
                     self.hass.async_create_task(self._async_save_state())
 
         night_active_duration_min = (
@@ -1285,6 +1400,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 if self._lifetime_max_speed_kmh is not None
                 else None
             ),
+            lifetime_max_speed_date=self._lifetime_max_speed_date,
             night_active_duration_min=round(night_active_duration_min, 1),
             day_rest_duration_min=round(day_rest_duration_min, 1),
             door_open=door_open,
@@ -1305,6 +1421,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             score_climate=_pillar_score(temperature_penalty, _TEMP_PENALTY_CAP),
             score_care=_pillar_score(care_penalty, _CARE_PENALTY_CAP),
             score_history=list(self._score_history),
+            night_history=list(self._night_history),
+            best_night_km=self._best_night_km,
+            best_night_date=self._best_night_date,
+            min_distance_km=min_distance_km,
             warning_on=bool(reasons),
             warning_reasons=reasons,
         )
