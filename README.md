@@ -46,10 +46,11 @@ cards, and a cage light that switches itself on when you open the lid.
 - **Boarding mode**: away at a foster home or the vet? Flip one switch
   and scoring, warnings and reminders pause until it's back, without
   archiving anything.
-- **Five dashboard cards built in**, no extra downloads, all following
+- **Six dashboard cards built in**, no extra downloads, all following
   Home Assistant's language (English and German):
   [Health Score](docs/cards/health-score.md) ·
   [Day & Night](docs/cards/day-and-night.md) ·
+  [Running](docs/cards/running.md) ·
   [Ranking](docs/cards/ranking.md) ·
   [Chronicle](docs/cards/chronicle.md) ·
   [Track Weight](docs/cards/weighing.md)
@@ -119,13 +120,14 @@ configure it:
 |---|---|
 | [Hamster Fitness: Health Score](docs/cards/health-score.md) | One hamster's wellbeing, in depth |
 | [Hamster Fitness: Day & Night](docs/cards/day-and-night.md) | The illustrated live view |
+| [Hamster Fitness: Running](docs/cards/running.md) | One bar per night for the last week, with goal, records and climate |
 | [Hamster Fitness: Ranking](docs/cards/ranking.md) | All hamsters by lifetime distance |
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
 | [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
 
 ## The cards
 
-All five follow Home Assistant's language (English and German), including
+All six follow Home Assistant's language (English and German), including
 number and date formatting, and tint their illustrated hamster with the
 coat colour from its profile — so two hamsters on one dashboard never
 look like the same animal.
@@ -162,6 +164,21 @@ lightning:
 
 Every chip is tappable: the readings open their own entity, and the cage
 light chip switches the lamp directly.
+
+### Running
+
+One bar per night for the last week, so a run can be read against the
+nights around it rather than on its own. A goal line at your configured
+minimum distance — the same number the health score grades against —
+an average line, and the night's average speed drawn over the bars.
+
+<img src="docs/images/card-running.png" alt="Running card: seven nightly distance bars with a goal line, an average line and a speed overlay, above the personal-best figures" width="420">
+
+Temperature and humidity can be switched on as extra lines, averaged per
+night, for the questions the distances alone can't answer — whether a
+quiet week lines up with a warm spell, say. Underneath sit the personal
+bests: the longest single night and the fastest speed ever, each with
+the date it happened, neither capped to the seven nights on show.
 
 ### Ranking
 

@@ -208,6 +208,12 @@ SLEEP_PHASE_END_HOUR: Final[int] = 17
 # werden (siehe coordinator.py's _record_daily_score()).
 SCORE_HISTORY_DAYS: Final[int] = 7
 
+# --- Nacht-Historie (Running-Karte) ---
+# Wie viele abgeschlossene NÄCHTE rollierend vorgehalten werden, analog zu
+# SCORE_HISTORY_DAYS - siehe coordinator.py's _record_night(). Bewusst
+# ebenfalls 7: beide Karten zeigen damit eine volle Woche.
+NIGHT_HISTORY_NIGHTS: Final[int] = 7
+
 # --- Licht-Automatik: Schalter & Pause ---
 # Der Schalter switch.<hamster>_light_automation bildet den dauerhaften
 # Wunsch ab ("Automatik grundsätzlich an/aus"). Die Pause ist davon
@@ -326,7 +332,7 @@ URL_BASE: Final = f"/{DOMAIN}-frontend"
 # Bei jeder Änderung an hamster-fitness-shared.js hochzählen UND denselben
 # Wert in den ?v=-Importen aller Kartendateien nachziehen. tests/
 # test_frontend_resources.py prüft das ab, damit es nicht vergessen wird.
-SHARED_MODULE_VERSION: Final = "11"
+SHARED_MODULE_VERSION: Final = "12"
 # "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
 # jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
 # Browser ggf. die alte, gecachte Version weiter aus.
@@ -345,6 +351,11 @@ JS_MODULES: Final[list[dict[str, str]]] = [
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
         "version": "12",
+    },
+    {
+        "name": "Hamster Running Card",
+        "filename": "hamster-running-card.js",
+        "version": "1",
     },
     {
         "name": "Hamster Weight Card",

@@ -199,6 +199,17 @@ def test_style_blocks_contain_no_stray_backtick() -> None:
         )
 
 
+def _without_comments(source: str) -> str:
+    """Strip JS comments, so a guard can look at code rather than prose.
+
+    `//` is only treated as a comment when it doesn't follow a colon, so
+    the `https://` in a link survives - otherwise stripping would eat the
+    rest of that line and could hide a real violation behind it.
+    """
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    return re.sub(r"(?<!:)//[^\n]*", "", source)
+
+
 def test_no_card_stretches_an_svg_non_uniformly() -> None:
     """`preserveAspectRatio="none"` turns circles into eggs.
 
@@ -211,13 +222,27 @@ def test_no_card_stretches_an_svg_non_uniformly() -> None:
     Nothing about the value looks wrong when reading the code, and it
     only misbehaves at sizes a developer may not happen to try, so it is
     pinned here instead.
+
+    Comments are stripped first: the Running card explains in a comment
+    why it does NOT use this value, and matching the raw file failed it
+    for saying so. A guard that punishes documenting the trap teaches
+    people to delete the explanation.
     """
     for path in _card_files():
-        source = path.read_text(encoding="utf-8")
+        source = _without_comments(path.read_text(encoding="utf-8"))
         assert 'preserveAspectRatio="none"' not in source, (
             f"{path.name} scales an SVG non-uniformly; circles in it will "
             "render as ellipses at most card widths"
         )
+
+
+def test_the_stretch_guard_still_catches_real_usage() -> None:
+    """The comment-stripping above must not defeat the guard itself."""
+    offending = 'const svg = `<svg preserveAspectRatio="none">`;'
+    assert 'preserveAspectRatio="none"' in _without_comments(offending)
+    # ...while an explanatory mention is correctly ignored.
+    excused = '// never use preserveAspectRatio="none" here\nconst a = 1;'
+    assert 'preserveAspectRatio="none"' not in _without_comments(excused)
 
 
 def test_cards_do_not_hardcode_german_text() -> None:
