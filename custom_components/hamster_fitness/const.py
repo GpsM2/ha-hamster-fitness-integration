@@ -75,6 +75,11 @@ CONF_ILLUMINANCE_SENSOR: Final = "illuminance_sensor"
 # Optional - Wetter-Entity für die Hitze-Erinnerung (notify.py) und das
 # Wetter-Overlay der Day-&-Night-Karte. Ohne bleibt beides inaktiv.
 CONF_WEATHER_ENTITY: Final = "weather_entity"
+# Optional - Mondphasen-Entity (typischerweise sensor.moon aus der
+# eingebauten "Moon"-Integration; rein lokal berechnet, ohne Internet).
+# Ohne diese Auswahl zeichnet die Day-&-Night-Karte weiterhin ihre feste
+# Sichel, siehe _moonSvg() dort.
+CONF_MOON_ENTITY: Final = "moon_entity"
 # Optional - eine number-Entity (typischerweise auf einem ESPHome-Gerät),
 # an die CONF_WHEEL_DIAMETER bei jedem Setup/Reconfigure automatisch
 # übertragen wird, siehe __init__.py's _async_sync_wheel_diameter(). Ohne
@@ -334,7 +339,7 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Day & Night Card",
         "filename": "hamster-day-night-card.js",
-        "version": "18",
+        "version": "19",
     },
     {
         "name": "Hamster Chronicle Card",

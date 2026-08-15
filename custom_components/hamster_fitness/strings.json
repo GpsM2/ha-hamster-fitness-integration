@@ -33,6 +33,8 @@
           "speed_sensor": "Current-speed sensor (optional)",
           "light_entity": "Cage light (optional)",
           "illuminance_sensor": "Ambient light sensor (optional)",
+          "weather_entity": "Weather entity (optional)",
+          "moon_entity": "Moon phase sensor (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -44,6 +46,8 @@
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
           "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
           "illuminance_sensor": "A light sensor (device_class: illuminance) placed where your hamster actually lives. When set, the Day & Night card uses its reading for day/night instead of the sun's position - useful behind curtains, in a basement, or under a cover. Leave empty to keep using the sun.",
+          "weather_entity": "A weather entity, used for two things: the optional heat care reminder, which looks at the day's forecast high, and the Day & Night card's weather overlay - cloud, rain, snow, fog and lightning drifting over the scene. Leave empty and both stay inactive.",
+          "moon_entity": "A sensor reporting the current moon phase - typically 'sensor.moon' from Home Assistant's built-in Moon integration, which works out the phase locally, with no internet connection or extra hardware. When set, the Day & Night card draws the actual phase instead of a fixed crescent. There is no device class to filter this list on, so type 'moon' to narrow it down. Leave empty to keep the fixed crescent.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       },
@@ -79,6 +83,8 @@
           "speed_sensor": "Current-speed sensor (optional)",
           "light_entity": "Cage light (optional)",
           "illuminance_sensor": "Ambient light sensor (optional)",
+          "weather_entity": "Weather entity (optional)",
+          "moon_entity": "Moon phase sensor (optional)",
           "notify_services": "Notification targets"
         },
         "data_description": {
@@ -90,6 +96,8 @@
           "speed_sensor": "A sensor reporting the current, real-time wheel speed (device_class: speed). Using the bundled ESPHome firmware? Pick 'Hamster Wheel Speed'. Leave empty if you don't have one - no speed entities will be created.",
           "light_entity": "A light that should turn on when the cage/lid opens and (optionally) back off when it closes - brightness, transition and turn-off behavior are configurable below. Leave empty if you don't have one - no light automation is set up.",
           "illuminance_sensor": "A light sensor (device_class: illuminance) placed where your hamster actually lives. When set, the Day & Night card uses its reading for day/night instead of the sun's position - useful behind curtains, in a basement, or under a cover. Leave empty to keep using the sun.",
+          "weather_entity": "A weather entity, used for two things: the optional heat care reminder, which looks at the day's forecast high, and the Day & Night card's weather overlay - cloud, rain, snow, fog and lightning drifting over the scene. Leave empty and both stay inactive.",
+          "moon_entity": "A sensor reporting the current moon phase - typically 'sensor.moon' from Home Assistant's built-in Moon integration, which works out the phase locally, with no internet connection or extra hardware. When set, the Day & Night card draws the actual phase instead of a fixed crescent. There is no device class to filter this list on, so type 'moon' to narrow it down. Leave empty to keep the fixed crescent.",
           "notify_services": "Notify entities that should receive alerts and daily summaries."
         }
       }

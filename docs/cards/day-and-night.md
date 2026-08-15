@@ -43,6 +43,15 @@ stays in the sky instead of the sun. While the sun is up, the sensor
 still decides on its own — that is the whole point of having one, so a
 covered cage reads as night even at noon.
 
+**The moon** shows its real phase if you picked a **moon phase sensor**
+during setup — typically `sensor.moon` from Home Assistant's built-in
+Moon integration, which works the phase out locally, with no internet
+connection or extra hardware. All eight phases are drawn: a sliver for a
+crescent, a clean half disc at the quarters, a full circle at full moon,
+and just a faint earthshine disc at new moon. The lit side is drawn as
+seen from the northern hemisphere. Without that sensor the card keeps
+its fixed decorative crescent — nothing to set up, nothing breaks.
+
 **The weather** drifts over the scene when a weather entity was picked
 during setup: clouds, rain, snow, sleet, hail, fog, wind and lightning,
 with the sky dimming to match. All fifteen Home Assistant weather states
