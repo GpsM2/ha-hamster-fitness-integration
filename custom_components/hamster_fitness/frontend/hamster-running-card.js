@@ -665,7 +665,11 @@ const RUNNING_EDITOR_SCHEMA = [
   {
     name: "entity",
     required: true,
-    selector: { entity: { domain: "sensor" } },
+    // Matches the picker every other per-hamster card already uses - the
+    // Running card's own was left at a bare domain filter by mistake,
+    // showing every sensor in the whole system instead of just this
+    // integration's.
+    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
   },
   { name: "title", selector: { text: {} } },
 ];
