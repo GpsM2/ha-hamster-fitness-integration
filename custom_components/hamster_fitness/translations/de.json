@@ -33,6 +33,8 @@
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
           "light_entity": "Käfigbeleuchtung (optional)",
           "illuminance_sensor": "Helligkeitssensor (optional)",
+          "weather_entity": "Wetter-Entity (optional)",
+          "moon_entity": "Mondphasen-Sensor (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -44,6 +46,8 @@
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
           "illuminance_sensor": "Ein Lichtsensor (device_class: illuminance) am tatsächlichen Standort des Käfigs. Wenn gesetzt, nutzt die Day-&-Night-Karte diesen Wert für Tag/Nacht statt des Sonnenstands - praktisch hinter Vorhängen, im Keller oder unter einer Abdeckung. Leer lassen, um weiter den Sonnenstand zu nutzen.",
+          "weather_entity": "Eine Wetter-Entity, genutzt für zwei Dinge: die optionale Hitze-Erinnerung, die auf die vorhergesagte Tageshöchsttemperatur schaut, und das Wetter-Overlay der Day-&-Night-Karte - Wolken, Regen, Schnee, Nebel und Blitze über der Szene. Leer lassen, dann bleibt beides inaktiv.",
+          "moon_entity": "Ein Sensor mit der aktuellen Mondphase - typischerweise 'sensor.moon' aus der eingebauten Moon-Integration von Home Assistant, die die Phase lokal berechnet, ohne Internetverbindung oder zusätzliche Hardware. Wenn gesetzt, zeichnet die Day-&-Night-Karte die tatsächliche Phase statt einer festen Sichel. Es gibt keine device_class, nach der sich filtern ließe - tippe 'moon' ein, um die Liste einzugrenzen. Leer lassen, um bei der festen Sichel zu bleiben.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       },
@@ -79,6 +83,8 @@
           "speed_sensor": "Echtzeit-Geschwindigkeitssensor (optional)",
           "light_entity": "Käfigbeleuchtung (optional)",
           "illuminance_sensor": "Helligkeitssensor (optional)",
+          "weather_entity": "Wetter-Entity (optional)",
+          "moon_entity": "Mondphasen-Sensor (optional)",
           "notify_services": "Benachrichtigungsziele"
         },
         "data_description": {
@@ -90,6 +96,8 @@
           "speed_sensor": "Ein Sensor, der die aktuelle Echtzeit-Geschwindigkeit des Rads meldet (device_class: speed). Bei der mitgelieferten ESPHome-Firmware: 'Hamster Wheel Speed' auswählen. Leer lassen, falls nicht vorhanden - dann werden keine Geschwindigkeits-Entities angelegt.",
           "light_entity": "Ein Leuchtmittel, das angehen soll, wenn Deckel/Käfig geöffnet wird, und optional wieder ausgehen soll, wenn er schließt - Helligkeit, Übergang und Ausschalt-Verhalten sind weiter unten im Expertenmenü einstellbar. Leer lassen, falls nicht vorhanden - dann wird keine Licht-Automatik eingerichtet.",
           "illuminance_sensor": "Ein Lichtsensor (device_class: illuminance) am tatsächlichen Standort des Käfigs. Wenn gesetzt, nutzt die Day-&-Night-Karte diesen Wert für Tag/Nacht statt des Sonnenstands - praktisch hinter Vorhängen, im Keller oder unter einer Abdeckung. Leer lassen, um weiter den Sonnenstand zu nutzen.",
+          "weather_entity": "Eine Wetter-Entity, genutzt für zwei Dinge: die optionale Hitze-Erinnerung, die auf die vorhergesagte Tageshöchsttemperatur schaut, und das Wetter-Overlay der Day-&-Night-Karte - Wolken, Regen, Schnee, Nebel und Blitze über der Szene. Leer lassen, dann bleibt beides inaktiv.",
+          "moon_entity": "Ein Sensor mit der aktuellen Mondphase - typischerweise 'sensor.moon' aus der eingebauten Moon-Integration von Home Assistant, die die Phase lokal berechnet, ohne Internetverbindung oder zusätzliche Hardware. Wenn gesetzt, zeichnet die Day-&-Night-Karte die tatsächliche Phase statt einer festen Sichel. Es gibt keine device_class, nach der sich filtern ließe - tippe 'moon' ein, um die Liste einzugrenzen. Leer lassen, um bei der festen Sichel zu bleiben.",
           "notify_services": "Notify-Entitäten, die Warnungen und Tageszusammenfassungen erhalten sollen."
         }
       }

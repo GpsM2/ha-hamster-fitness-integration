@@ -44,6 +44,7 @@ from .const import (
     CONF_HUMIDITY_SENSOR,
     CONF_ILLUMINANCE_SENSOR,
     CONF_LIGHT_ENTITY,
+    CONF_MOON_ENTITY,
     CONF_NOTIFY_SERVICES,
     CONF_SPEED_SENSOR,
     CONF_TEMPERATURE_SENSOR,
@@ -234,6 +235,15 @@ def _sensors_schema() -> vol.Schema:
             # Entity bleibt beides inaktiv.
             vol.Optional(CONF_WEATHER_ENTITY): EntitySelector(
                 EntitySelectorConfig(domain=Platform.WEATHER, multiple=False)
+            ),
+            # Optional: Mondphase für die Day-&-Night-Karte, typischerweise
+            # sensor.moon aus der eingebauten "Moon"-Integration. Es gibt
+            # dafür keine eigene device_class, auf die sich filtern ließe
+            # (dieselbe Lage wie beim Umdrehungszähler ganz oben), daher nur
+            # nach Domain - "moon" eintippen grenzt die Liste ein. Ohne
+            # Auswahl bleibt es bei der festen Sichel.
+            vol.Optional(CONF_MOON_ENTITY): EntitySelector(
+                EntitySelectorConfig(domain=Platform.SENSOR, multiple=False)
             ),
             # Moderne HA-Versionen exponieren notify.* zunehmend als Entitäten
             # (Domain "notify") statt als reine Services. Damit bleibt die
