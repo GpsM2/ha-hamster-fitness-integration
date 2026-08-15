@@ -152,6 +152,28 @@ const MOON_CX = 272.3;
 const MOON_CY = 47;
 const MOON_R = 17;
 
+/**
+ * The night sky's stars: fixed positions, each with its own brightness
+ * and its own twinkle timing.
+ *
+ * Positions are hardcoded rather than scattered randomly so they don't
+ * jump to new spots whenever the sky is redrawn. The durations are
+ * deliberately unrelated to each other (no common divisor to speak of),
+ * so the eight never drift into blinking in unison, and the negative
+ * delays start each one part-way through its cycle - otherwise the whole
+ * sky would visibly fade up together the moment the card renders.
+ */
+const STARS = [
+  { cx: 26, cy: 30, r: 1.7, max: 0.85, dur: 4.2, delay: -0.4 },
+  { cx: 64, cy: 16, r: 1.1, max: 0.6, dur: 5.6, delay: -2.9 },
+  { cx: 104, cy: 34, r: 1.5, max: 0.75, dur: 3.8, delay: -1.6 },
+  { cx: 148, cy: 14, r: 1.0, max: 0.5, dur: 6.1, delay: -4.3 },
+  { cx: 186, cy: 30, r: 1.3, max: 0.7, dur: 4.7, delay: -0.9 },
+  { cx: 44, cy: 52, r: 1.0, max: 0.5, dur: 5.2, delay: -3.5 },
+  { cx: 92, cy: 10, r: 1.2, max: 0.6, dur: 3.4, delay: -2.1 },
+  { cx: 222, cy: 48, r: 1.2, max: 0.55, dur: 5.9, delay: -1.2 },
+];
+
 const STATUS_ONLINE = { key: "common.online", color: "#06D6A0" };
 const STATUS_OFFLINE = { key: "common.offline", color: "#EF476F" };
 const STATUS_UNAVAILABLE = { key: "common.unavailable", color: "#8D99AE" };
@@ -770,17 +792,27 @@ class HamsterDayNightCard extends HTMLElement {
     return `<path d="${this._moonPath(lit, waxing)}" fill="#F4E285" opacity="0.95"/>`;
   }
 
+  /**
+   * The stars, each carrying its own twinkle range and timing.
+   *
+   * The `opacity` attribute keeps the star's bright value, so it is what
+   * shows if the animation never runs - which is exactly what happens
+   * under prefers-reduced-motion, where the keyframes are switched off.
+   */
+  _starsSvg() {
+    return STARS.map(
+      (s) =>
+        `<circle class="hdn-star" cx="${s.cx}" cy="${s.cy}" r="${s.r}" fill="#fff"` +
+        ` opacity="${s.max}"` +
+        ` style="--tw-max: ${s.max}; --tw-min: ${(s.max * 0.35).toFixed(2)};` +
+        ` animation-duration: ${s.dur}s; animation-delay: ${s.delay}s"/>`
+    ).join("\n        ");
+  }
+
   _moonSvg(phase = null) {
     return `
       <svg class="hdn-decor-svg" viewBox="0 0 300 120" preserveAspectRatio="xMaxYMin meet" aria-hidden="true">
-        <circle cx="26" cy="30" r="1.7" fill="#fff" opacity="0.85"/>
-        <circle cx="64" cy="16" r="1.1" fill="#fff" opacity="0.6"/>
-        <circle cx="104" cy="34" r="1.5" fill="#fff" opacity="0.75"/>
-        <circle cx="148" cy="14" r="1" fill="#fff" opacity="0.5"/>
-        <circle cx="186" cy="30" r="1.3" fill="#fff" opacity="0.7"/>
-        <circle cx="44" cy="52" r="1" fill="#fff" opacity="0.5"/>
-        <circle cx="92" cy="10" r="1.2" fill="#fff" opacity="0.6"/>
-        <circle cx="222" cy="48" r="1.2" fill="#fff" opacity="0.55"/>
+        ${this._starsSvg()}
         <g transform="${CELESTIAL_OFFSET}">
           ${this._moonShape(phase)}
         </g>
@@ -1119,6 +1151,18 @@ HamsterDayNightCard.styles = `
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.06); }
   }
+  /* Each star fades between its own dim and bright ends rather than a
+     shared pair, so the depth that the differing base opacities give the
+     sky survives the animation - otherwise every star would pulse to the
+     same white and the sky would flatten out. Duration and delay come
+     from the element's own inline style (see _starsSvg). */
+  .hdn-star {
+    animation: hdnTwinkle 4s ease-in-out infinite;
+  }
+  @keyframes hdnTwinkle {
+    0%, 100% { opacity: var(--tw-min); }
+    50% { opacity: var(--tw-max); }
+  }
   /* Weather overlay: sits above the sky gradient and the sun/moon, below
      the header and the reading chips (which carry z-index 1-2), so rain
      falls behind the text rather than over it. Never interactive. */
@@ -1394,6 +1438,7 @@ HamsterDayNightCard.styles = `
     .hdn-hamster-sleep,
     .hdn-zzz,
     .hdn-sun,
+    .hdn-star,
     .hdn-cloud,
     .hdn-drop,
     .hdn-fog {
