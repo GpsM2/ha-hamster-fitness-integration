@@ -89,6 +89,7 @@ async def test_closing_a_night_appends_one_entry(hass: HomeAssistant) -> None:
         "distance_km",
         "avg_speed_kmh",
         "max_speed_kmh",
+        "sessions",
         "temperature_c",
         "humidity_pct",
     }
@@ -230,3 +231,52 @@ async def test_best_night_outlives_the_rolling_window(hass: HomeAssistant) -> No
     assert 42.0 not in [
         item["distance_km"] for item in coordinator.data.night_history
     ]
+
+
+async def test_sessions_are_counted_per_night(hass: HomeAssistant) -> None:
+    """Total active time hides the pattern; the count is what shows it.
+
+    Ninety minutes in one go and six bursts of fifteen add up the same,
+    so the number of separate sessions is tracked alongside the duration.
+    """
+    coordinator = await _setup(hass)
+    now = dt_util.utcnow()
+
+    # Two pulses inside one session, then a gap long enough to end it,
+    # then another pulse - two sessions, not three and not one.
+    coordinator._update_activity_session(now, activity_detected=True)
+    coordinator._update_activity_session(now + timedelta(minutes=1), True)
+    assert coordinator._night_sessions == 1
+
+    later = now + timedelta(hours=3)
+    coordinator._update_activity_session(later, activity_detected=False)
+    coordinator._update_activity_session(later, activity_detected=True)
+
+    assert coordinator._night_sessions == 2
+
+
+async def test_session_count_lands_in_the_night_entry(hass: HomeAssistant) -> None:
+    coordinator = await _setup(hass)
+
+    coordinator._update_activity_session(dt_util.utcnow(), activity_detected=True)
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_history[0]["sessions"] == 1
+
+
+async def test_session_count_resets_between_nights(hass: HomeAssistant) -> None:
+    """Otherwise every night would inherit the previous night's total."""
+    coordinator = await _setup(hass)
+
+    coordinator._update_activity_session(dt_util.utcnow(), activity_detected=True)
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_sessions == 0
+
+    coordinator._night_window_start = dt_util.now() - timedelta(days=1)
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_history[-1]["sessions"] == 0
