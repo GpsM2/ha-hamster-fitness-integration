@@ -1,6 +1,6 @@
 # Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.6.1-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
@@ -65,8 +65,8 @@ cards, and a cage light that switches itself on when you open the lid.
   around — a few euros in parts. Any other rotation counter works too.
 - A temperature sensor and a door/lid sensor for the cage.
 - Optional: humidity sensor, speed sensor, ambient light sensor, a
-  weather entity, and a cage light. Anything optional is simply
-  skipped if you don't have it.
+  weather entity, a moon phase sensor, and a cage light. Anything
+  optional is simply skipped if you don't have it.
 
 ## Installation
 
@@ -100,7 +100,7 @@ Go to **Settings → Devices & Services → Add Integration** and search for
   one you entered in the ESPHome sensor, if you built one);
 - then the sensors that feed it: wheel rotations, temperature and
   cage/lid sensor are required, humidity, speed, ambient light,
-  weather, cage light, the wheel diameter sync target and
+  weather, moon phase, cage light, the wheel diameter sync target and
   notification targets are optional.
 
 You can change all of it later without starting over — gear icon on the
