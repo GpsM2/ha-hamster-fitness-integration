@@ -1106,6 +1106,10 @@ window.customCards.push({
   type: "hamster-fitness-card",
   name: t(null, "health.pickerName"),
   description: t(null, "health.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 const EDITOR_SCHEMA = [
@@ -1379,6 +1383,10 @@ window.customCards.push({
   type: "hamster-fitness-ranking-card",
   name: t(null, "ranking.pickerName"),
   description: t(null, "ranking.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 const RANKING_EDITOR_SCHEMA = [{ name: "title", selector: { text: {} } }];

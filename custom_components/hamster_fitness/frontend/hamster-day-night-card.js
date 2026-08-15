@@ -1488,6 +1488,10 @@ window.customCards.push({
   type: "hamster-day-night-card",
   name: t(null, "dayNight.pickerName"),
   description: t(null, "dayNight.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 /**

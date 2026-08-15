@@ -958,6 +958,10 @@ window.customCards.push({
   type: "hamster-chronicle-card",
   name: t(null, "chronicle.pickerName"),
   description: t(null, "chronicle.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 const CHRONICLE_EDITOR_SCHEMA = [

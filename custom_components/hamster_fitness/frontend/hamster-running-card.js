@@ -659,6 +659,10 @@ window.customCards.push({
   type: "hamster-running-card",
   name: t(null, "running.pickerName"),
   description: t(null, "running.pickerDescription"),
+  // Renders a live preview in the "Add card" picker using getStubConfig()
+  // below, rather than a bundled static image - it can't go stale and
+  // needs no asset in the repo.
+  preview: true,
 });
 
 const RUNNING_EDITOR_SCHEMA = [
