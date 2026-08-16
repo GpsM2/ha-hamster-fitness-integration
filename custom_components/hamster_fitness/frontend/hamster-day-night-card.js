@@ -40,12 +40,13 @@ import {
   fmtDuration,
   fmtNumber,
   fmtTime,
+  healthScoreEntityFor,
   healthScoreEntitySelector,
   memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=14";
+} from "./hamster-fitness-shared.js?v=15";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -1494,6 +1495,14 @@ window.customCards.push({
   // below, rather than a bundled static image - it can't go stale and
   // needs no asset in the repo.
   preview: true,
+  // Offers this card when the user adds a card by entity (HA 2026.6+).
+  // Older versions never call it, so no version gate is needed.
+  getEntitySuggestion: (hass, entityId) => {
+    const entity = healthScoreEntityFor(hass, entityId);
+    return entity
+      ? { config: { type: "custom:hamster-day-night-card", entity, ...DEFAULT_TOGGLES } }
+      : null;
+  },
 });
 
 /**

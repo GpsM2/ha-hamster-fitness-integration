@@ -764,6 +764,31 @@ export function healthScoreEntitySelector(hass) {
   return { entity: { include_entities: ids } };
 }
 
+/** True when `entityId` was created by this integration. */
+export function isHamsterFitnessEntity(hass, entityId) {
+  const entry = hass && hass.entities && hass.entities[entityId];
+  return Boolean(entry && entry.platform === "hamster_fitness");
+}
+
+/**
+ * The health-score entity of whichever hamster `entityId` belongs to,
+ * or null if that isn't one of ours.
+ *
+ * Used by the card picker's entity suggestions (see getEntitySuggestion
+ * on the window.customCards entries). The picked entity does not have to
+ * BE the health-score sensor: any of a hamster's sensors identifies the
+ * hamster just as well, and the four per-hamster cards all want the
+ * health-score one. Someone who clicks "Taco weight" while building a
+ * dashboard means Taco, the same as someone who clicks "Taco health
+ * score" - so both get offered the same cards, wired to the entity the
+ * cards actually accept.
+ */
+export function healthScoreEntityFor(hass, entityId) {
+  if (!isHamsterFitnessEntity(hass, entityId)) return null;
+  if (hass.entities[entityId].translation_key === "health_score") return entityId;
+  return siblingEntityId(hass, entityId, "health_score");
+}
+
 /**
  * Wraps a card editor's schema factory so it only re-runs when the
  * health-score entity list actually changed.

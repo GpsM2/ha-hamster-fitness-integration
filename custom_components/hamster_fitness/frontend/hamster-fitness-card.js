@@ -52,14 +52,16 @@ import {
   deviceDisplayName,
   fmtNumber,
   fmtWeekday,
+  healthScoreEntityFor,
   healthScoreEntitySelector,
+  isHamsterFitnessEntity,
   isValidHex,
   memoizedEditorSchema,
   renderCardHeader,
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=14";
+} from "./hamster-fitness-shared.js?v=15";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -1112,6 +1114,14 @@ window.customCards.push({
   // below, rather than a bundled static image - it can't go stale and
   // needs no asset in the repo.
   preview: true,
+  // Offers this card when the user adds a card by entity (HA 2026.6+).
+  // Older versions never call it, so no version gate is needed.
+  getEntitySuggestion: (hass, entityId) => {
+    const entity = healthScoreEntityFor(hass, entityId);
+    return entity
+      ? { config: { type: "custom:hamster-fitness-card", entity, ...DEFAULT_TOGGLES } }
+      : null;
+  },
 });
 
 // Built per hass rather than as a constant: the entity picker's
@@ -1391,6 +1401,18 @@ window.customCards.push({
   // below, rather than a bundled static image - it can't go stale and
   // needs no asset in the repo.
   preview: true,
+  // Takes no entity - it finds every hamster itself - so any entity of
+  // ours is enough of a signal that a Hamster Fitness dashboard is
+  // being built.
+  getEntitySuggestion: (hass, entityId) =>
+    isHamsterFitnessEntity(hass, entityId)
+      ? {
+          config: {
+            type: "custom:hamster-fitness-ranking-card",
+            ...HamsterFitnessRankingCard.getStubConfig(),
+          },
+        }
+      : null,
 });
 
 const RANKING_EDITOR_SCHEMA = [{ name: "title", selector: { text: {} } }];
