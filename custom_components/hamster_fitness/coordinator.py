@@ -276,9 +276,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # das eigentliche Schalten übernimmt door_light.py.
         self._light_entity: str | None = entry.data.get(CONF_LIGHT_ENTITY)
         # Letzter Helligkeitswert von VOR dem Einschalten des Käfiglichts.
-        # Bewusst nicht persistiert (wie _max_speed_tonight_kmh) - ein
-        # Neustart ausgerechnet während das Licht an ist, zeigt bis zum
-        # nächsten Ausschalten kurzzeitig einen leicht veralteten Wert.
+        # Bewusst nicht persistiert - ein Neustart ausgerechnet während das
+        # Licht an ist, zeigt bis zum nächsten Ausschalten kurzzeitig einen
+        # leicht veralteten Wert.
         # Rein kosmetisch (beeinflusst nur den Kartenhintergrund, nicht den
         # Health Score), das Risiko ist also vernachlässigbar.
         self._last_ambient_light_lx: float | None = None
@@ -293,14 +293,21 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         self._night_baseline_count: float = 0.0
         self._night_window_start: datetime | None = None
+        # Persistiert - siehe _night_active_minutes unten: geht auch in
+        # den night_history-Eintrag der Nacht ein.
         self._max_speed_tonight_kmh: float | None = None
         self._lifetime_max_speed_kmh: float | None = None
         self._last_completed_night_km: float = 0.0
         # Tatsächlich gelaufene Minuten seit dem letzten Nachtfenster-Start
         # (Summe über ALLE Lauf-Sessions dieser Nacht, nicht nur die
-        # aktuelle) - siehe _update_activity_session(). Wie
-        # _max_speed_tonight_kmh bewusst nicht persistiert: rein kosmetisch
-        # für den Ø-Geschwindigkeits-Chip, kein Neustart-kritischer Wert.
+        # aktuelle) - siehe _update_activity_session().
+        #
+        # Wird persistiert, seit _record_night() daraus die avg_speed_kmh
+        # einer Nacht in night_history schreibt. Vorher speiste der Wert
+        # nur einen Live-Chip, den der nächste Tick ohnehin neu berechnet -
+        # da war ein Neustart folgenlos. Jetzt landet er in einem Eintrag,
+        # der nie wieder korrigiert wird: ohne Persistenz zeichnet jeder
+        # Neustart im Nachtfenster die Nacht dauerhaft falsch auf.
         self._night_active_minutes: float = 0.0
         self._last_activity_tick_at: datetime | None = None
 
@@ -321,7 +328,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # Wie viele getrennte Lauf-Sessions dieses Nachtfenster hatte.
         # Aussagekräftig zusätzlich zur Gesamtzeit: 90 Minuten am Stück
         # sehen anders aus als sechsmal 15 Minuten, obwohl die Summe
-        # gleich ist. Wie _night_active_minutes bewusst nicht persistiert.
+        # gleich ist. Wird wie _night_active_minutes persistiert.
         self._night_sessions: int = 0
         self._night_temp_sum: float = 0.0
         self._night_temp_samples: int = 0
@@ -480,6 +487,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._night_temp_samples = stored.get("night_temp_samples", 0)
             self._night_humidity_sum = stored.get("night_humidity_sum", 0.0)
             self._night_humidity_samples = stored.get("night_humidity_samples", 0)
+            self._night_active_minutes = stored.get("night_active_minutes", 0.0)
+            self._night_sessions = stored.get("night_sessions", 0)
+            self._max_speed_tonight_kmh = stored.get("max_speed_tonight_kmh")
             self._best_night_km = stored.get("best_night_km")
             self._best_night_date = stored.get("best_night_date")
             self._lifetime_max_speed_date = stored.get("lifetime_max_speed_date")
@@ -608,6 +618,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "night_temp_samples": self._night_temp_samples,
                 "night_humidity_sum": self._night_humidity_sum,
                 "night_humidity_samples": self._night_humidity_samples,
+                "night_active_minutes": self._night_active_minutes,
+                "night_sessions": self._night_sessions,
+                "max_speed_tonight_kmh": self._max_speed_tonight_kmh,
                 "best_night_km": self._best_night_km,
                 "best_night_date": self._best_night_date,
                 "lifetime_max_speed_date": self._lifetime_max_speed_date,
@@ -753,8 +766,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         often the source sensors happen to fire. Temperature and humidity
         are counted separately: humidity is optional, and one missing
         reading should not drag the other's average around.
+
+        Skipped while the hamster is asleep. The accumulator window is the
+        night window, 20:00 to 20:00 - the right span for
+        night_distance_km, since a hamster runs at night and the daytime
+        contributes nothing to it. Climate is the reverse: the hours the
+        hamster sleeps through are the hottest of the day and dominate an
+        unfiltered average, so the number ends up describing neither the
+        night nor the day. Since this average is plotted against that
+        night's distance, it has to cover the hours the hamster was
+        actually running in.
         """
         if self._is_paused() or self.data is None:
+            return
+        if _in_sleep_phase(dt_util.now()):
             return
         if self.data.temperature is not None:
             self._night_temp_sum += self.data.temperature

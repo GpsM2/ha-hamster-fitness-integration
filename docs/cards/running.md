@@ -35,6 +35,13 @@ than sampled at one moment. They are there to answer questions the
 numbers alone can't: whether a quiet week lines up with a warm spell, for
 instance.
 
+The average covers the hours the hamster was awake, not the whole
+twenty-four. The bars themselves span a window that runs from evening to
+evening, which is right for distance — a hamster runs at night, so the
+daytime adds nothing to the total. Climate is the other way round: the
+hours it sleeps through are the warmest of the day, and letting them in
+would produce a number describing neither the night nor the day.
+
 Each line is scaled against its own range rather than the kilometre axis
 — humidity forced onto a distance scale would be a flat line along the
 bottom. The shape is the point; the exact values live in the readings

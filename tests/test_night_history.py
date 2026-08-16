@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 from datetime import timedelta
 
+from freezegun import freeze_time
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -280,3 +281,94 @@ async def test_session_count_resets_between_nights(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     assert coordinator.data.night_history[-1]["sessions"] == 0
+
+
+async def test_night_counters_survive_a_restart(hass: HomeAssistant) -> None:
+    """A restart inside the night window must not zero the night.
+
+    These three counters used to live in memory only, on the grounds that
+    they merely fed a live chip the next tick would recompute. Since
+    _record_night() writes them into night_history they are part of a
+    permanent record instead, and a restart at, say, eight in the morning
+    would file the night that just happened as zero sessions at no
+    measurable speed - next to a distance of several kilometres, because
+    that one *was* persisted.
+    """
+    coordinator = await _setup(hass)
+
+    coordinator._night_active_minutes = 84.0
+    coordinator._night_sessions = 5
+    coordinator._max_speed_tonight_kmh = 7.3
+    await coordinator._async_save_state()
+
+    # Whatever a restart would wipe.
+    coordinator._night_active_minutes = 0.0
+    coordinator._night_sessions = 0
+    coordinator._max_speed_tonight_kmh = None
+
+    await coordinator._async_restore_state()
+
+    assert coordinator._night_active_minutes == 84.0
+    assert coordinator._night_sessions == 5
+    assert coordinator._max_speed_tonight_kmh == 7.3
+
+
+async def test_restored_counters_reach_the_night_entry(hass: HomeAssistant) -> None:
+    """The round trip has to survive all the way into the history."""
+    coordinator = await _setup(hass)
+
+    coordinator._night_sessions = 4
+    coordinator._max_speed_tonight_kmh = 6.1
+    await coordinator._async_save_state()
+    coordinator._night_sessions = 0
+    coordinator._max_speed_tonight_kmh = None
+    await coordinator._async_restore_state()
+
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    entry = coordinator.data.night_history[0]
+    assert entry["sessions"] == 4
+    assert entry["max_speed_kmh"] == 6.1
+
+
+async def test_climate_is_not_sampled_while_the_hamster_sleeps(
+    hass: HomeAssistant,
+) -> None:
+    """The night's climate must describe the hours it was running in.
+
+    The accumulator window is 20:00 to 20:00, which is right for
+    night_distance_km - a hamster runs at night, so the daytime adds
+    nothing to it. For climate the daytime adds the hottest hours of the
+    day, to an average that is then plotted against that night's
+    distance.
+    """
+    coordinator = await _setup(hass)
+
+    # 12:00 local (US/Pacific in the test environment) - squarely inside
+    # SLEEP_PHASE_START_HOUR..SLEEP_PHASE_END_HOUR.
+    with freeze_time("2026-08-09T19:00:00+00:00"):
+        for _ in range(30):
+            coordinator._sample_night_climate()
+
+    assert coordinator._night_temp_samples == 0
+    assert coordinator._night_humidity_samples == 0
+
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_history[0]["temperature_c"] is None
+
+
+async def test_climate_is_still_sampled_outside_the_sleep_phase(
+    hass: HomeAssistant,
+) -> None:
+    """The skip above must not simply switch climate sampling off."""
+    coordinator = await _setup(hass)
+
+    # 22:00 local - the hamster's active hours.
+    with freeze_time("2026-08-09T05:00:00+00:00"):
+        coordinator._sample_night_climate()
+
+    assert coordinator._night_temp_samples == 1
+    assert coordinator._night_humidity_samples == 1
