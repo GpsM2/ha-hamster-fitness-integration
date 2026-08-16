@@ -61,7 +61,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=15";
+} from "./hamster-fitness-shared.js?v=16";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
