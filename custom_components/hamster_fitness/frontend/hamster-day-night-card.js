@@ -40,10 +40,12 @@ import {
   fmtDuration,
   fmtNumber,
   fmtTime,
+  healthScoreEntitySelector,
+  memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=13";
+} from "./hamster-fitness-shared.js?v=14";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -1498,11 +1500,11 @@ window.customCards.push({
  * Visual editor ("Configure card" dialog), backed by <ha-form> - same
  * pattern as the other cards' editors.
  */
-const DAY_NIGHT_EDITOR_SCHEMA = [
+const dayNightEditorSchema = memoizedEditorSchema((hass) => [
   {
     name: "entity",
     required: true,
-    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
+    selector: healthScoreEntitySelector(hass),
   },
   { name: "title", selector: { text: {} } },
   { name: "show_speed", selector: { boolean: {} } },
@@ -1511,7 +1513,7 @@ const DAY_NIGHT_EDITOR_SCHEMA = [
   { name: "show_rest_duration", selector: { boolean: {} } },
   { name: "show_climate", selector: { boolean: {} } },
   { name: "show_light", selector: { boolean: {} } },
-];
+]);
 
 // Translation keys, resolved per render - the editor is opened long
 // after module load, so `hass` (and with it the user's language) exists.
@@ -1561,7 +1563,7 @@ class HamsterDayNightCardEditor extends HTMLElement {
     }
 
     this._form.hass = this._hass;
-    this._form.schema = DAY_NIGHT_EDITOR_SCHEMA;
+    this._form.schema = dayNightEditorSchema(this._hass);
     this._form.data = this._config;
   }
 }

@@ -718,6 +718,76 @@ export function siblingEntityId(hass, entityId, translationKey) {
 }
 
 /**
+ * Entity ids of every hamster's health-score sensor, sorted.
+ *
+ * Matched on the entity registry rather than on the entity_id, for the
+ * same reason siblingEntityId() does: translation_key is the fixed
+ * English key from sensor.py, while the entity_id slug follows whatever
+ * language was active when the entity was first created.
+ */
+export function healthScoreEntityIds(hass) {
+  const entities = (hass && hass.entities) || {};
+  const ids = [];
+  for (const [id, entry] of Object.entries(entities)) {
+    if (
+      entry &&
+      entry.platform === "hamster_fitness" &&
+      entry.translation_key === "health_score"
+    ) {
+      ids.push(id);
+    }
+  }
+  return ids.sort();
+}
+
+/**
+ * Entity selector for the four cards that are configured with a single
+ * hamster's health-score sensor (Health Score, Day & Night, Weight,
+ * Running).
+ *
+ * A declarative filter can only narrow by domain/device_class/
+ * integration, so "every hamster_fitness sensor" was as close as the
+ * picker could get - leaving the user to pick the right one out of
+ * lifetime_distance, activity_score, climate_score and friends, when
+ * only health_score is ever accepted. include_entities takes an explicit
+ * allowlist instead, so we resolve the exact entities ourselves.
+ *
+ * Falls back to the old integration filter when the registry yields
+ * nothing: an empty include_entities list renders an empty picker, which
+ * would be a worse failure than an over-broad one.
+ */
+export function healthScoreEntitySelector(hass) {
+  const ids = healthScoreEntityIds(hass);
+  if (!ids.length) {
+    return { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } };
+  }
+  return { entity: { include_entities: ids } };
+}
+
+/**
+ * Wraps a card editor's schema factory so it only re-runs when the
+ * health-score entity list actually changed.
+ *
+ * A card editor's `set hass` fires on every state change anywhere in
+ * Home Assistant, and healthScoreEntityIds() walks the entire entity
+ * registry - thousands of entries on a big instance. Without this the
+ * editor would repeat that scan several times a second for as long as
+ * the dialog stays open, to arrive at the same answer every time.
+ */
+export function memoizedEditorSchema(build) {
+  let key = null;
+  let cached = null;
+  return (hass) => {
+    const next = healthScoreEntityIds(hass).join(",");
+    if (cached === null || next !== key) {
+      key = next;
+      cached = build(hass);
+    }
+    return cached;
+  };
+}
+
+/**
  * Resolves the display title from the device's own name, which is set
  * once from the hamster's actual name and never translated (see
  * hamster_device_info() in coordinator.py) - unlike the entity_id slug,

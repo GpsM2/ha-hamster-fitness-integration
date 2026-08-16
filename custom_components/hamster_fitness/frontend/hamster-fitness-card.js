@@ -52,12 +52,14 @@ import {
   deviceDisplayName,
   fmtNumber,
   fmtWeekday,
+  healthScoreEntitySelector,
   isValidHex,
+  memoizedEditorSchema,
   renderCardHeader,
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=13";
+} from "./hamster-fitness-shared.js?v=14";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -1112,18 +1114,20 @@ window.customCards.push({
   preview: true,
 });
 
-const EDITOR_SCHEMA = [
+// Built per hass rather than as a constant: the entity picker's
+// allowlist is resolved from the live entity registry.
+const editorSchema = memoizedEditorSchema((hass) => [
   {
     name: "entity",
     required: true,
-    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
+    selector: healthScoreEntitySelector(hass),
   },
   { name: "title", selector: { text: {} } },
   { name: "max_speed", selector: { number: { min: 1, max: 30, step: 0.5, mode: "box" } } },
   { name: "show_speed", selector: { boolean: {} } },
   { name: "show_pillars", selector: { boolean: {} } },
   { name: "show_trend", selector: { boolean: {} } },
-];
+]);
 
 const EDITOR_LABELS = {
   entity: "common.entityPicker",
@@ -1169,7 +1173,7 @@ class HamsterFitnessCardEditor extends HTMLElement {
     }
 
     this._form.hass = this._hass;
-    this._form.schema = EDITOR_SCHEMA;
+    this._form.schema = editorSchema(this._hass);
     this._form.data = this._config;
   }
 }

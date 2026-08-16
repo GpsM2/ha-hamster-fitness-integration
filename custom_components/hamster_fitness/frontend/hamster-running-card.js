@@ -30,10 +30,12 @@ import {
   fmtDate,
   fmtNumber,
   fmtWeekday,
+  healthScoreEntitySelector,
+  memoizedEditorSchema,
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=13";
+} from "./hamster-fitness-shared.js?v=14";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -665,18 +667,14 @@ window.customCards.push({
   preview: true,
 });
 
-const RUNNING_EDITOR_SCHEMA = [
+const runningEditorSchema = memoizedEditorSchema((hass) => [
   {
     name: "entity",
     required: true,
-    // Matches the picker every other per-hamster card already uses - the
-    // Running card's own was left at a bare domain filter by mistake,
-    // showing every sensor in the whole system instead of just this
-    // integration's.
-    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
+    selector: healthScoreEntitySelector(hass),
   },
   { name: "title", selector: { text: {} } },
-];
+]);
 
 class HamsterRunningCardEditor extends HTMLElement {
   setConfig(config) {
@@ -711,7 +709,7 @@ class HamsterRunningCardEditor extends HTMLElement {
       this.appendChild(this._form);
     }
     this._form.hass = this._hass;
-    this._form.schema = RUNNING_EDITOR_SCHEMA;
+    this._form.schema = runningEditorSchema(this._hass);
     this._form.data = this._config;
   }
 }

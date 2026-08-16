@@ -245,6 +245,54 @@ def test_the_stretch_guard_still_catches_real_usage() -> None:
     assert 'preserveAspectRatio="none"' not in _without_comments(excused)
 
 
+# The four cards configured with a single hamster's health-score sensor.
+# The ranking and chronicle cards are absent on purpose: they discover
+# their hamsters from the registry and take no `entity` at all.
+PER_HAMSTER_CARDS = (
+    "hamster-fitness-card.js",
+    "hamster-day-night-card.js",
+    "hamster-weight-card.js",
+    "hamster-running-card.js",
+)
+
+
+def test_per_hamster_editors_use_the_shared_entity_picker() -> None:
+    """The entity picker must offer health-score sensors and nothing else.
+
+    A bare `filter: { integration: "hamster_fitness" }` lists every
+    sensor this integration creates - lifetime_distance, the four pillar
+    scores, weight and the rest - when `entity` is only ever accepted as
+    `sensor.<name>_health_score`. Nothing breaks silently if the wrong
+    one is chosen (setConfig throws), but the picker was inviting the
+    mistake, which is what a user reported.
+
+    healthScoreEntitySelector() resolves the allowlist from the entity
+    registry instead. Pinned per card because the old one-line filter is
+    easy to paste back in when a fifth per-hamster card comes along.
+    """
+    for name in PER_HAMSTER_CARDS:
+        source = _without_comments((FRONTEND_DIR / name).read_text(encoding="utf-8"))
+        assert "healthScoreEntitySelector" in source, (
+            f"{name}'s editor does not use the shared health-score picker"
+        )
+        assert 'filter: { integration: "hamster_fitness"' not in source, (
+            f"{name} still narrows its entity picker with a bare integration "
+            "filter, which lists every sensor of every hamster"
+        )
+
+
+def test_editor_schemas_are_memoized() -> None:
+    """Resolving the allowlist walks the whole entity registry.
+
+    A card editor's `set hass` fires on every state change anywhere in
+    Home Assistant, so building the schema unmemoized would repeat that
+    walk several times a second for as long as the dialog is open.
+    """
+    for name in PER_HAMSTER_CARDS:
+        source = (FRONTEND_DIR / name).read_text(encoding="utf-8")
+        assert "memoizedEditorSchema(" in source, name
+
+
 def test_cards_do_not_hardcode_german_text() -> None:
     """Umlauts outside the translation table mean a missed string."""
     for path in _card_files():
