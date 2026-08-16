@@ -109,6 +109,27 @@ registrierten Timer scharf und verdecken echte Fehler.
   vorstellen und explizit bestätigen lassen, bevor der Code angefasst
   wird.
 
+## Umgang mit externen Pull Requests (STRIKT EINHALTEN)
+
+Bevor an einer Issue gearbeitet wird, muss geprüft werden, ob dazu
+bereits ein Pull Request von einem Contributor vorliegt (`gh pr list`,
+auch auf Verweise zur Issue-Nummer in Titel/Body prüfen). Das gilt vor
+jedem Arbeitsbeginn an einer Issue, nicht nur einmalig zu Sessionbeginn.
+
+Trifft ein Pull Request von einem Contributor ein – zu einer bereits
+gelösten Issue, oder inhaltlich nicht zu den Zielen des Projekts
+passend –, wird er nicht stillschweigend ignoriert oder übernommen,
+sondern beantwortet:
+
+- Klarstellen, dass die Antwort von Claude Code stammt.
+- Höflich ablehnen.
+- Einen kurzen, fachlichen Grund für die Ablehnung nennen.
+
+Ist der Pull Request inhaltlich gut, wird er dem Nutzer vorgeschlagen –
+nicht eigenständig gemergt. Pull Requests von Dritten (nicht von Claude
+selbst erstellt) benötigen vor dem Merge immer die ausdrückliche
+Freigabe des Nutzers, ohne Ausnahme.
+
 ## Release-Regel (STRIKT EINHALTEN)
 
 Sobald ein Befehl zur Erstellung eines Releases oder Git-Tags erteilt
