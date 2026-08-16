@@ -126,8 +126,9 @@ entity: sensor.hamster_taco_health_score
 - Everything comes from attributes on the health-score sensor, so there
   is no second entity to pick and nothing to configure beyond the card
   itself.
-- The history is kept by the integration, not read from Home Assistant's
-  recorder — so purging or excluding recorder data does not empty this
-  chart, and it survives a restart.
+- The seven-night history is kept by the integration itself, not read
+  from Home Assistant's recorder — so purging or excluding recorder data
+  does not empty the chart, and it survives a restart. Only the detail
+  view above reaches for the recorder, and only when you open it.
 - A night with no humidity sensor configured simply has no humidity
   point; the other lines are unaffected.
