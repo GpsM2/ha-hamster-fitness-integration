@@ -703,6 +703,99 @@ export const WEATHER_SCENES = {
   exceptional: { clouds: 5, dim: 0.4, lightning: true, wind: true },
 };
 
+/**
+ * Home Assistant's eight moon-phase states (the built-in Moon
+ * integration), as an illuminated fraction plus which limb is lit.
+ *
+ * `lit` is the fraction of the disc that is bright; `waxing` says whether
+ * that bright part is on the right (growing towards full) or the left
+ * (shrinking towards new). Both are what moonPath() needs to draw the
+ * terminator - the curved edge between light and shadow.
+ *
+ * Orientation is the northern-hemisphere one, matching the fixed crescent
+ * the Day & Night card has always drawn. Below the equator the moon
+ * appears mirrored; Home Assistant's sensor doesn't report that, and
+ * guessing it from the configured latitude is a separate question from
+ * reading the phase.
+ */
+export const MOON_PHASES = {
+  new_moon: { lit: 0, waxing: true },
+  waxing_crescent: { lit: 0.25, waxing: true },
+  first_quarter: { lit: 0.5, waxing: true },
+  waxing_gibbous: { lit: 0.75, waxing: true },
+  full_moon: { lit: 1, waxing: true },
+  waning_gibbous: { lit: 0.75, waxing: false },
+  last_quarter: { lit: 0.5, waxing: false },
+  waning_crescent: { lit: 0.25, waxing: false },
+};
+
+/**
+ * The configured moon entity's phase, or null to draw the default.
+ *
+ * Same treatment as the weather entity: no entity configured, an
+ * unavailable one, or a state this doesn't recognise all mean "draw the
+ * default" rather than an error in the sky.
+ */
+export function moonPhase(hass, healthScoreState) {
+  const entityId =
+    healthScoreState &&
+    healthScoreState.attributes &&
+    healthScoreState.attributes.moon_entity;
+  if (!entityId) return null;
+  const state = hass && hass.states && hass.states[entityId];
+  if (!state) return null;
+  return MOON_PHASES[state.state] ? state.state : null;
+}
+
+/**
+ * The lit part of the moon as an SVG path, around any centre and radius.
+ *
+ * Two arcs: the outer limb (a half circle, on whichever side is lit),
+ * then the terminator back to the start. The terminator is an ellipse
+ * flattened by how full the moon is - at exactly half it collapses to a
+ * straight line, which is what makes a quarter moon a clean half disc.
+ *
+ * Geometry is a parameter rather than a constant because two surfaces
+ * draw this moon at very different sizes: the card's letterbox sky and
+ * the share image's portrait poster.
+ */
+export function moonPath(cx, cy, r, lit, waxing) {
+  const top = `${cx} ${cy - r}`;
+  const bottom = `${cx} ${cy + r}`;
+  // Sweep 1 from top to bottom traces the right half, 0 the left.
+  const outerSweep = waxing ? 1 : 0;
+  // Below half the terminator curves towards the lit limb (a thin
+  // crescent); above half it bulges the other way (a fat gibbous).
+  const innerSweep = lit < 0.5 ? (waxing ? 0 : 1) : waxing ? 1 : 0;
+  const rx = (r * Math.abs(1 - 2 * lit)).toFixed(2);
+  return (
+    `M ${top}` +
+    ` A ${r} ${r} 0 1 ${outerSweep} ${bottom}` +
+    ` A ${rx} ${r} 0 1 ${innerSweep} ${top} Z`
+  );
+}
+
+/**
+ * The moon body for a phase, or null for "no phase to draw".
+ *
+ * Only the bright part is ever drawn. Painting a shadow over a full disc
+ * would need it to match the sky behind it, which changes with the
+ * gradient, the weather overlay and the cage light.
+ */
+export function moonBody(cx, cy, r, phase, fill = "#F4E285") {
+  if (phase === null || !MOON_PHASES[phase]) return null;
+  const { lit, waxing } = MOON_PHASES[phase];
+  if (lit >= 1) {
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="0.95"/>`;
+  }
+  // New moon: earthshine only. Drawing nothing at all would read as a
+  // rendering failure rather than as the sky actually looking like that.
+  if (lit <= 0) {
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="0.13"/>`;
+  }
+  return `<path d="${moonPath(cx, cy, r, lit, waxing)}" fill="${fill}" opacity="0.95"/>`;
+}
+
 function hexToRgb(hex) {
   const n = parseInt(String(hex).replace("#", ""), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -1199,8 +1292,20 @@ function _shareWeather(scene, night, rand) {
   return parts.join("");
 }
 
-/** Stars for a night sky, or a sun disc for a day one. */
-function _shareCelestial(night, rand) {
+// Where the moon sits on the poster, and how big.
+const SHARE_MOON_CX = 872;
+const SHARE_MOON_CY = 208;
+const SHARE_MOON_R = 74;
+
+/**
+ * Stars and the moon for a night sky, or a sun disc for a day one.
+ *
+ * `phase` is one of Home Assistant's moon states, or null when no moon
+ * sensor is configured (or it reports something unrecognised) - in which
+ * case the poster falls back to the same fixed crescent the Day & Night
+ * card has always drawn.
+ */
+function _shareCelestial(night, rand, phase) {
   if (!night) {
     return `
       <g>
@@ -1218,9 +1323,17 @@ function _shareCelestial(night, rand) {
       `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="#ffffff" opacity="${(0.35 + rand() * 0.55).toFixed(2)}"/>`
     );
   }
-  return `<g>${stars.join("")}</g>
-    <circle cx="880" cy="200" r="70" fill="#F3F0E4" opacity="0.95"/>
-    <circle cx="848" cy="188" r="66" fill="#0B132B" opacity="0.86"/>`;
+  const moon =
+    moonBody(SHARE_MOON_CX, SHARE_MOON_CY, SHARE_MOON_R, phase, "#F3F0E4") ||
+    // The fixed crescent, scaled from the card's own fallback path: one
+    // subpath for the disc and a smaller one wound the other way, so the
+    // bite is a genuine hole. Painting a dark disc over the top instead
+    // would read as a full moon in shadow - the sky has to show through.
+    `<path d="M ${SHARE_MOON_CX} ${SHARE_MOON_CY - SHARE_MOON_R}` +
+      ` a ${SHARE_MOON_R} ${SHARE_MOON_R} 0 1 0 2.6 0` +
+      ` a ${(SHARE_MOON_R * 13) / 17} ${(SHARE_MOON_R * 13) / 17} 0 1 1 -2.6 0 Z"` +
+      ` fill="#F3F0E4" opacity="0.95"/>`;
+  return `<g>${stars.join("")}</g>${moon}`;
 }
 
 /**
@@ -1229,7 +1342,7 @@ function _shareCelestial(night, rand) {
  * Returns SVG source; rasterizing is a separate step, so the composition
  * can be inspected and tested on its own.
  */
-export function buildShareSvg({ title, subtitle, stats, footer, fur, sky }) {
+export function buildShareSvg({ title, subtitle, stats, footer, fur, sky, moon = null }) {
   const rand = _seeded(
     [...String(title || "hamster")].reduce((a, c) => a + c.charCodeAt(0), 7)
   );
@@ -1282,7 +1395,7 @@ export function buildShareSvg({ title, subtitle, stats, footer, fur, sky }) {
   </style>
 
   <rect width="${SHARE_W}" height="${SHARE_H}" fill="url(#sky)"/>
-  ${_shareCelestial(night, rand)}
+  ${_shareCelestial(night, rand, moon)}
   ${_shareWeather(sky && sky.scene, night, rand)}
   <rect width="${SHARE_W}" height="${SHARE_H}" fill="url(#veil)"/>
 
@@ -1454,13 +1567,15 @@ export function openShareDialog(root, payload) {
     status.hidden = false;
     status.textContent = t(hass, "share.working");
     try {
+      const scoreState = payload.entity ? hass.states[payload.entity] : null;
       const svg = buildShareSvg({
         title: payload.title,
         subtitle: payload.subtitle,
         stats,
         footer: payload.footer || fmtDate(hass, new Date().toISOString()),
         fur: payload.fur,
-        sky: skyState(hass, payload.entity ? hass.states[payload.entity] : null),
+        sky: skyState(hass, scoreState),
+        moon: moonPhase(hass, scoreState),
       });
       const blob = await rasterizeSvg(svg);
       const how = await deliverShareImage(blob, `${payload.filename}.png`);
