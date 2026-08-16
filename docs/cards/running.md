@@ -75,6 +75,40 @@ Only closed nights become part of the history, count towards personal
 bests, or survive a restart. Until seven of them exist the card says how
 many it has, so "still collecting" is distinguishable from "broken".
 
+## One night in detail
+
+Tapping a bar opens that night's speed trace.
+
+The time axis shows **running time only**. A hamster's night is mostly
+standing still — one real night measured 7,469 readings, the vast
+majority of them zero — and drawing that honestly gives a flat line with
+a few spikes too narrow to read. The resting stretches are left out and
+what remains is laid end to end, so the shape of the running is actually
+visible.
+
+Each run is labelled with the clock time it began, and a dashed divider
+marks where one ended and the next started. Runs are separated by the
+same 30-minute gap the integration uses to count sessions, so the number
+here always matches the number printed on the bar.
+
+Below the trace: how many runs, how long the hamster actually ran, its
+fastest moment, and the night's distance.
+
+### What it needs
+
+The trace comes from Home Assistant's **recorder**, not from anything
+this integration stores. Keeping a full second-by-second series per
+night would mean tens of thousands of samples in storage for a view
+opened now and then.
+
+That means two things have to be true:
+
+- a **speed sensor** is configured for this hamster, and
+- the recorder is keeping it (it is, unless you have excluded it).
+
+If either is missing the card says so plainly rather than showing an
+empty chart.
+
 ## Options
 
 | Option | Default | What it does |
@@ -92,8 +126,9 @@ entity: sensor.hamster_taco_health_score
 - Everything comes from attributes on the health-score sensor, so there
   is no second entity to pick and nothing to configure beyond the card
   itself.
-- The history is kept by the integration, not read from Home Assistant's
-  recorder — so purging or excluding recorder data does not empty this
-  chart, and it survives a restart.
+- The seven-night history is kept by the integration itself, not read
+  from Home Assistant's recorder — so purging or excluding recorder data
+  does not empty the chart, and it survives a restart. Only the detail
+  view above reaches for the recorder, and only when you open it.
 - A night with no humidity sensor configured simply has no humidity
   point; the other lines are unaffected.

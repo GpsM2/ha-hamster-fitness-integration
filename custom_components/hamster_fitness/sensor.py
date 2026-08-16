@@ -138,6 +138,7 @@ class HamsterHealthScoreSensor(HamsterFitnessSensorBase):
             "score_history": data.score_history,
             "night_history": data.night_history,
             "night_window_date": data.night_window_date,
+            "session_gap_minutes": data.session_gap_minutes,
             "best_night_km": data.best_night_km,
             "best_night_date": data.best_night_date,
             "min_distance_km": data.min_distance_km,

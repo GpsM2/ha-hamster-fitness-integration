@@ -45,7 +45,7 @@ import {
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=18";
+} from "./hamster-fitness-shared.js?v=19";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;

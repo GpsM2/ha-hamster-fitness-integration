@@ -232,6 +232,12 @@ class HamsterFitnessData:
     # noch das Fenster von gestern 20:00. Als Attribut statt als Regel in
     # JavaScript, damit NIGHT_WINDOW_START_HOUR nur an einer Stelle steht.
     night_window_date: str | None = None
+    # Nach wie vielen Minuten ohne Aktivität eine Lauf-Session als beendet
+    # gilt (SESSION_END_GAP_MINUTES). Als Attribut sichtbar, damit die
+    # Detailansicht einer Nacht dieselbe Grenze zieht wie der
+    # Sessions-Zähler - sonst zeigt der Balken drei Läufe und die
+    # Aufschlüsselung darunter vier.
+    session_gap_minutes: int = SESSION_END_GAP_MINUTES
     # Bestleistungen. Anders als night_history NICHT auf sieben Nächte
     # begrenzt - ein Rekord soll auch in einem Jahr noch dastehen.
     best_night_km: float | None = None
@@ -1471,6 +1477,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             score_care=_pillar_score(care_penalty, _CARE_PENALTY_CAP),
             score_history=list(self._score_history),
             night_history=list(self._night_history),
+            session_gap_minutes=SESSION_END_GAP_MINUTES,
             night_window_date=(
                 dt_util.as_local(self._night_window_start).date().isoformat()
                 if self._night_window_start

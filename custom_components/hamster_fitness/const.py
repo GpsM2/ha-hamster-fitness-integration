@@ -332,7 +332,7 @@ URL_BASE: Final = f"/{DOMAIN}-frontend"
 # Bei jeder Änderung an hamster-fitness-shared.js hochzählen UND denselben
 # Wert in den ?v=-Importen aller Kartendateien nachziehen. tests/
 # test_frontend_resources.py prüft das ab, damit es nicht vergessen wird.
-SHARED_MODULE_VERSION: Final = "18"
+SHARED_MODULE_VERSION: Final = "19"
 # "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
 # jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
 # Browser ggf. die alte, gecachte Version weiter aus.
@@ -340,26 +340,26 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "21",
+        "version": "22",
     },
     {
         "name": "Hamster Day & Night Card",
         "filename": "hamster-day-night-card.js",
-        "version": "26",
+        "version": "27",
     },
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "18",
+        "version": "19",
     },
     {
         "name": "Hamster Running Card",
         "filename": "hamster-running-card.js",
-        "version": "9",
+        "version": "10",
     },
     {
         "name": "Hamster Weight Card",
         "filename": "hamster-weight-card.js",
-        "version": "11",
+        "version": "12",
     },
 ]
