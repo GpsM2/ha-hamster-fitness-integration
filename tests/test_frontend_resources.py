@@ -302,3 +302,66 @@ def test_cards_do_not_hardcode_german_text() -> None:
             assert not re.search(r'"[^"]*[äöüßÄÖÜ][^"]*"', line), (
                 f"{path.name}:{number} looks like hardcoded German: {line.strip()}"
             )
+
+
+# Every card that renders a header, i.e. every share entry point.
+SHARING_CARDS = (
+    "hamster-fitness-card.js",
+    "hamster-day-night-card.js",
+    "hamster-weight-card.js",
+    "hamster-running-card.js",
+    "hamster-chronicle-card.js",
+)
+
+
+def test_every_card_offers_sharing() -> None:
+    """One engine, six entry points - and no card left behind.
+
+    The point of putting the button in renderCardHeader() was that the
+    dialog, the composition and the saving exist once. A card that adds a
+    header without the `share` payload silently opts out, and nothing
+    else would notice: it still renders, it just quietly lacks a feature
+    every other card has.
+    """
+    for name in SHARING_CARDS:
+        source = _without_comments((FRONTEND_DIR / name).read_text(encoding="utf-8"))
+        assert "share: { buttonLabel" in source, f"{name} renders no share button"
+        assert "bindShareButton(" in source, f"{name} never wires its share button"
+        assert "_sharePayload" in source, f"{name} offers nothing to share"
+        assert "SHARE_STYLES" in source, f"{name} would render an unstyled dialog"
+
+
+def test_the_share_image_is_composed_not_screenshotted() -> None:
+    """The image is purpose-built SVG, rasterized through a canvas.
+
+    Reproducing the live card would mean rasterizing CSS-styled HTML,
+    which needs a third-party library; SVG rasterizes natively. This
+    pins the two halves that make that work, both of which look
+    removable to someone tidying up.
+    """
+    raw = (FRONTEND_DIR / SHARED_MODULE).read_text(encoding="utf-8")
+    assert "export function buildShareSvg" in raw
+    assert "export function rasterizeSvg" in raw
+    # A base64 data URL would throw on any non-Latin-1 character, and
+    # these strings routinely carry German text. Comments are stripped
+    # first, the same courtesy the stretch guard extends: the code says
+    # in a comment why it does not use btoa(), and a guard that fails on
+    # the explanation teaches people to delete it.
+    assert "btoa(" not in _without_comments(raw), (
+        "the share SVG must travel through a blob URL, not btoa() - "
+        "btoa throws on umlauts"
+    )
+
+
+def test_saving_is_the_primary_share_path() -> None:
+    """navigator.share() is progressive enhancement, never the only route.
+
+    It needs a secure context, and Home Assistant is commonly reached
+    over plain http on the LAN - and Android's WebView, which is what
+    the companion app is, does not implement it at all.
+    """
+    source = _without_comments(
+        (FRONTEND_DIR / SHARED_MODULE).read_text(encoding="utf-8")
+    )
+    assert "navigator.canShare" in source, "share support must be feature-detected"
+    assert "link.download" in source, "there must be a download fallback"

@@ -53,6 +53,9 @@ import {
   fmtNumber,
   fmtWeekday,
   healthScoreEntityFor,
+  bindShareButton,
+  SHARE_STYLES,
+  shareFilename,
   healthScoreEntitySelector,
   isHamsterFitnessEntity,
   isValidHex,
@@ -61,7 +64,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=16";
+} from "./hamster-fitness-shared.js?v=17";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -269,6 +272,63 @@ class HamsterFitnessCard extends HTMLElement {
     return { entity: match || "sensor.hamster_taco_health_score", ...DEFAULT_TOGGLES };
   }
 
+  /**
+   * What this card offers the share image.
+   *
+   * The demo-data preview deliberately offers nothing: an image of
+   * invented numbers is not something anyone should be able to post.
+   */
+  _sharePayload() {
+    const state = this._hass && this._hass.states[this._config.entity];
+    if (!state) return null;
+    const attrs = state.attributes || {};
+    const name =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+
+    const stats = [
+      {
+        key: "score",
+        label: t(this._hass, "share.statScore"),
+        value: `${state.state} %`,
+      },
+      {
+        key: "night",
+        label: t(this._hass, "share.statNight"),
+        value: fmtNumber(this._hass, attrs.night_distance_km, 2, "km"),
+      },
+      {
+        key: "lifetime",
+        label: t(this._hass, "share.statLifetime"),
+        value: fmtNumber(this._hass, attrs.lifetime_distance_km, 1, "km"),
+        default: false,
+      },
+      {
+        key: "weight",
+        label: t(this._hass, "share.statWeight"),
+        value: fmtNumber(this._hass, attrs.weight_g, 0, "g"),
+        default: false,
+      },
+      {
+        key: "climate",
+        label: t(this._hass, "share.statClimate"),
+        value: fmtNumber(this._hass, attrs.temperature, 1, "\u00b0C"),
+        default: false,
+      },
+    ];
+
+    return {
+      hass: this._hass,
+      entity: this._config.entity,
+      title: name,
+      subtitle: t(this._hass, "health.fallbackSubtitle"),
+      fur: coatColor(state),
+      stats,
+      filename: shareFilename(name, "health"),
+    };
+  }
+
   _ensureSkeleton() {
     if (this._root) return;
 
@@ -284,6 +344,7 @@ class HamsterFitnessCard extends HTMLElement {
     `;
 
     this._root = this.querySelector(".hfc-root");
+    bindShareButton(this._root, () => this._sharePayload());
     this._bannerEl = this.querySelector(".hfc-banner");
     this._bodyEl = this.querySelector(".hfc-body");
     this._modalHost = this.querySelector(".hfc-modal-host");
@@ -563,6 +624,7 @@ class HamsterFitnessCard extends HTMLElement {
       logoSvg: LOGO_HEADBAND_SVG,
       title: title.toUpperCase(),
       subtitle,
+      share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: `<span class="hf-badge">
         <span class="hf-badge-dot" style="background: ${badge.color}"></span>
         ${t(this._hass, badge.key)}
@@ -680,6 +742,7 @@ class HamsterFitnessCard extends HTMLElement {
 
 HamsterFitnessCard.styles = `
   ${HEADER_STYLES}
+  ${SHARE_STYLES}
 
   ha-card {
     padding: 0;
@@ -1300,6 +1363,43 @@ class HamsterFitnessRankingCard extends HTMLElement {
     return text.charAt(0).toUpperCase() + text.slice(1);
   }
 
+  /**
+   * What the ranking offers the share image.
+   *
+   * Not tied to one hamster - the headline is the household, and the
+   * sky has no single health-score entity to read, so it falls back to
+   * the plain sun/weather-free gradient.
+   */
+  _sharePayload(rows) {
+    if (!rows || !rows.length) return null;
+    const total = rows.reduce((sum, row) => sum + row.distance, 0);
+    return {
+      hass: this._hass,
+      entity: null,
+      title: t(this._hass, "share.allHamsters"),
+      subtitle: t(this._hass, "ranking.subtitle"),
+      fur: rows[0].coatHex || DEFAULT_FUR,
+      stats: [
+        {
+          key: "leader",
+          label: t(this._hass, "share.statLeader"),
+          value: `${rows[0].name} - ${fmtNumber(this._hass, rows[0].distance, 1, "km")}`,
+        },
+        {
+          key: "hamsters",
+          label: t(this._hass, "share.statHamsters"),
+          value: String(rows.length),
+        },
+        {
+          key: "lifetime",
+          label: t(this._hass, "share.statLifetime"),
+          value: fmtNumber(this._hass, total, 1, "km"),
+        },
+      ],
+      filename: shareFilename("ranking", "ranking"),
+    };
+  }
+
   _render() {
     if (!this._hass || !this.content) return;
 
@@ -1347,8 +1447,10 @@ class HamsterFitnessRankingCard extends HTMLElement {
       logoSvg: LOGO_TROPHY,
       title: (this._config.title || t(this._hass, "ranking.title")).toUpperCase(),
       subtitle: t(this._hass, "ranking.subtitle"),
+      share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: `<span class="hf-badge">${t(this._hass, "ranking.count", { count: rows.length })}</span>`,
     });
+    bindShareButton(this.content, () => this._sharePayload(rows));
 
     if (rows.length === 0) {
       this._bodyEl.innerHTML = `

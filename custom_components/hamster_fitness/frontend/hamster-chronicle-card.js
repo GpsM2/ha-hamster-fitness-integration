@@ -33,6 +33,9 @@ import {
   daysBetween,
   fmtDate,
   fmtNumber,
+  bindShareButton,
+  SHARE_STYLES,
+  shareFilename,
   isHamsterFitnessEntity,
   isValidHex,
   renderCardHeader,
@@ -41,7 +44,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=16";
+} from "./hamster-fitness-shared.js?v=17";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -119,6 +122,7 @@ class HamsterChronicleCard extends HTMLElement {
         <style>${HamsterChronicleCard.styles}</style>
       `;
       this._root = this.querySelector(".hch-root");
+      bindShareButton(this._root, () => this._sharePayload());
       this._bannerEl = this.querySelector(".hch-banner");
       this._bodyEl = this.querySelector(".hch-body");
       this._modalHost = this.querySelector(".hch-modal-host");
@@ -638,6 +642,41 @@ class HamsterChronicleCard extends HTMLElement {
     }
   }
 
+  /**
+   * What the chronicle offers the share image.
+   *
+   * Deliberately about the household rather than a hamster: this card
+   * is the one that is not tied to a single name, so the picture keeps
+   * departed hamsters in the count instead of quietly dropping them.
+   */
+  _sharePayload() {
+    const live = this._liveHamsters();
+    const rows = [...live, ...this._archivedHamsters(new Set(live.map((r) => r.name)))];
+    if (!rows.length) return null;
+    const departed = rows.filter((row) => row.departureDate).length;
+
+    return {
+      hass: this._hass,
+      entity: null,
+      title: t(this._hass, "share.allHamsters"),
+      subtitle: t(this._hass, "chronicle.subtitle"),
+      fur: DEFAULT_FUR,
+      stats: [
+        {
+          key: "hamsters",
+          label: t(this._hass, "share.statHamsters"),
+          value: String(rows.length),
+        },
+        {
+          key: "current",
+          label: t(this._hass, "share.statCurrent"),
+          value: String(rows.length - departed),
+        },
+      ],
+      filename: shareFilename("chronicle", "chronicle"),
+    };
+  }
+
   _render() {
     if (!this._hass || !this._root || !this._config) return;
 
@@ -653,6 +692,7 @@ class HamsterChronicleCard extends HTMLElement {
       logoSvg: LOGO_CHRONICLE,
       title: (this._config.title || t(this._hass, "chronicle.title")).toUpperCase(),
       subtitle: t(this._hass, "chronicle.subtitle"),
+      share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: `
         <span class="hf-badge">${t(this._hass, "chronicle.count", { count: rows.length })}</span>
         <button class="hch-add-btn" data-action="add-past" type="button"
@@ -681,6 +721,7 @@ class HamsterChronicleCard extends HTMLElement {
 
 HamsterChronicleCard.styles = `
   ${HEADER_STYLES}
+  ${SHARE_STYLES}
 
   ha-card {
     padding: 0;

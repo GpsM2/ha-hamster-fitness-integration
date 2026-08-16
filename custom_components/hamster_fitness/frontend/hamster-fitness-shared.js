@@ -47,6 +47,33 @@ const STRINGS = {
     "common.wrongEntity":
       "{card}: 'entity' must be a hamster's health score sensor (the entity ID ends in _health_score).",
 
+    // Sharing
+    "share.button": "Share",
+    "share.title": "Share as an image",
+    "share.hint":
+      "Pick what goes on the picture. It is saved to your device - you share it from there.",
+    "share.create": "Create image",
+    "share.cancel": "Cancel",
+    "share.close": "Close",
+    "share.working": "Composing...",
+    "share.saved": "Saved.",
+    "share.shared": "Shared.",
+    "share.failed": "Could not create the image.",
+    "share.pickOne": "Pick at least one value.",
+    "share.allHamsters": "All hamsters",
+    "share.statWeek": "This week",
+    "share.statLastNight": "Last night",
+    "share.statScore": "Health score",
+    "share.statNight": "Tonight",
+    "share.statWeight": "Weight",
+    "share.statWithYou": "With you",
+    "share.statHamsters": "Hamsters",
+    "share.statCurrent": "Living with you",
+    "share.statLifetime": "Total distance",
+    "share.statLeader": "Front runner",
+    "share.statClimate": "Climate",
+    "share.subtitleFamily": "Hamster Fitness",
+
     // Day & Night card
     "dayNight.subtitle": "Day &amp; Night",
     "dayNight.runningFor": "Running for",
@@ -274,6 +301,33 @@ const STRINGS = {
       "{card}: 'entity' fehlt - bitte den Health-Score-Sensor eines Hamsters auswählen (endet auf _health_score).",
     "common.wrongEntity":
       "{card}: 'entity' muss der Health-Score-Sensor eines Hamsters sein (Entity-ID endet auf _health_score).",
+
+    // Teilen
+    "share.button": "Teilen",
+    "share.title": "Als Bild teilen",
+    "share.hint":
+      "Wähle aus, was auf das Bild soll. Es wird auf deinem Gerät gespeichert - von dort teilst du es weiter.",
+    "share.create": "Bild erstellen",
+    "share.cancel": "Abbrechen",
+    "share.close": "Schließen",
+    "share.working": "Wird erstellt...",
+    "share.saved": "Gespeichert.",
+    "share.shared": "Geteilt.",
+    "share.failed": "Bild konnte nicht erstellt werden.",
+    "share.pickOne": "Wähle mindestens einen Wert aus.",
+    "share.allHamsters": "Alle Hamster",
+    "share.statWeek": "Diese Woche",
+    "share.statLastNight": "Letzte Nacht",
+    "share.statScore": "Health-Score",
+    "share.statNight": "Heute Nacht",
+    "share.statWeight": "Gewicht",
+    "share.statWithYou": "Bei dir seit",
+    "share.statHamsters": "Hamster",
+    "share.statCurrent": "Aktuell bei dir",
+    "share.statLifetime": "Gesamtstrecke",
+    "share.statLeader": "Spitzenreiter",
+    "share.statClimate": "Klima",
+    "share.subtitleFamily": "Hamster Fitness",
 
     "dayNight.runningFor": "Läuft seit",
     "dayNight.restingFor": "Ruht seit",
@@ -582,17 +636,152 @@ export function fmtWeekday(hass, isoString) {
  * cards so the two genuinely match instead of drifting apart. Both render
  * it on a coloured banner, hence the light-on-dark styling.
  */
-export function renderCardHeader({ logoSvg, title, subtitle, badgeHtml = "" }) {
-  return `
-    <div class="hf-header">
-      <span class="hf-logo">${logoSvg}</span>
-      <div class="hf-header-text">
-        <span class="hf-title">${title}</span>
-        <span class="hf-subtitle">${subtitle}</span>
-      </div>
-      ${badgeHtml}
-    </div>
-  `;
+
+/* ------------------------------------------------------------------ *
+ * The sky: what the current conditions look like
+ *
+ * Colours, thresholds and the weather table live here rather than in the
+ * Day & Night card, because the share image draws the same sky and the
+ * two must not drift apart. Only the *decision* is shared - which
+ * colours, which scene. The geometry stays with each surface: the card's
+ * sky is a 300x120 letterbox strip with the sun and moon at fixed
+ * coordinates, the share image is a portrait poster, and no single set
+ * of coordinates serves both.
+ * ------------------------------------------------------------------ */
+
+export const NIGHT_GRADIENT = ["#0B132B", "#1C2541"];
+export const DAY_GRADIENT_HORIZON = ["#F4A261", "#E9C46A"];
+export const DAY_GRADIENT_MIDDAY = ["#4EA8DE", "#90E0EF"];
+export const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
+
+// Ambient-light thresholds, only used once an illuminance sensor is
+// configured (coordinator.py's ambient_light_lx attribute; None means
+// "keep using sun.sun", the card's existing behaviour). At/below
+// AMBIENT_NIGHT_LX counts as night; at/above AMBIENT_DAY_LX the gradient
+// is fully "day". Deliberately a plain two-stop fade straight to
+// DAY_GRADIENT_MIDDAY, not a three-stop one through DAY_GRADIENT_HORIZON
+// like the sun-elevation path: lux says how bright the room is, not
+// where the sun sits, so there is no honest "just past the horizon" hue
+// to interpolate through.
+export const AMBIENT_NIGHT_LX = 5;
+export const AMBIENT_DAY_LX = 150;
+// How bright the lux reading may push the sky once the real sun is below
+// the horizon. A lit room at 10pm is still a lit room - but rendering it
+// as full midday reads as broken, however accurate the lux value is. This
+// caps it at dusk instead: clearly still evening, just not pitch black.
+export const AMBIENT_NIGHT_CEILING = 0.3;
+
+/**
+ * Every weather state Home Assistant defines, mapped to what the scene
+ * should show. Covered individually rather than lumped into a few
+ * buckets, and an unknown state means "no overlay" rather than a guess -
+ * so a state a future Home Assistant adds degrades to a clear sky.
+ */
+export const WEATHER_SCENES = {
+  "clear-night": { clouds: 0, dim: 0 },
+  sunny: { clouds: 0, dim: 0 },
+  partlycloudy: { clouds: 2, dim: 0.05 },
+  cloudy: { clouds: 4, dim: 0.16 },
+  fog: { clouds: 0, dim: 0.3, fog: true },
+  windy: { clouds: 2, dim: 0.05, wind: true },
+  "windy-variant": { clouds: 3, dim: 0.1, wind: true },
+  rainy: { clouds: 4, dim: 0.24, drops: 26, dropKind: "rain" },
+  pouring: { clouds: 5, dim: 0.34, drops: 54, dropKind: "rain" },
+  snowy: { clouds: 4, dim: 0.2, drops: 30, dropKind: "snow" },
+  "snowy-rainy": { clouds: 4, dim: 0.26, drops: 34, dropKind: "sleet" },
+  hail: { clouds: 5, dim: 0.28, drops: 30, dropKind: "hail" },
+  lightning: { clouds: 4, dim: 0.3, lightning: true },
+  "lightning-rainy": {
+    clouds: 5,
+    dim: 0.36,
+    drops: 46,
+    dropKind: "rain",
+    lightning: true,
+  },
+  // "Exceptional" means severe weather of an unspecified kind, so it
+  // gets the most dramatic treatment rather than a guess at which.
+  exceptional: { clouds: 5, dim: 0.4, lightning: true, wind: true },
+};
+
+function hexToRgb(hex) {
+  const n = parseInt(String(hex).replace("#", ""), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+export function lerpColor(hexA, hexB, t) {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const rgb = a.map((channel, i) => Math.round(channel + (b[i] - channel) * t));
+  return `rgb(${rgb.join(", ")})`;
+}
+
+/** True/false from sun.sun, or null when there is no sun entity. */
+export function sunBelowHorizon(hass) {
+  const sun = hass && hass.states && hass.states["sun.sun"];
+  if (!sun) return null;
+  return sun.state === "below_horizon";
+}
+
+/** sun.sun's elevation in degrees, or null if unavailable. */
+export function sunElevation(hass) {
+  const sun = hass && hass.states && hass.states["sun.sun"];
+  const elevation = Number(sun && sun.attributes && sun.attributes.elevation);
+  return Number.isFinite(elevation) ? elevation : null;
+}
+
+/**
+ * The two gradient colours for the sky right now, plus whether it counts
+ * as night and which weather scene applies.
+ *
+ * `ambientLx` wins where an illuminance sensor exists, because it
+ * describes the room the hamster is actually in rather than the sky
+ * outside - except that it may not claim daylight once the real sun has
+ * set (AMBIENT_NIGHT_CEILING). With no sensor this falls back to the
+ * sun's elevation.
+ */
+export function skyState(hass, healthScoreState) {
+  const attrs = (healthScoreState && healthScoreState.attributes) || {};
+  const rawLx = attrs.ambient_light_lx;
+  const ambientLx =
+    rawLx === null || rawLx === undefined ? null : Number(rawLx);
+  const below = sunBelowHorizon(hass);
+
+  const weatherId = attrs.weather_entity;
+  const weather = weatherId && hass.states ? hass.states[weatherId] : null;
+  const scene = (weather && WEATHER_SCENES[weather.state]) || null;
+
+  if (ambientLx !== null && Number.isFinite(ambientLx)) {
+    let t = Math.min(
+      1,
+      Math.max(0, (ambientLx - AMBIENT_NIGHT_LX) / (AMBIENT_DAY_LX - AMBIENT_NIGHT_LX))
+    );
+    if (below) t = Math.min(t, AMBIENT_NIGHT_CEILING);
+    return {
+      from: lerpColor(NIGHT_GRADIENT[0], DAY_GRADIENT_MIDDAY[0], t),
+      to: lerpColor(NIGHT_GRADIENT[1], DAY_GRADIENT_MIDDAY[1], t),
+      night: ambientLx <= AMBIENT_NIGHT_LX || below === true,
+      scene,
+    };
+  }
+
+  if (below !== false) {
+    return {
+      from: NIGHT_GRADIENT[0],
+      to: NIGHT_GRADIENT[1],
+      night: true,
+      scene,
+    };
+  }
+
+  const elevation = sunElevation(hass);
+  const t =
+    elevation === null ? 1 : Math.min(1, Math.max(0, elevation / DAY_ELEVATION_FULL_AT));
+  return {
+    from: lerpColor(DAY_GRADIENT_HORIZON[0], DAY_GRADIENT_MIDDAY[0], t),
+    to: lerpColor(DAY_GRADIENT_HORIZON[1], DAY_GRADIENT_MIDDAY[1], t),
+    night: false,
+    scene,
+  };
 }
 
 export const HEADER_STYLES = `
@@ -832,3 +1021,597 @@ export function deviceDisplayName(hass, entityId) {
   const name = device && (device.name_by_user || device.name);
   return name ? name.replace(/^Hamster\s+/, "") : null;
 }
+
+/* ------------------------------------------------------------------ *
+ * Sharing
+ *
+ * One engine, six entry points. Every card renders its banner through
+ * renderCardHeader(), so the button goes in there once and the dialog,
+ * the composition, the rasterizing and the saving all live here - a card
+ * contributes only a payload saying what it is about and which numbers
+ * it can offer.
+ *
+ * The image is drawn as SVG and rasterized through a canvas, rather than
+ * screenshotting the live card: capturing CSS-styled HTML needs a
+ * third-party library, while an SVG rasterizes natively and these cards
+ * are SVG-heavy anyway. It is composed for the format - a portrait
+ * poster - not a copy of the card layout.
+ * ------------------------------------------------------------------ */
+
+// 4:5 portrait, the shape most social apps show without cropping.
+const SHARE_W = 1080;
+const SHARE_H = 1350;
+
+// Only fonts a rasterizer can be expected to resolve on its own. Text
+// inside an <img>-loaded SVG cannot reach the page's stylesheets or any
+// webfont loaded there, so a custom family would silently fall back to
+// something else and the image would not match the card.
+const SHARE_FONT =
+  "'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif";
+
+/** A safe, dated file name for a shared image. */
+export function shareFilename(name, kind) {
+  const slug =
+    String(name || "hamster")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "hamster";
+  return `hamster-${slug}-${kind}-${new Date().toISOString().slice(0, 10)}`;
+}
+
+/** Escapes text bound for SVG/XML markup. */
+export function escapeXml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** The small share glyph. Deliberately quiet - three dots and two arms. */
+const SHARE_ICON_SVG = `
+<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+  <path d="M18 8a3 3 0 1 0-2.83-4H15a3 3 0 0 0 .13.87L8.7 8.5a3 3 0 1 0 0 7l6.43 3.63A3 3 0 1 0 18 16a3 3 0 0 0-2.06.82L9.87 13.4a3 3 0 0 0 0-2.8l6.07-3.42A3 3 0 0 0 18 8Z"
+        fill="currentColor"/>
+</svg>
+`;
+
+/**
+ * Renders one card's banner.
+ *
+ * `share` is optional: pass a payload (see openShareDialog) and the
+ * header grows a share button in its corner. Cards that pass nothing
+ * look exactly as before.
+ */
+export function renderCardHeader({ logoSvg, title, subtitle, badgeHtml = "", share }) {
+  const shareButton = share
+    ? `<button class="hf-share" type="button" data-hf-share
+               title="${escapeXml(share.buttonLabel || "Share")}"
+               aria-label="${escapeXml(share.buttonLabel || "Share")}">
+         ${SHARE_ICON_SVG}
+       </button>`
+    : "";
+  return `
+    <div class="hf-header">
+      <span class="hf-logo">${logoSvg}</span>
+      <div class="hf-header-text">
+        <span class="hf-title">${title}</span>
+        <span class="hf-subtitle">${subtitle}</span>
+      </div>
+      ${badgeHtml}
+      ${shareButton}
+    </div>
+  `;
+}
+
+/**
+ * Wires the header's share button on a card root.
+ *
+ * `payloadFor()` is called at click time, not now, so the image always
+ * carries the values on screen at that moment rather than whatever was
+ * current when the card last rendered its header.
+ */
+export function bindShareButton(root, payloadFor) {
+  if (!root || root._hfShareBound) return;
+  root._hfShareBound = true;
+  // The dialog is absolutely positioned against this element, so it has
+  // to be a containing block - otherwise the overlay escapes to the
+  // nearest positioned ancestor and covers the whole dashboard. Same
+  // trap as the chronicle's add-past dialog (#70). Only set where the
+  // card has not already positioned its own root.
+  if (getComputedStyle(root).position === "static") {
+    root.style.position = "relative";
+  }
+  root.addEventListener("click", (ev) => {
+    const button = ev.target.closest("[data-hf-share]");
+    if (!button || !root.contains(button)) return;
+    ev.stopPropagation();
+    const payload = payloadFor();
+    if (payload) openShareDialog(root, payload);
+  });
+}
+
+/** Deterministic pseudo-random, so one image renders the same twice. */
+function _seeded(seed) {
+  let value = seed >>> 0 || 1;
+  return () => {
+    value = (value * 1664525 + 1013904223) >>> 0;
+    return value / 4294967296;
+  };
+}
+
+/** The weather overlay, drawn for a portrait canvas. */
+function _shareWeather(scene, night, rand) {
+  if (!scene) return "";
+  const parts = [];
+
+  for (let i = 0; i < (scene.clouds || 0); i++) {
+    const cx = 90 + rand() * (SHARE_W - 180);
+    const cy = 90 + rand() * 260;
+    const r = 46 + rand() * 40;
+    const opacity = (night ? 0.16 : 0.3) + rand() * 0.12;
+    parts.push(
+      `<g opacity="${opacity.toFixed(2)}" fill="#ffffff">
+         <ellipse cx="${cx.toFixed(0)}" cy="${cy.toFixed(0)}" rx="${(r * 1.7).toFixed(0)}" ry="${r.toFixed(0)}"/>
+         <ellipse cx="${(cx - r).toFixed(0)}" cy="${(cy + r * 0.28).toFixed(0)}" rx="${r.toFixed(0)}" ry="${(r * 0.7).toFixed(0)}"/>
+         <ellipse cx="${(cx + r).toFixed(0)}" cy="${(cy + r * 0.22).toFixed(0)}" rx="${(r * 1.1).toFixed(0)}" ry="${(r * 0.72).toFixed(0)}"/>
+       </g>`
+    );
+  }
+
+  const dropFill = { rain: "#BFE3F5", sleet: "#D8ECF7", hail: "#FFFFFF", snow: "#FFFFFF" };
+  for (let i = 0; i < (scene.drops || 0); i++) {
+    const x = rand() * SHARE_W;
+    const y = 120 + rand() * (SHARE_H * 0.62);
+    const fill = dropFill[scene.dropKind] || "#BFE3F5";
+    if (scene.dropKind === "snow" || scene.dropKind === "hail") {
+      parts.push(
+        `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${(3 + rand() * 3).toFixed(1)}" fill="${fill}" opacity="0.75"/>`
+      );
+    } else {
+      parts.push(
+        `<rect x="${x.toFixed(0)}" y="${y.toFixed(0)}" width="2.5" height="${(14 + rand() * 12).toFixed(0)}" rx="1.2" fill="${fill}" opacity="0.6"/>`
+      );
+    }
+  }
+
+  if (scene.fog) {
+    for (let i = 0; i < 5; i++) {
+      const y = 160 + i * 150;
+      parts.push(
+        `<rect x="0" y="${y}" width="${SHARE_W}" height="70" fill="#ffffff" opacity="0.13"/>`
+      );
+    }
+  }
+
+  if (scene.lightning) {
+    parts.push(
+      `<path d="M628 150 L586 330 L648 330 L596 520 L712 300 L650 300 L700 150 Z"
+             fill="#FFE79A" opacity="0.85"/>`
+    );
+  }
+
+  if (scene.dim) {
+    parts.push(
+      `<rect x="0" y="0" width="${SHARE_W}" height="${SHARE_H}" fill="#000000" opacity="${scene.dim}"/>`
+    );
+  }
+  return parts.join("");
+}
+
+/** Stars for a night sky, or a sun disc for a day one. */
+function _shareCelestial(night, rand) {
+  if (!night) {
+    return `
+      <g>
+        <circle cx="880" cy="210" r="150" fill="#FFD166" opacity="0.18"/>
+        <circle cx="880" cy="210" r="96" fill="#FFD166" opacity="0.28"/>
+        <circle cx="880" cy="210" r="62" fill="#FFE08A"/>
+      </g>`;
+  }
+  const stars = [];
+  for (let i = 0; i < 60; i++) {
+    const x = rand() * SHARE_W;
+    const y = rand() * (SHARE_H * 0.55);
+    const r = 1.2 + rand() * 2.4;
+    stars.push(
+      `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="#ffffff" opacity="${(0.35 + rand() * 0.55).toFixed(2)}"/>`
+    );
+  }
+  return `<g>${stars.join("")}</g>
+    <circle cx="880" cy="200" r="70" fill="#F3F0E4" opacity="0.95"/>
+    <circle cx="848" cy="188" r="66" fill="#0B132B" opacity="0.86"/>`;
+}
+
+/**
+ * Composes the share image.
+ *
+ * Returns SVG source; rasterizing is a separate step, so the composition
+ * can be inspected and tested on its own.
+ */
+export function buildShareSvg({ title, subtitle, stats, footer, fur, sky }) {
+  const rand = _seeded(
+    [...String(title || "hamster")].reduce((a, c) => a + c.charCodeAt(0), 7)
+  );
+  const night = !!(sky && sky.night);
+  const from = (sky && sky.from) || NIGHT_GRADIENT[0];
+  const to = (sky && sky.to) || NIGHT_GRADIENT[1];
+
+  // Two columns once there are more than three, so a long selection does
+  // not run off the bottom of a fixed-height canvas.
+  const twoCol = stats.length > 3;
+  const cellW = twoCol ? 430 : 880;
+  const startY = 700;
+  const rowH = twoCol ? 168 : 150;
+
+  const cells = stats
+    .map((stat, i) => {
+      const col = twoCol ? i % 2 : 0;
+      const row = twoCol ? Math.floor(i / 2) : i;
+      const x = 100 + col * (cellW + 20);
+      const y = startY + row * rowH;
+      return `
+        <g>
+          <rect x="${x}" y="${y}" width="${cellW}" height="${rowH - 18}" rx="26"
+                fill="#ffffff" opacity="0.12"/>
+          <text x="${x + 34}" y="${y + 52}" class="s-label">${escapeXml(stat.label)}</text>
+          <text x="${x + 34}" y="${y + 112}" class="s-value">${escapeXml(stat.value)}</text>
+        </g>`;
+    })
+    .join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${SHARE_W}" height="${SHARE_H}"
+     viewBox="0 0 ${SHARE_W} ${SHARE_H}">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${from}"/>
+      <stop offset="100%" stop-color="${to}"/>
+    </linearGradient>
+    <linearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <style>
+    text { font-family: ${SHARE_FONT}; fill: #ffffff; }
+    .s-title { font-size: 92px; font-weight: 900; letter-spacing: 2px; }
+    .s-sub { font-size: 34px; font-weight: 600; letter-spacing: 7px; opacity: 0.85; }
+    .s-label { font-size: 27px; font-weight: 700; letter-spacing: 3px; opacity: 0.8; }
+    .s-value { font-size: 62px; font-weight: 800; }
+    .s-foot { font-size: 28px; font-weight: 600; opacity: 0.75; }
+  </style>
+
+  <rect width="${SHARE_W}" height="${SHARE_H}" fill="url(#sky)"/>
+  ${_shareCelestial(night, rand)}
+  ${_shareWeather(sky && sky.scene, night, rand)}
+  <rect width="${SHARE_W}" height="${SHARE_H}" fill="url(#veil)"/>
+
+  <g transform="translate(100, 470)">
+    <rect x="0" y="-52" width="14" height="120" rx="7" fill="${fur || "#D48C46"}"/>
+    <text x="42" y="10" class="s-title">${escapeXml(String(title).toUpperCase())}</text>
+    <text x="46" y="62" class="s-sub">${escapeXml(String(subtitle).toUpperCase())}</text>
+  </g>
+
+  ${cells}
+
+  <text x="100" y="${SHARE_H - 70}" class="s-foot">${escapeXml(footer)}</text>
+</svg>`;
+}
+
+/**
+ * SVG source to a PNG blob.
+ *
+ * The SVG travels through a blob URL rather than a base64 data URL on
+ * purpose: btoa() throws on anything outside Latin-1, and these strings
+ * routinely carry German text. A blob URL is same-origin, so it does not
+ * taint the canvas and toBlob() stays available.
+ */
+export function rasterizeSvg(svg, scale = 1) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(
+      new Blob([svg], { type: "image/svg+xml;charset=utf-8" })
+    );
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = SHARE_W * scale;
+      canvas.height = SHARE_H * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
+        "image/png"
+      );
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("SVG failed to load"));
+    };
+    image.src = url;
+  });
+}
+
+/**
+ * Hands the finished image to the user.
+ *
+ * Saving is the primary path, not navigator.share(): that needs a secure
+ * context, and Home Assistant is commonly reached over plain http on the
+ * local network - and the Android companion app is a WebView, which does
+ * not implement it at all. Where it genuinely exists it is the nicer
+ * route, so it is tried first and falls back rather than relied upon.
+ */
+export async function deliverShareImage(blob, filename) {
+  const file = new File([blob], filename, { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      return "shared";
+    } catch (err) {
+      // Someone who dismisses the sheet has not asked for a download.
+      if (err && err.name === "AbortError") return "cancelled";
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return "downloaded";
+}
+
+/**
+ * The share dialog.
+ *
+ * A plain absolutely-positioned overlay rather than <ha-dialog>, matching
+ * the chronicle's add-past dialog and the health-score pillar modal: those
+ * keep working inside the dashboard editor preview, where an ha-dialog
+ * does not. The card root needs `position: relative` for the overlay to
+ * size itself against the card - the same containing-block point that
+ * bit the chronicle dialog.
+ *
+ * `payload` is:
+ *   hass      the hass object, for translations and the sky
+ *   entity    the health-score entity, or null for all-hamster cards
+ *   title     headline on the image (a name, or the integration's own)
+ *   subtitle  the small line beneath it
+ *   fur       accent colour
+ *   stats     [{ key, label, value, default }] - what may go on the image
+ *   filename  base name for the saved file
+ */
+export function openShareDialog(root, payload) {
+  root.querySelectorAll("[data-hf-share-overlay]").forEach((el) => el.remove());
+
+  const hass = payload.hass;
+  const chosen = new Set(
+    payload.stats.filter((s) => s.default !== false).map((s) => s.key)
+  );
+
+  const overlay = document.createElement("div");
+  overlay.className = "hf-share-overlay";
+  overlay.setAttribute("data-hf-share-overlay", "");
+  overlay.innerHTML = `
+    <div class="hf-share-sheet" role="dialog" aria-modal="true"
+         aria-label="${escapeXml(t(hass, "share.title"))}">
+      <div class="hf-share-head">
+        <span class="hf-share-heading">${escapeXml(t(hass, "share.title"))}</span>
+        <button class="hf-share-x" type="button" data-act="close"
+                aria-label="${escapeXml(t(hass, "share.close"))}">&times;</button>
+      </div>
+      <p class="hf-share-hint">${escapeXml(t(hass, "share.hint"))}</p>
+      <div class="hf-share-list">
+        ${payload.stats
+          .map(
+            (stat) => `
+          <label class="hf-share-row">
+            <input type="checkbox" data-stat="${escapeXml(stat.key)}"
+                   ${chosen.has(stat.key) ? "checked" : ""}/>
+            <span class="hf-share-row-label">${escapeXml(stat.label)}</span>
+            <span class="hf-share-row-value">${escapeXml(stat.value)}</span>
+          </label>`
+          )
+          .join("")}
+      </div>
+      <div class="hf-share-status" hidden></div>
+      <div class="hf-share-actions">
+        <button class="hf-share-btn" type="button" data-act="close">
+          ${escapeXml(t(hass, "share.cancel"))}
+        </button>
+        <button class="hf-share-btn hf-share-btn-primary" type="button" data-act="go">
+          ${escapeXml(t(hass, "share.create"))}
+        </button>
+      </div>
+    </div>
+  `;
+  root.appendChild(overlay);
+
+  const status = overlay.querySelector(".hf-share-status");
+  const close = () => overlay.remove();
+
+  overlay.addEventListener("click", async (ev) => {
+    if (ev.target === overlay || ev.target.closest('[data-act="close"]')) {
+      close();
+      return;
+    }
+    const box = ev.target.closest("input[data-stat]");
+    if (box) {
+      if (box.checked) chosen.add(box.dataset.stat);
+      else chosen.delete(box.dataset.stat);
+      return;
+    }
+    if (!ev.target.closest('[data-act="go"]')) return;
+
+    const stats = payload.stats.filter((s) => chosen.has(s.key));
+    if (!stats.length) {
+      status.hidden = false;
+      status.textContent = t(hass, "share.pickOne");
+      return;
+    }
+
+    status.hidden = false;
+    status.textContent = t(hass, "share.working");
+    try {
+      const svg = buildShareSvg({
+        title: payload.title,
+        subtitle: payload.subtitle,
+        stats,
+        footer: payload.footer || fmtDate(hass, new Date().toISOString()),
+        fur: payload.fur,
+        sky: skyState(hass, payload.entity ? hass.states[payload.entity] : null),
+      });
+      const blob = await rasterizeSvg(svg);
+      const how = await deliverShareImage(blob, `${payload.filename}.png`);
+      if (how === "cancelled") {
+        status.hidden = true;
+        return;
+      }
+      status.textContent = t(hass, how === "shared" ? "share.shared" : "share.saved");
+      setTimeout(close, 1400);
+    } catch (err) {
+      status.textContent = t(hass, "share.failed");
+      // eslint-disable-next-line no-console
+      console.error("[hamster-fitness] share failed", err);
+    }
+  });
+}
+
+export const SHARE_STYLES = `
+  .hf-share {
+    margin-left: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+  }
+  /* No margin-left:auto here - the badge already claims it. Without a
+     badge the button would otherwise sit against the subtitle, so the
+     header text block is what pushes it over. */
+  .hf-header-text {
+    margin-right: auto;
+  }
+  .hf-share:hover,
+  .hf-share:focus-visible {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .hf-share:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+  }
+
+  .hf-share-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+  }
+  .hf-share-sheet {
+    width: 100%;
+    max-width: 340px;
+    max-height: 100%;
+    overflow: auto;
+    padding: 14px 16px 16px;
+    border-radius: 16px;
+    background: var(--card-background-color, #fff);
+    color: var(--primary-text-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .hf-share-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hf-share-heading {
+    font-size: 1em;
+    font-weight: 800;
+  }
+  .hf-share-x {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: var(--secondary-text-color);
+    font-size: 1.4em;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .hf-share-hint {
+    margin: 6px 0 10px;
+    font-size: 0.78em;
+    line-height: 1.4;
+    color: var(--secondary-text-color);
+  }
+  .hf-share-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .hf-share-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.84em;
+  }
+  .hf-share-row:hover {
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+  }
+  .hf-share-row-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hf-share-row-value {
+    margin-left: auto;
+    font-weight: 700;
+    color: var(--secondary-text-color);
+    flex-shrink: 0;
+  }
+  .hf-share-status {
+    margin-top: 10px;
+    font-size: 0.78em;
+    color: var(--secondary-text-color);
+  }
+  .hf-share-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .hf-share-btn {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--divider-color, #e0e0e0);
+    background: transparent;
+    color: var(--primary-text-color);
+    font-family: inherit;
+    font-size: 0.82em;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .hf-share-btn-primary {
+    border-color: transparent;
+    background: var(--primary-color, #03a9f4);
+    color: #ffffff;
+  }
+`;

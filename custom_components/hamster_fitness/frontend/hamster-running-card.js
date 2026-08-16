@@ -36,11 +36,14 @@ import {
   fmtWeekday,
   healthScoreEntityFor,
   healthScoreEntitySelector,
+  bindShareButton,
+  SHARE_STYLES,
+  shareFilename,
   memoizedEditorSchema,
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=16";
+} from "./hamster-fitness-shared.js?v=17";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -131,6 +134,8 @@ class HamsterRunningCard extends HTMLElement {
         this._overlays[name] = !this._overlays[name];
         this._render();
       });
+
+      bindShareButton(this._root, () => this._sharePayload());
     }
     this._render();
   }
@@ -153,6 +158,65 @@ class HamsterRunningCard extends HTMLElement {
       ENTITY_PATTERN.test(id)
     );
     return { entity: entity || "sensor.hamster_health_score" };
+  }
+
+  /**
+   * What this card offers the share image.
+   *
+   * Built when the button is pressed rather than kept alongside the
+   * render, so the picture carries the values on screen at that moment.
+   */
+  _sharePayload() {
+    const state = this._hass && this._hass.states[this._config.entity];
+    if (!state) return null;
+    const attrs = state.attributes || {};
+    const nights = this._nights(attrs);
+    const closed = nights.filter((n) => !n.live);
+    const last = closed[closed.length - 1];
+    const weekTotal = nights.reduce(
+      (sum, n) => sum + (Number.isFinite(n.distance) ? n.distance : 0),
+      0
+    );
+    const name =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._config.entity.match(ENTITY_PATTERN)[1].replace(/_/g, " ");
+
+    const stats = [
+      {
+        key: "week",
+        label: t(this._hass, "share.statWeek"),
+        value: fmtNumber(this._hass, weekTotal, 1, "km"),
+      },
+      {
+        key: "best",
+        label: t(this._hass, "running.bestNight"),
+        value: fmtNumber(this._hass, _num(attrs.best_night_km), 2, "km"),
+      },
+      {
+        key: "fastest",
+        label: t(this._hass, "running.fastest"),
+        value: fmtNumber(this._hass, _num(attrs.lifetime_max_speed_kmh), 1, "km/h"),
+      },
+    ];
+    if (last) {
+      stats.push({
+        key: "last",
+        label: t(this._hass, "share.statLastNight"),
+        value: fmtNumber(this._hass, last.distance, 2, "km"),
+        default: false,
+      });
+    }
+
+    return {
+      hass: this._hass,
+      entity: this._config.entity,
+      title: name,
+      subtitle: t(this._hass, "running.subtitle"),
+      fur: coatColor(state),
+      stats,
+      filename: shareFilename(name, "running"),
+    };
   }
 
   /**
@@ -511,6 +575,7 @@ class HamsterRunningCard extends HTMLElement {
       logoSvg: LOGO_RUNNING_SVG,
       title: String(title).toUpperCase(),
       subtitle: t(this._hass, "running.subtitle"),
+      share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: nights.length
         ? `<span class="hf-badge">${t(this._hass, "running.weekTotal", {
             value: fmtNumber(this._hass, weekTotal, 1, "km"),
@@ -547,6 +612,7 @@ function _axisLabel(value) {
 
 HamsterRunningCard.styles = `
   ${HEADER_STYLES}
+  ${SHARE_STYLES}
 
   ha-card {
     padding: 0;
