@@ -33,6 +33,7 @@ import {
   daysBetween,
   fmtDate,
   fmtNumber,
+  isHamsterFitnessEntity,
   isValidHex,
   renderCardHeader,
   shade,
@@ -40,7 +41,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=14";
+} from "./hamster-fitness-shared.js?v=15";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -962,6 +963,18 @@ window.customCards.push({
   // below, rather than a bundled static image - it can't go stale and
   // needs no asset in the repo.
   preview: true,
+  // Takes no entity - it finds every hamster itself - so any entity of
+  // ours is enough of a signal that a Hamster Fitness dashboard is
+  // being built.
+  getEntitySuggestion: (hass, entityId) =>
+    isHamsterFitnessEntity(hass, entityId)
+      ? {
+          config: {
+            type: "custom:hamster-chronicle-card",
+            ...HamsterChronicleCard.getStubConfig(),
+          },
+        }
+      : null,
 });
 
 const CHRONICLE_EDITOR_SCHEMA = [
