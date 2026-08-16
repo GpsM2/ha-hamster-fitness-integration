@@ -225,6 +225,13 @@ class HamsterFitnessData:
     # Mittelwerte über dasselbe Nachtfenster, nicht Momentaufnahmen -
     # siehe _sample_night_climate().
     night_history: list[dict[str, Any]] = field(default_factory=list)
+    # Datum, an dem das AKTUELLE Nachtfenster begonnen hat (ISO, lokal).
+    # night_history enthält nur abgeschlossene Nächte; die laufende zeigt
+    # die Running-Karte als vorläufigen Balken aus night_distance_km & Co.
+    # Dafür muss sie wissen, zu welchem Datum das gehört - um 07:00 läuft
+    # noch das Fenster von gestern 20:00. Als Attribut statt als Regel in
+    # JavaScript, damit NIGHT_WINDOW_START_HOUR nur an einer Stelle steht.
+    night_window_date: str | None = None
     # Bestleistungen. Anders als night_history NICHT auf sieben Nächte
     # begrenzt - ein Rekord soll auch in einem Jahr noch dastehen.
     best_night_km: float | None = None
@@ -1464,6 +1471,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             score_care=_pillar_score(care_penalty, _CARE_PENALTY_CAP),
             score_history=list(self._score_history),
             night_history=list(self._night_history),
+            night_window_date=(
+                dt_util.as_local(self._night_window_start).date().isoformat()
+                if self._night_window_start
+                else None
+            ),
             best_night_km=self._best_night_km,
             best_night_date=self._best_night_date,
             min_distance_km=min_distance_km,

@@ -47,6 +47,11 @@ Each line is scaled against its own range rather than the kilometre axis
 bottom. The shape is the point; the exact values live in the readings
 themselves.
 
+A night with only one reading of a given kind gets a dot rather than a
+line, since a line needs two points. That is worth knowing in the first
+few days: the toggles do work, there is simply not yet enough recorded
+to join anything up.
+
 The toggles are card-local and not part of the dashboard config: they are
 a way of looking at the data, not a property of the hamster.
 
@@ -56,9 +61,19 @@ A night runs from the evening into the next morning, and is filed under
 the date it **started**. Friday night's run appears under Friday, even
 though most of it happened on Saturday.
 
-The first bar appears once the first night window has closed — a freshly
-set-up hamster shows the personal-bests row and an explanatory note
-until then, not an empty chart.
+## Tonight's bar
+
+The last bar is the night currently running, drawn dashed and hollow and
+labelled **Tonight**. It updates live as the hamster runs, rather than
+waiting for the window to close in the evening.
+
+It is deliberately not solid: three hours into a night is not the same
+thing as a short night, and a filled bar beside seven finished ones
+would invite exactly that reading.
+
+Only closed nights become part of the history, count towards personal
+bests, or survive a restart. Until seven of them exist the card says how
+many it has, so "still collecting" is distinguishable from "broken".
 
 ## Options
 

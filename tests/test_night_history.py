@@ -372,3 +372,39 @@ async def test_climate_is_still_sampled_outside_the_sleep_phase(
 
     assert coordinator._night_temp_samples == 1
     assert coordinator._night_humidity_samples == 1
+
+
+async def test_the_running_window_date_is_exposed(hass: HomeAssistant) -> None:
+    """The card needs it to place the bar for the night in progress.
+
+    night_history only ever holds nights that have closed, so the window
+    currently running is by definition absent from it. Which date that
+    window belongs to is not derivable from the clock alone - at 07:00
+    the window that opened at 20:00 yesterday is still going - so the
+    integration publishes it rather than having the card re-implement
+    NIGHT_WINDOW_START_HOUR in JavaScript.
+    """
+    coordinator = await _setup(hass)
+
+    expected = (
+        dt_util.as_local(coordinator._night_window_start).date().isoformat()
+    )
+    assert coordinator.data.night_window_date == expected
+
+    state = hass.states.get("sensor.hamster_taco_health_score")
+    assert state is not None
+    assert state.attributes["night_window_date"] == expected
+
+
+async def test_the_window_date_moves_on_with_the_window(hass: HomeAssistant) -> None:
+    """Otherwise the live bar would sit on the closing night's slot."""
+    coordinator = await _setup(hass)
+
+    before = coordinator.data.night_window_date
+    coordinator._night_window_start = dt_util.now() - timedelta(days=3)
+    _close_night(coordinator)
+    await hass.async_block_till_done()
+
+    after = coordinator.data.night_window_date
+    assert after == before
+    assert after not in [item["date"] for item in coordinator.data.night_history]

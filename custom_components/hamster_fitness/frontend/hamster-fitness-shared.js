@@ -190,6 +190,9 @@ const STRINGS = {
     "running.temperature": "Temperature",
     "running.humidity": "Humidity",
     "running.sessions": "Runs per night (in the bar)",
+    "running.tonight": "Tonight",
+    "running.collecting":
+      "Collecting - {count} of 7 nights recorded so far. A night is added once its window closes in the evening; the dashed bar is the one still running.",
     "running.records": "Personal bests",
     "running.bestNight": "Longest night",
     "running.fastest": "Fastest ever",
@@ -405,6 +408,9 @@ const STRINGS = {
     "running.temperature": "Temperatur",
     "running.humidity": "Luftfeuchtigkeit",
     "running.sessions": "Läufe pro Nacht (im Balken)",
+    "running.tonight": "Heute",
+    "running.collecting":
+      "Wird gesammelt - bislang {count} von 7 Nächten. Eine Nacht kommt dazu, sobald ihr Fenster abends schließt; der gestrichelte Balken ist die laufende.",
     "running.records": "Bestleistungen",
     "running.bestNight": "Längste Nacht",
     "running.fastest": "Schnellster Wert",

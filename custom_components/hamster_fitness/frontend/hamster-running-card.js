@@ -11,6 +11,10 @@
  * - `night_history`   one entry per completed night (see coordinator.py's
  *                     _record_night). Climate values are averages across
  *                     that night, not closing snapshots.
+ * - `night_window_date` which date the window still running belongs to.
+ *                     That night is by definition absent from the
+ *                     history, so the card appends it as a provisional
+ *                     bar built from night_distance_km and friends.
  * - `best_night_km` / `lifetime_max_speed_kmh` and their dates - personal
  *                     bests, deliberately not capped to the seven nights.
  * - `min_distance_km` the health score's own activity threshold, reused
@@ -36,7 +40,7 @@ import {
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=15";
+} from "./hamster-fitness-shared.js?v=16";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -58,6 +62,10 @@ const PAD_TOP = 10;
 const PAD_BOTTOM = 18;
 const PLOT_W = CHART_W - PAD_LEFT - PAD_RIGHT;
 const PLOT_H = CHART_H - PAD_TOP - PAD_BOTTOM;
+
+// Seven closed nights (NIGHT_HISTORY_NIGHTS in const.py) plus the one
+// still running.
+const NIGHTS_ON_CHART = 8;
 
 // Which optional overlays exist, and how each reads its value out of a
 // night entry. Adding one here is enough to get its toggle, its line and
@@ -147,10 +155,25 @@ class HamsterRunningCard extends HTMLElement {
     return { entity: entity || "sensor.hamster_health_score" };
   }
 
-  /** Completed nights, oldest first, with everything coerced to numbers. */
+  /**
+   * Nights oldest first, with everything coerced to numbers.
+   *
+   * night_history holds only nights that have CLOSED - an entry is
+   * written once at the window reset and never revisited, which is what
+   * makes it safe to compare against personal bests. So the night
+   * currently running is not in there, and without the provisional entry
+   * appended below the card would show nothing at all on its first day
+   * and yesterday's news on every other, while night_distance_km has
+   * been counting up live the whole time.
+   *
+   * The window's date comes from the integration rather than from the
+   * clock here: at 07:00 the window that opened at 20:00 yesterday is
+   * still running, and re-deriving that rule in JavaScript would mean
+   * two copies of NIGHT_WINDOW_START_HOUR to keep in step.
+   */
   _nights(attrs) {
     const history = Array.isArray(attrs.night_history) ? attrs.night_history : [];
-    return history.map((item) => ({
+    const nights = history.map((item) => ({
       date: item.date,
       distance: Number(item.distance_km),
       avg_speed_kmh: _num(item.avg_speed_kmh),
@@ -160,7 +183,24 @@ class HamsterRunningCard extends HTMLElement {
       // history survives upgrades, so old entries simply have no number
       // rather than a misleading zero.
       sessions: _num(item.sessions),
+      live: false,
     }));
+
+    const liveDate = attrs.night_window_date;
+    // Guard against the double bar in the seconds between the reset
+    // writing the closing night and the new window's date arriving.
+    if (liveDate && !nights.some((n) => n.date === liveDate)) {
+      nights.push({
+        date: liveDate,
+        distance: Number(attrs.night_distance_km),
+        avg_speed_kmh: _num(attrs.night_avg_speed_kmh),
+        temperature_c: _num(attrs.temperature),
+        humidity_pct: _num(attrs.humidity),
+        sessions: _num(attrs.night_sessions),
+        live: true,
+      });
+    }
+    return nights.slice(-NIGHTS_ON_CHART);
   }
 
   /**
@@ -187,12 +227,20 @@ class HamsterRunningCard extends HTMLElement {
         const valid = Number.isFinite(night.distance);
         const h = valid ? (night.distance / max) * PLOT_H : 0;
         const y = PAD_TOP + PLOT_H - h;
+        // The night in progress is drawn hollow: three hours into a
+        // night is not the same as a short night, and a solid bar next
+        // to seven finished ones would invite exactly that reading.
+        const label = night.live
+          ? t(this._hass, "running.tonight")
+          : fmtWeekday(this._hass, night.date);
         return `
-          <rect class="hrc-bar" x="${(x - width / 2).toFixed(1)}" y="${y.toFixed(1)}"
+          <rect class="hrc-bar${night.live ? " hrc-bar-live" : ""}"
+                x="${(x - width / 2).toFixed(1)}" y="${y.toFixed(1)}"
                 width="${width.toFixed(1)}" height="${Math.max(h, valid ? 1.5 : 0).toFixed(1)}"
                 rx="${Math.min(3, width / 2).toFixed(1)}"/>
-          <text class="hrc-xlabel" x="${x.toFixed(1)}" y="${CHART_H - 5}"
-                text-anchor="middle">${fmtWeekday(this._hass, night.date)}</text>
+          <text class="hrc-xlabel${night.live ? " hrc-xlabel-live" : ""}"
+                x="${x.toFixed(1)}" y="${CHART_H - 5}"
+                text-anchor="middle">${label}</text>
         `;
       })
       .join("");
@@ -215,7 +263,11 @@ class HamsterRunningCard extends HTMLElement {
         if (!Number.isFinite(night.sessions) || night.sessions <= 0 || h <= 16) return "";
         const x = PAD_LEFT + slot * (i + 0.5);
         const y = PAD_TOP + PLOT_H - h + 11;
-        return `<text class="hrc-sessions" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+        // White reads well against a filled bar, but the live bar is
+        // hollow - white on the card background leaves only the outline
+        // showing. That one takes the coat colour as its fill instead.
+        const cls = night.live ? "hrc-sessions hrc-sessions-live" : "hrc-sessions";
+        return `<text class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
                       text-anchor="middle">${night.sessions}</text>`;
       })
       .join("");
@@ -239,11 +291,19 @@ class HamsterRunningCard extends HTMLElement {
    * the hamster ran faster on the colder nights - not the absolute
    * value, which the tooltip gives exactly.
    */
+  /**
+   * One overlay as a line over the bars, scaled to its own range.
+   *
+   * A single reading still gets its dot. Returning nothing at all below
+   * two points - which is what this did - meant that on the first night
+   * all three toggles looked like dead buttons: they flipped their own
+   * state correctly and the chart never changed.
+   */
   _overlayLine(nights, name) {
     const spec = OVERLAYS[name];
     const values = nights.map((n) => n[spec.key]);
     const known = values.filter(Number.isFinite);
-    if (known.length < 2) return "";
+    if (!known.length) return "";
 
     const min = Math.min(...known);
     const max = Math.max(...known);
@@ -252,29 +312,40 @@ class HamsterRunningCard extends HTMLElement {
     // Inset so a flat line doesn't sit exactly on the axis or the top.
     const top = PAD_TOP + PLOT_H * 0.12;
     const height = PLOT_H * 0.76;
+    // With one reading there is no range to place it in, and (v-min)/span
+    // would put it on the floor - reading as "the lowest yet" when it is
+    // simply the only one. Centre it instead.
+    const yFor = (value) =>
+      known.length < 2
+        ? top + height / 2
+        : top + height - ((value - min) / span) * height;
 
-    const points = values
-      .map((value, i) =>
-        Number.isFinite(value)
-          ? `${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)},${(
-              top + height - ((value - min) / span) * height
-            ).toFixed(1)}`
-          : null
-      )
-      .filter(Boolean)
-      .join(" ");
+    const points =
+      known.length < 2
+        ? ""
+        : values
+            .map((value, i) =>
+              Number.isFinite(value)
+                ? `${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)},${yFor(value).toFixed(1)}`
+                : null
+            )
+            .filter(Boolean)
+            .join(" ");
 
     const dots = values
       .map((value, i) =>
         Number.isFinite(value)
-          ? `<circle cx="${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)}" cy="${(
-              top + height - ((value - min) / span) * height
-            ).toFixed(1)}" r="2.4" fill="${spec.color}"/>`
+          ? `<circle cx="${(PAD_LEFT + slot * (i + 0.5)).toFixed(1)}" cy="${yFor(
+              value
+            ).toFixed(1)}" r="${known.length < 2 ? 3.4 : 2.4}" fill="${spec.color}"/>`
           : ""
       )
       .join("");
 
-    return `<polyline class="hrc-overlay" points="${points}" stroke="${spec.color}"/>${dots}`;
+    const line = points
+      ? `<polyline class="hrc-overlay" points="${points}" stroke="${spec.color}"/>`
+      : "";
+    return `${line}${dots}`;
   }
 
   _yAxis(max) {
@@ -361,6 +432,22 @@ class HamsterRunningCard extends HTMLElement {
     `;
   }
 
+  /**
+   * Says so while the week is still filling up.
+   *
+   * A chart with two bars and a couple of lone dots is the correct
+   * rendering of two nights of data, but it looks identical to a broken
+   * one. The card only earns its keep at seven bars, and until then it
+   * should say which of the two it is.
+   */
+  _collecting(nights) {
+    const closed = nights.filter((n) => !n.live).length;
+    if (closed >= NIGHTS_ON_CHART - 1) return "";
+    return `<div class="hrc-collecting">${t(this._hass, "running.collecting", {
+      count: closed,
+    })}</div>`;
+  }
+
   _records(attrs) {
     const bestKm = _num(attrs.best_night_km);
     const fastest = _num(attrs.lifetime_max_speed_kmh);
@@ -436,6 +523,7 @@ class HamsterRunningCard extends HTMLElement {
         ${this._chart(nights, goal)}
         ${this._legend(goal, nights)}
         ${this._toggles()}
+        ${this._collecting(nights)}
         ${this._records(attrs)}
       `
       : `
@@ -504,6 +592,24 @@ HamsterRunningCard.styles = `
   .hrc-bar {
     fill: var(--hf-fur, #D48C46);
   }
+  /* The night still running: outlined rather than filled, so a window
+     that is three hours old doesn't read as a short night. */
+  .hrc-bar-live {
+    fill: transparent;
+    stroke: var(--hf-fur, #D48C46);
+    stroke-width: 1.5;
+    stroke-dasharray: 3 2;
+  }
+  .hrc-xlabel-live {
+    font-weight: 700;
+    fill: var(--primary-text-color);
+  }
+  .hrc-collecting {
+    margin-top: 8px;
+    font-size: 0.74em;
+    line-height: 1.4;
+    color: var(--secondary-text-color);
+  }
   .hrc-grid {
     stroke: var(--divider-color, #e0e0e0);
     stroke-width: 1;
@@ -527,6 +633,10 @@ HamsterRunningCard.styles = `
     stroke: var(--hf-fur, #D48C46);
     stroke-width: 2.5;
     paint-order: stroke;
+  }
+  .hrc-sessions-live {
+    fill: var(--hf-fur-dark, #8a5a24);
+    stroke: var(--card-background-color, #fff);
   }
   .hrc-rule-goal {
     stroke: #2a9d8f;
