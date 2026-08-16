@@ -125,6 +125,9 @@ configure it:
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
 | [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
 
+Every one of them can also [turn its numbers into a picture](docs/sharing.md)
+to save and post, on a sky that follows the real weather.
+
 ## The cards
 
 All six follow Home Assistant's language (English and German), including

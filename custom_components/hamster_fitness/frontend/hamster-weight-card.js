@@ -36,13 +36,16 @@ import {
   deviceDisplayName,
   fmtDate,
   fmtNumber,
+  bindShareButton,
+  SHARE_STYLES,
+  shareFilename,
   healthScoreEntityFor,
   healthScoreEntitySelector,
   memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=16";
+} from "./hamster-fitness-shared.js?v=17";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -123,6 +126,7 @@ class HamsterWeightCard extends HTMLElement {
     `;
 
     this._root = this.querySelector(".hwc-root");
+    bindShareButton(this._root, () => this._sharePayload());
     this._bannerEl = this.querySelector(".hwc-banner");
     this._errorEl = this.querySelector(".hwc-error");
     this._bodyEl = this.querySelector(".hwc-body");
@@ -173,6 +177,44 @@ class HamsterWeightCard extends HTMLElement {
         this._setEditing(false);
       }
     });
+  }
+
+  _sharePayload() {
+    const state = this._hass && this._hass.states[this._config.entity];
+    if (!state) return null;
+    const attrs = state.attributes || {};
+    const name =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+
+    return {
+      hass: this._hass,
+      entity: this._config.entity,
+      title: name,
+      subtitle: t(this._hass, "weight.subtitle"),
+      fur: coatColor(state),
+      stats: [
+        {
+          key: "weight",
+          label: t(this._hass, "share.statWeight"),
+          value: fmtNumber(this._hass, attrs.weight_g, 0, "g"),
+        },
+        {
+          key: "score",
+          label: t(this._hass, "share.statScore"),
+          value: `${state.state} %`,
+          default: false,
+        },
+        {
+          key: "withyou",
+          label: t(this._hass, "share.statWithYou"),
+          value: String(daysBetween(attrs.acquisition_date, null) || "-"),
+          default: false,
+        },
+      ],
+      filename: shareFilename(name, "weight"),
+    };
   }
 
   _setEditing(editing) {
@@ -428,6 +470,7 @@ class HamsterWeightCard extends HTMLElement {
       logoSvg: LOGO_SCALE,
       title: title.toUpperCase(),
       subtitle: t(this._hass, "weight.subtitle"),
+      share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: hasWeight
         ? `<span class="hf-badge">${fmtNumber(this._hass, grams, 0, "g")}</span>`
         : "",
@@ -529,6 +572,7 @@ class HamsterWeightCard extends HTMLElement {
 
 HamsterWeightCard.styles = `
   ${HEADER_STYLES}
+  ${SHARE_STYLES}
 
   ha-card {
     padding: 0;

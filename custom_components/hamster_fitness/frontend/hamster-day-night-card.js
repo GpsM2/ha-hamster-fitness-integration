@@ -41,12 +41,19 @@ import {
   fmtNumber,
   fmtTime,
   healthScoreEntityFor,
+  bindShareButton,
+  SHARE_STYLES,
+  shareFilename,
   healthScoreEntitySelector,
   memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
+  skyState,
+  sunBelowHorizon,
+  sunElevation,
   t,
-} from "./hamster-fitness-shared.js?v=16";
+  WEATHER_SCENES,
+} from "./hamster-fitness-shared.js?v=17";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -62,64 +69,10 @@ const STOP_SPEED_KMH = 0.15;
 // see _applyWheelSpin() for why that matters.
 const SPIN_BASE_MS = 2000;
 
-const NIGHT_GRADIENT = ["#0B132B", "#1C2541"];
-const DAY_GRADIENT_HORIZON = ["#F4A261", "#E9C46A"];
-const DAY_GRADIENT_MIDDAY = ["#4EA8DE", "#90E0EF"];
-const DAY_ELEVATION_FULL_AT = 30; // degrees - gradient stops shifting past this
+// Sky palette, ambient-light thresholds and the weather table now live
+// in hamster-fitness-shared.js, so the share image draws the same sky.
 
-// Ambient-light thresholds, only used once an illuminance sensor is
-// configured (coordinator.py's ambient_light_lx attribute; None means
-// "keep using sun.sun", the card's existing behaviour). At/below
-// AMBIENT_NIGHT_LX counts as night; at/above AMBIENT_DAY_LX the gradient
-// is fully "day". Deliberately a plain two-stop fade straight to
-// DAY_GRADIENT_MIDDAY, not a three-stop one through DAY_GRADIENT_HORIZON
-// like the sun-elevation path: lux says how bright the room is, not
-// where the sun sits, so there is no honest "just past the horizon" hue
-// to interpolate through.
-const AMBIENT_NIGHT_LX = 5;
-const AMBIENT_DAY_LX = 150;
-// How bright the lux reading may push the sky once the real sun is below
-// the horizon. A lit room at 10pm is still a lit room - but rendering it
-// as full midday reads as broken, however accurate the lux value is. This
-// caps it at dusk instead: clearly still evening, just not pitch black.
-const AMBIENT_NIGHT_CEILING = 0.3;
-
-/**
- * Every weather state Home Assistant defines, mapped to what the scene
- * should show. Covered individually rather than lumped into a few
- * buckets - "pouring" really should look wetter than "rainy", and
- * "hail" isn't snow.
- *
- * Each entry picks: a precipitation type (with how heavy), how much
- * cloud drifts past, whether lightning flashes, and how much the sky is
- * dimmed. `clear` states draw nothing at all, which is also the fallback
- * for any state a future Home Assistant might add.
- */
-const WEATHER_SCENES = {
-  "clear-night": { clouds: 0, dim: 0 },
-  sunny: { clouds: 0, dim: 0 },
-  partlycloudy: { clouds: 2, dim: 0.05 },
-  cloudy: { clouds: 4, dim: 0.16 },
-  fog: { clouds: 0, dim: 0.3, fog: true },
-  windy: { clouds: 2, dim: 0.05, wind: true },
-  "windy-variant": { clouds: 3, dim: 0.1, wind: true },
-  rainy: { clouds: 4, dim: 0.24, drops: 26, dropKind: "rain" },
-  pouring: { clouds: 5, dim: 0.34, drops: 54, dropKind: "rain" },
-  snowy: { clouds: 4, dim: 0.2, drops: 30, dropKind: "snow" },
-  "snowy-rainy": { clouds: 4, dim: 0.26, drops: 34, dropKind: "sleet" },
-  hail: { clouds: 5, dim: 0.28, drops: 30, dropKind: "hail" },
-  lightning: { clouds: 4, dim: 0.3, lightning: true },
-  "lightning-rainy": {
-    clouds: 5,
-    dim: 0.36,
-    drops: 46,
-    dropKind: "rain",
-    lightning: true,
-  },
-  // "Exceptional" means severe weather of an unspecified kind, so it
-  // gets the most dramatic treatment rather than a guess at which.
-  exceptional: { clouds: 5, dim: 0.4, lightning: true, wind: true },
-};
+// WEATHER_SCENES moved to hamster-fitness-shared.js.
 
 /**
  * Home Assistant's eight moon-phase states (the built-in Moon
@@ -260,18 +213,6 @@ const ICONS = {
     "M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2Z",
 };
 
-function hexToRgb(hex) {
-  const n = parseInt(String(hex).replace("#", ""), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function lerpColor(hexA, hexB, t) {
-  const a = hexToRgb(hexA);
-  const b = hexToRgb(hexB);
-  const rgb = a.map((channel, i) => Math.round(channel + (b[i] - channel) * t));
-  return `rgb(${rgb.join(", ")})`;
-}
-
 class HamsterDayNightCard extends HTMLElement {
   setConfig(config) {
     if (!config.entity) {
@@ -327,6 +268,7 @@ class HamsterDayNightCard extends HTMLElement {
               logoSvg: LOGO_DUMBBELL_SVG,
               title: "",
               subtitle: t(null, "dayNight.subtitle"),
+              share: { buttonLabel: t(null, "share.button") },
               badgeHtml: `<span class="hf-badge">
                 <span class="hf-badge-dot"></span>
                 <span class="hdn-status-label"></span>
@@ -343,6 +285,7 @@ class HamsterDayNightCard extends HTMLElement {
     `;
 
     this._root = this.querySelector(".hdn-root");
+    bindShareButton(this._root, () => this._sharePayload());
     this._errorEl = this.querySelector(".hdn-error");
     this._skyEl = this.querySelector(".hdn-sky");
     this._decorEl = this.querySelector(".hdn-decor");
@@ -466,16 +409,12 @@ class HamsterDayNightCard extends HTMLElement {
    * "no answer" has to stay distinguishable from "no, it's up".
    */
   _sunBelowHorizon() {
-    const sun = this._hass.states["sun.sun"];
-    if (!sun) return null;
-    return sun.state === "below_horizon";
+    return sunBelowHorizon(this._hass);
   }
 
   /** sun.sun's elevation in degrees, or null if unavailable. */
   _sunElevation() {
-    const sun = this._hass.states["sun.sun"];
-    const elevation = Number(sun && sun.attributes && sun.attributes.elevation);
-    return Number.isFinite(elevation) ? elevation : null;
+    return sunElevation(this._hass);
   }
 
   /**
@@ -491,31 +430,61 @@ class HamsterDayNightCard extends HTMLElement {
     return `translate(${CELESTIAL_X}, ${y.toFixed(1)})`;
   }
 
-  _backgroundGradient(ambientLx) {
-    if (ambientLx !== null) {
-      let t = Math.min(
-        1,
-        Math.max(0, (ambientLx - AMBIENT_NIGHT_LX) / (AMBIENT_DAY_LX - AMBIENT_NIGHT_LX))
-      );
-      // The real sun outranks the lux reading: once it has set, no amount
-      // of room light may render the sky as daytime.
-      if (this._sunBelowHorizon()) t = Math.min(t, AMBIENT_NIGHT_CEILING);
-      const from = lerpColor(NIGHT_GRADIENT[0], DAY_GRADIENT_MIDDAY[0], t);
-      const to = lerpColor(NIGHT_GRADIENT[1], DAY_GRADIENT_MIDDAY[1], t);
-      return `linear-gradient(180deg, ${from}, ${to})`;
-    }
+  /**
+   * The sky gradient as CSS.
+   *
+   * The decision itself - which colours for the current lux reading, sun
+   * elevation and weather - lives in skyState() in the shared module,
+   * because the share image paints the same sky and the two drifting
+   * apart would be invisible until someone compared them side by side.
+   * Only the CSS packaging is this card's own; the share image needs SVG
+   * stops from the same pair of colours.
+   */
+  _sharePayload() {
+    const state = this._entity("health_score");
+    if (!state) return null;
+    const attrs = state.attributes || {};
+    const name =
+      this._config.title ||
+      deviceDisplayName(this._hass, this._config.entity) ||
+      this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+    const speed = this._entity("current_speed");
 
-    const sun = this._hass.states["sun.sun"];
-    if (!sun || sun.state === "below_horizon") {
-      return `linear-gradient(180deg, ${NIGHT_GRADIENT[0]}, ${NIGHT_GRADIENT[1]})`;
-    }
-    const elevation = this._sunElevation();
-    const t =
-      elevation === null
-        ? 1
-        : Math.min(1, Math.max(0, elevation / DAY_ELEVATION_FULL_AT));
-    const from = lerpColor(DAY_GRADIENT_HORIZON[0], DAY_GRADIENT_MIDDAY[0], t);
-    const to = lerpColor(DAY_GRADIENT_HORIZON[1], DAY_GRADIENT_MIDDAY[1], t);
+    return {
+      hass: this._hass,
+      entity: this._config.entity,
+      title: name,
+      subtitle: t(this._hass, "dayNight.subtitle"),
+      fur: coatColor(state),
+      stats: [
+        {
+          key: "night",
+          label: t(this._hass, "dayNight.thisNight"),
+          value: fmtNumber(this._hass, attrs.night_distance_km, 2, "km"),
+        },
+        {
+          key: "speed",
+          label: t(this._hass, "dayNight.speed"),
+          value: fmtNumber(this._hass, speed && speed.state, 1, "km/h"),
+        },
+        {
+          key: "score",
+          label: t(this._hass, "share.statScore"),
+          value: `${state.state} %`,
+        },
+        {
+          key: "climate",
+          label: t(this._hass, "share.statClimate"),
+          value: fmtNumber(this._hass, attrs.temperature, 1, "\u00b0C"),
+          default: false,
+        },
+      ],
+      filename: shareFilename(name, "day-night"),
+    };
+  }
+
+  _backgroundGradient() {
+    const { from, to } = skyState(this._hass, this._entity("health_score"));
     return `linear-gradient(180deg, ${from}, ${to})`;
   }
 
@@ -946,7 +915,7 @@ class HamsterDayNightCard extends HTMLElement {
     applyFur(this._root, coatColor(healthScore));
 
     const ambientLx = this._ambientLightLx(healthScore);
-    this._skyEl.style.background = this._backgroundGradient(ambientLx);
+    this._skyEl.style.background = this._backgroundGradient();
 
     const title =
       this._config.title ||
@@ -1104,6 +1073,7 @@ class HamsterDayNightCard extends HTMLElement {
 
 HamsterDayNightCard.styles = `
   ${HEADER_STYLES}
+  ${SHARE_STYLES}
   ha-card {
     padding: 0;
     overflow: hidden;
