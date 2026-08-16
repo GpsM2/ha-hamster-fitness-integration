@@ -36,10 +36,12 @@ import {
   deviceDisplayName,
   fmtDate,
   fmtNumber,
+  healthScoreEntitySelector,
+  memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=13";
+} from "./hamster-fitness-shared.js?v=14";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -714,15 +716,15 @@ window.customCards.push({
   preview: true,
 });
 
-const WEIGHT_EDITOR_SCHEMA = [
+const weightEditorSchema = memoizedEditorSchema((hass) => [
   {
     name: "entity",
     required: true,
-    selector: { entity: { filter: { integration: "hamster_fitness", domain: "sensor" } } },
+    selector: healthScoreEntitySelector(hass),
   },
   { name: "title", selector: { text: {} } },
   { name: "step", selector: { number: { min: 1, max: 50, step: 1, mode: "box" } } },
-];
+]);
 
 const WEIGHT_EDITOR_LABELS = {
   entity: "common.entityPicker",
@@ -765,7 +767,7 @@ class HamsterWeightCardEditor extends HTMLElement {
     }
 
     this._form.hass = this._hass;
-    this._form.schema = WEIGHT_EDITOR_SCHEMA;
+    this._form.schema = weightEditorSchema(this._hass);
     this._form.data = this._config;
   }
 }
