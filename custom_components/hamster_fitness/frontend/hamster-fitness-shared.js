@@ -220,6 +220,18 @@ const STRINGS = {
     "running.tonight": "Tonight",
     "running.collecting":
       "Collecting - {count} of 7 nights recorded so far. A night is added once its window closes in the evening; the dashed bar is the one still running.",
+    "running.nightDetail": "This night in detail",
+    "running.nightLoading": "Fetching the night...",
+    "running.nightNoRuns": "No run recorded for this night.",
+    "running.nightNoSpeedSensor":
+      "No speed sensor is configured for this hamster, so there is no trace to show. Add one under the integration's options.",
+    "running.nightFailed":
+      "Could not load the night. Home Assistant's recorder has to be keeping the speed sensor for this to work.",
+    "running.nightRuns": "Runs",
+    "running.nightRunTime": "Time running",
+    "running.nightPeak": "Fastest",
+    "running.nightAxisHint":
+      "The axis shows running time only - the resting stretches are left out, and the times mark where each run began.",
     "running.records": "Personal bests",
     "running.bestNight": "Longest night",
     "running.fastest": "Fastest ever",
@@ -465,6 +477,18 @@ const STRINGS = {
     "running.tonight": "Heute",
     "running.collecting":
       "Wird gesammelt - bislang {count} von 7 Nächten. Eine Nacht kommt dazu, sobald ihr Fenster abends schließt; der gestrichelte Balken ist die laufende.",
+    "running.nightDetail": "Diese Nacht im Detail",
+    "running.nightLoading": "Nacht wird geladen...",
+    "running.nightNoRuns": "In dieser Nacht wurde kein Lauf aufgezeichnet.",
+    "running.nightNoSpeedSensor":
+      "Für diesen Hamster ist kein Geschwindigkeitssensor eingerichtet, daher gibt es keinen Verlauf. Du kannst einen in den Optionen der Integration ergänzen.",
+    "running.nightFailed":
+      "Die Nacht konnte nicht geladen werden. Der Recorder von Home Assistant muss den Geschwindigkeitssensor aufzeichnen, damit das funktioniert.",
+    "running.nightRuns": "Läufe",
+    "running.nightRunTime": "Laufzeit",
+    "running.nightPeak": "Spitze",
+    "running.nightAxisHint":
+      "Die Achse zeigt nur die Laufzeit - die Ruhephasen sind ausgelassen, und die Uhrzeiten markieren den Beginn jedes Laufs.",
     "running.records": "Bestleistungen",
     "running.bestNight": "Längste Nacht",
     "running.fastest": "Schnellster Wert",

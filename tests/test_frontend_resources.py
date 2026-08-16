@@ -365,3 +365,42 @@ def test_saving_is_the_primary_share_path() -> None:
     )
     assert "navigator.canShare" in source, "share support must be feature-detected"
     assert "link.download" in source, "there must be a download fallback"
+
+
+def test_the_night_drilldown_reads_the_recorder() -> None:
+    """The per-night trace must not become a second store of its own.
+
+    The coordinator already keeps a per-night summary. A full
+    second-by-second speed series alongside it would mean tens of
+    thousands of samples per night in .storage - one real night measured
+    7469 - for a view that gets opened occasionally. It asks Home
+    Assistant's recorder instead, which already has them.
+    """
+    source = (FRONTEND_DIR / "hamster-running-card.js").read_text(encoding="utf-8")
+    assert "history/history_during_period" in source
+    # The default drops "insignificant" changes, which for a speed sensor
+    # is most of the run.
+    assert "significant_changes_only: false" in source
+
+
+def test_the_night_drilldown_skips_resting_stretches() -> None:
+    """The axis is running time, which is the whole point of the view.
+
+    A hamster's night is mostly standing still. Drawn honestly against
+    wall-clock time it is a flat line with a few spikes too narrow to
+    read, so the rest is dropped and what remains is laid end to end.
+    Each run keeps a wall-clock label, or the trace could not be placed
+    in the night at all.
+    """
+    source = _without_comments(
+        (FRONTEND_DIR / "hamster-running-card.js").read_text(encoding="utf-8")
+    )
+    assert "ACTIVE_SPEED_KMH" in source, "nothing separates running from resting"
+    assert "_traceSegments(" in source
+    assert "hrc-trace-time" in source, "runs must keep their clock times"
+
+
+def test_the_night_drilldown_bounds_what_it_draws() -> None:
+    """Seven thousand points in one SVG is slow for no visible gain."""
+    source = (FRONTEND_DIR / "hamster-running-card.js").read_text(encoding="utf-8")
+    assert "TRACE_BUCKETS" in source, "the trace must be downsampled"

@@ -32,8 +32,11 @@ import {
   applyFur,
   coatColor,
   fmtDate,
+  fmtDuration,
   fmtNumber,
+  fmtTime,
   fmtWeekday,
+  siblingEntityId,
   healthScoreEntityFor,
   healthScoreEntitySelector,
   bindShareButton,
@@ -43,7 +46,7 @@ import {
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=18";
+} from "./hamster-fitness-shared.js?v=19";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -70,6 +73,11 @@ const PLOT_H = CHART_H - PAD_TOP - PAD_BOTTOM;
 // still running.
 const NIGHTS_ON_CHART = 8;
 
+// Mirrors NIGHT_WINDOW_START_HOUR in const.py. Only used to turn a
+// night's date into the span the recorder is asked for; everything else
+// about which date a night belongs to comes from the integration.
+const NIGHT_WINDOW_START_HOUR = 20;
+
 // Which optional overlays exist, and how each reads its value out of a
 // night entry. Adding one here is enough to get its toggle, its line and
 // its colour - nothing else in the card enumerates them.
@@ -95,6 +103,111 @@ const LOGO_RUNNING_SVG = `
   <circle cx="130" cy="116" r="2.6" fill="#3a2a1a"/>
 </svg>
 `;
+
+
+/* ------------------------------------------------------------------ *
+ * One night in detail
+ *
+ * Tapping a bar opens the speed trace for that night, read from Home
+ * Assistant's recorder rather than from anything this integration
+ * stores. The coordinator already keeps a per-night summary; keeping a
+ * full second-by-second series as well would mean carrying tens of
+ * thousands of samples per night in .storage for a view that is opened
+ * occasionally.
+ *
+ * The time axis is running time only. A hamster's night is mostly
+ * standing still - roughly seven thousand samples for one night on a
+ * real instance, the vast majority of them zero - and drawing that
+ * honestly gives a flat line with a few spikes too narrow to read.
+ * Resting stretches are dropped and what is left is laid end to end,
+ * with each session labelled by the wall-clock time it began, so the
+ * shape of the running is visible and can still be placed in the night.
+ * ------------------------------------------------------------------ */
+
+// Below this a reading counts as standing still. The wheel sensor emits
+// values like 5.3e-05 when it is not turning at all.
+const ACTIVE_SPEED_KMH = 0.1;
+
+// How many columns the trace is bucketed into. The recorder returns far
+// more samples than a chart this size can show, and an SVG with several
+// thousand points is slow to parse for no visible gain.
+const TRACE_BUCKETS = 220;
+
+const TRACE_W = 640;
+const TRACE_H = 200;
+const TRACE_PAD_L = 44;
+const TRACE_PAD_R = 12;
+const TRACE_PAD_T = 12;
+const TRACE_PAD_B = 30;
+const TRACE_PLOT_W = TRACE_W - TRACE_PAD_L - TRACE_PAD_R;
+const TRACE_PLOT_H = TRACE_H - TRACE_PAD_T - TRACE_PAD_B;
+
+/**
+ * Splits a night's samples into the stretches the hamster was running.
+ *
+ * `gapMinutes` is the integration's own session gap, published as an
+ * attribute, so the number of segments here matches the session count
+ * printed on the bar. A shorter pause - a drink, a wash - does not start
+ * a new session and is simply compressed out of the axis; the coordinator
+ * treats it the same way.
+ */
+function _traceSegments(samples, gapMinutes) {
+  const gapMs = gapMinutes * 60 * 1000;
+  const segments = [];
+  let current = null;
+  let lastActiveAt = null;
+
+  for (const sample of samples) {
+    if (sample.speed < ACTIVE_SPEED_KMH) continue;
+    if (!current || sample.at - lastActiveAt > gapMs) {
+      current = { startedAt: sample.at, points: [] };
+      segments.push(current);
+    }
+    current.points.push(sample);
+    lastActiveAt = sample.at;
+  }
+  return segments.filter((seg) => seg.points.length > 1);
+}
+
+/**
+ * Lays the segments end to end on a running-time axis.
+ *
+ * Each point keeps its real timestamp for the tooltip-free labelling,
+ * but its x position is cumulative running time - the whole point of
+ * skipping the rest.
+ */
+function _traceColumns(segments) {
+  let elapsed = 0;
+  const columns = [];
+  const marks = [];
+
+  for (const segment of segments) {
+    marks.push({ at: elapsed, startedAt: segment.startedAt });
+    const first = segment.points[0].at;
+    for (const point of segment.points) {
+      columns.push({ x: elapsed + (point.at - first), speed: point.speed });
+    }
+    elapsed += segment.points[segment.points.length - 1].at - first;
+  }
+  return { columns, marks, total: elapsed };
+}
+
+/** Buckets to a drawable number of points, keeping each bucket's peak. */
+function _bucket(columns, total) {
+  if (!columns.length || total <= 0) return [];
+  const buckets = new Array(TRACE_BUCKETS).fill(null);
+  for (const column of columns) {
+    const i = Math.min(
+      TRACE_BUCKETS - 1,
+      Math.floor((column.x / total) * TRACE_BUCKETS)
+    );
+    // The peak, not the mean: a burst that lasted two seconds is the
+    // interesting part of a bucket covering a minute, and averaging it
+    // away is what makes downsampled traces look flatter than they were.
+    if (buckets[i] === null || column.speed > buckets[i]) buckets[i] = column.speed;
+  }
+  return buckets;
+}
 
 class HamsterRunningCard extends HTMLElement {
   setConfig(config) {
@@ -136,6 +249,23 @@ class HamsterRunningCard extends HTMLElement {
       });
 
       bindShareButton(this._root, () => this._sharePayload());
+
+      this._root.addEventListener("click", (ev) => {
+        if (ev.target.closest("[data-night-overlay]")) return;
+        const bar = ev.target.closest("[data-night]");
+        if (bar) this._openNightDialog(bar.dataset.night);
+      });
+      this._root.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape" && this._nightHost) {
+          this._closeNightDialog();
+          return;
+        }
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const bar = ev.target.closest("[data-night]");
+        if (!bar) return;
+        ev.preventDefault();
+        this._openNightDialog(bar.dataset.night);
+      });
     }
     this._render();
   }
@@ -158,6 +288,268 @@ class HamsterRunningCard extends HTMLElement {
       ENTITY_PATTERN.test(id)
     );
     return { entity: entity || "sensor.hamster_health_score" };
+  }
+
+  /** The window a night covers, as local Date objects. */
+  _nightWindow(dateIso, live) {
+    const [y, m, d] = dateIso.split("-").map(Number);
+    const start = new Date(y, m - 1, d, NIGHT_WINDOW_START_HOUR, 0, 0, 0);
+    const end = new Date(start.getTime() + 24 * 3600 * 1000);
+    // A window still running has no end yet - asking the recorder for
+    // the future is pointless, and "now" is what the user can see.
+    return { start, end: live ? new Date() : end };
+  }
+
+  _openNightDialog(dateIso) {
+    const night = this._nights(this._currentAttrs() || {}).find(
+      (n) => n.date === dateIso
+    );
+    if (!night) return;
+
+    this._closeNightDialog();
+    const host = document.createElement("div");
+    host.className = "hrc-night-overlay";
+    host.setAttribute("data-night-overlay", "");
+    host.innerHTML = `
+      <div class="hrc-night-sheet" role="dialog" aria-modal="true"
+           aria-label="${t(this._hass, "running.nightDetail")}">
+        <div class="hrc-night-head">
+          <div class="hrc-night-heading">
+            <span class="hrc-night-title">${t(this._hass, "running.nightDetail")}</span>
+            <span class="hrc-night-date">${
+              night.live
+                ? t(this._hass, "running.tonight")
+                : fmtDate(this._hass, dateIso)
+            }</span>
+          </div>
+          <button class="hrc-night-x" type="button" data-night-close
+                  aria-label="${t(this._hass, "share.close")}">&times;</button>
+        </div>
+        <div class="hrc-night-body">
+          <div class="hrc-night-note">${t(this._hass, "running.nightLoading")}</div>
+        </div>
+      </div>
+    `;
+    this._root.appendChild(host);
+    this._nightHost = host;
+
+    host.addEventListener("click", (ev) => {
+      if (ev.target === host || ev.target.closest("[data-night-close]")) {
+        this._closeNightDialog();
+      }
+    });
+
+    this._loadNightTrace(night);
+  }
+
+  _closeNightDialog() {
+    if (this._nightHost) {
+      this._nightHost.remove();
+      this._nightHost = null;
+    }
+  }
+
+  /**
+   * Fetches the night's speed trace from the recorder.
+   *
+   * Deliberately not stored by this integration: the coordinator already
+   * keeps a per-night summary, and holding a full second-by-second
+   * series as well would mean tens of thousands of samples per night in
+   * .storage for a view that gets opened now and then. The cost is that
+   * this only works where a speed sensor exists and the recorder is
+   * keeping it - both of which are said plainly rather than guessed at.
+   */
+  async _loadNightTrace(night) {
+    const body = this._nightHost && this._nightHost.querySelector(".hrc-night-body");
+    if (!body) return;
+
+    const speedEntity = siblingEntityId(
+      this._hass,
+      this._config.entity,
+      "current_speed"
+    );
+    if (!speedEntity) {
+      body.innerHTML = `<div class="hrc-night-note">${t(
+        this._hass,
+        "running.nightNoSpeedSensor"
+      )}</div>`;
+      return;
+    }
+    if (typeof this._hass.callWS !== "function") {
+      body.innerHTML = `<div class="hrc-night-note">${t(
+        this._hass,
+        "running.nightFailed"
+      )}</div>`;
+      return;
+    }
+
+    const { start, end } = this._nightWindow(night.date, night.live);
+    let samples = [];
+    try {
+      const result = await this._hass.callWS({
+        type: "history/history_during_period",
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        entity_ids: [speedEntity],
+        minimal_response: true,
+        no_attributes: true,
+        // The default drops "insignificant" changes, which for a speed
+        // sensor is most of the run.
+        significant_changes_only: false,
+      });
+      samples = (result[speedEntity] || [])
+        .map((row) => ({
+          // lu is epoch seconds; s is the state as a string.
+          at: Math.round((row.lu ?? row.last_updated ?? 0) * 1000),
+          speed: Number(row.s ?? row.state),
+        }))
+        .filter((row) => Number.isFinite(row.speed) && row.at > 0);
+    } catch (err) {
+      body.innerHTML = `<div class="hrc-night-note">${t(
+        this._hass,
+        "running.nightFailed"
+      )}</div>`;
+      // eslint-disable-next-line no-console
+      console.error("[hamster-fitness] night history failed", err);
+      return;
+    }
+
+    if (!this._nightHost) return; // closed while we were waiting
+    this._renderNightTrace(body, night, samples);
+  }
+
+  _renderNightTrace(body, night, samples) {
+    const gapMinutes =
+      _num((this._currentAttrs() || {}).session_gap_minutes) || 30;
+    const segments = _traceSegments(samples, gapMinutes);
+    if (!segments.length) {
+      body.innerHTML = `<div class="hrc-night-note">${t(
+        this._hass,
+        "running.nightNoRuns"
+      )}</div>`;
+      return;
+    }
+
+    const { columns, marks, total } = _traceColumns(segments);
+    const buckets = _bucket(columns, total);
+    const peak = Math.max(...buckets.filter((v) => v !== null), 0.5);
+    const runMinutes = Math.round(total / 60000);
+
+    body.innerHTML = `
+      ${this._traceChart(buckets, marks, total, peak)}
+      <div class="hrc-night-facts">
+        ${this._nightFact("running.nightRuns", String(segments.length))}
+        ${this._nightFact("running.nightRunTime", fmtDuration(this._hass, runMinutes))}
+        ${this._nightFact(
+          "running.nightPeak",
+          fmtNumber(this._hass, peak, 1, "km/h")
+        )}
+        ${this._nightFact(
+          "running.distance",
+          fmtNumber(this._hass, night.distance, 2, "km")
+        )}
+      </div>
+      <p class="hrc-night-hint">${t(this._hass, "running.nightAxisHint")}</p>
+    `;
+  }
+
+  _nightFact(labelKey, value) {
+    return `
+      <div class="hrc-night-fact">
+        <span class="hrc-night-fact-label">${t(this._hass, labelKey)}</span>
+        <span class="hrc-night-fact-value">${value}</span>
+      </div>
+    `;
+  }
+
+  /**
+   * The speed trace: one filled area over a running-time axis, with a
+   * divider wherever one session ended and the next began.
+   */
+  _traceChart(buckets, marks, total, peak) {
+    const step = TRACE_PLOT_W / TRACE_BUCKETS;
+    const floor = TRACE_PAD_T + TRACE_PLOT_H;
+    // Each unbroken run of buckets is its own closed subpath, dropped to
+    // the baseline at both ends. Leaving them open let the fill close
+    // itself straight back to the subpath's start, which drew a diagonal
+    // ramp across every gap - visible only once rendered.
+    let path = "";
+    let run = [];
+    const flush = () => {
+      if (run.length < 2) {
+        run = [];
+        return;
+      }
+      const first = run[0];
+      const last = run[run.length - 1];
+      path +=
+        `M${first.x.toFixed(1)},${floor.toFixed(1)} ` +
+        run.map((pt) => `L${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ") +
+        ` L${last.x.toFixed(1)},${floor.toFixed(1)} Z `;
+      run = [];
+    };
+    buckets.forEach((value, i) => {
+      if (value === null) {
+        flush();
+        return;
+      }
+      run.push({
+        x: TRACE_PAD_L + i * step,
+        y: floor - (value / peak) * TRACE_PLOT_H,
+      });
+    });
+    flush();
+
+    const dividers = marks
+      .slice(1)
+      .map((mark) => {
+        const x = TRACE_PAD_L + (mark.at / total) * TRACE_PLOT_W;
+        return `<line class="hrc-trace-split" x1="${x.toFixed(1)}" y1="${TRACE_PAD_T}"
+                      x2="${x.toFixed(1)}" y2="${TRACE_PAD_T + TRACE_PLOT_H}"/>`;
+      })
+      .join("");
+
+    // Each session labelled with the clock time it actually started -
+    // the axis itself is running time, so without this the trace could
+    // not be placed in the night at all.
+    const labels = marks
+      .map((mark, i) => {
+        const x = TRACE_PAD_L + (mark.at / total) * TRACE_PLOT_W;
+        const anchor = i === 0 ? "start" : "middle";
+        return `<text class="hrc-trace-time" x="${x.toFixed(1)}" y="${TRACE_H - 8}"
+                      text-anchor="${anchor}">${fmtTime(
+                        this._hass,
+                        new Date(mark.startedAt).toISOString()
+                      )}</text>`;
+      })
+      .join("");
+
+    const yTicks = [0, peak / 2, peak]
+      .map((value) => {
+        const y = TRACE_PAD_T + TRACE_PLOT_H - (value / peak) * TRACE_PLOT_H;
+        return `
+          <line class="hrc-trace-grid" x1="${TRACE_PAD_L}" y1="${y.toFixed(1)}"
+                x2="${TRACE_W - TRACE_PAD_R}" y2="${y.toFixed(1)}"/>
+          <text class="hrc-trace-ylabel" x="${TRACE_PAD_L - 6}" y="${(y + 3).toFixed(1)}"
+                text-anchor="end">${value.toFixed(1)}</text>`;
+      })
+      .join("");
+
+    return `
+      <svg class="hrc-trace" viewBox="0 0 ${TRACE_W} ${TRACE_H}" role="img"
+           aria-label="${t(this._hass, "running.nightDetail")}">
+        ${yTicks}
+        <path class="hrc-trace-area" d="${path}"/>
+        ${dividers}
+        ${labels}
+      </svg>
+    `;
+  }
+
+  /** The health-score attributes currently on screen, or null. */
+  _currentAttrs() {
+    const state = this._hass && this._hass.states[this._config.entity];
+    return state ? state.attributes || {} : null;
   }
 
   /**
@@ -297,7 +689,15 @@ class HamsterRunningCard extends HTMLElement {
         const label = night.live
           ? t(this._hass, "running.tonight")
           : fmtWeekday(this._hass, night.date);
+        // A generous invisible hit area: the bar itself can be a few
+        // pixels wide on a thin night, which is not something to ask
+        // anyone to hit with a thumb.
+        const hit = `<rect class="hrc-hit" x="${(x - slot / 2).toFixed(1)}" y="${PAD_TOP}"
+                width="${slot.toFixed(1)}" height="${PLOT_H}"
+                data-night="${night.date}" role="button" tabindex="0"
+                aria-label="${t(this._hass, "running.nightDetail")}"/>`;
         return `
+          ${hit}
           <rect class="hrc-bar${night.live ? " hrc-bar-live" : ""}"
                 x="${(x - width / 2).toFixed(1)}" y="${y.toFixed(1)}"
                 width="${width.toFixed(1)}" height="${Math.max(h, valid ? 1.5 : 0).toFixed(1)}"
@@ -655,6 +1055,13 @@ HamsterRunningCard.styles = `
     display: block;
     overflow: visible;
   }
+  .hrc-hit {
+    fill: transparent;
+    cursor: pointer;
+  }
+  .hrc-hit:focus-visible {
+    outline: 2px solid var(--primary-color, #03a9f4);
+  }
   .hrc-bar {
     fill: var(--hf-fur, #D48C46);
   }
@@ -703,6 +1110,120 @@ HamsterRunningCard.styles = `
   .hrc-sessions-live {
     fill: var(--hf-fur-dark, #8a5a24);
     stroke: var(--card-background-color, #fff);
+  }
+  .hrc-night-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .hrc-night-sheet {
+    width: 100%;
+    max-height: 100%;
+    overflow: auto;
+    padding: 12px 14px 14px;
+    border-radius: 16px;
+    background: var(--card-background-color, #fff);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .hrc-night-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .hrc-night-heading {
+    display: flex;
+    flex-direction: column;
+  }
+  .hrc-night-title {
+    font-size: 0.68em;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hrc-night-date {
+    font-size: 1.02em;
+    font-weight: 800;
+  }
+  .hrc-night-x {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    color: var(--secondary-text-color);
+    font-size: 1.4em;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .hrc-night-note {
+    padding: 18px 2px;
+    font-size: 0.84em;
+    line-height: 1.45;
+    color: var(--secondary-text-color);
+  }
+  .hrc-trace {
+    width: 100%;
+    height: auto;
+    max-height: 210px;
+    display: block;
+    margin-top: 8px;
+  }
+  .hrc-trace-area {
+    fill: rgba(78, 168, 222, 0.35);
+    stroke: #4EA8DE;
+    stroke-width: 1.4;
+    stroke-linejoin: round;
+  }
+  .hrc-trace-split {
+    stroke: var(--divider-color, #e0e0e0);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  .hrc-trace-grid {
+    stroke: var(--divider-color, #e0e0e0);
+    stroke-width: 1;
+    opacity: 0.5;
+  }
+  .hrc-trace-ylabel,
+  .hrc-trace-time {
+    fill: var(--secondary-text-color);
+    font-size: 11px;
+    font-family: inherit;
+  }
+  .hrc-night-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .hrc-night-fact {
+    flex: 1 1 96px;
+    display: flex;
+    flex-direction: column;
+    padding: 7px 9px;
+    border-radius: 10px;
+    background: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+  }
+  .hrc-night-fact-label {
+    font-size: 0.64em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--secondary-text-color);
+  }
+  .hrc-night-fact-value {
+    font-size: 0.98em;
+    font-weight: 800;
+  }
+  .hrc-night-hint {
+    margin: 10px 0 0;
+    font-size: 0.72em;
+    line-height: 1.4;
+    color: var(--secondary-text-color);
   }
   .hrc-rule-goal {
     stroke: #2a9d8f;
