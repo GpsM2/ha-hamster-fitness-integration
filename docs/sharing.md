@@ -39,6 +39,11 @@ conditions: the sun's elevation, your illuminance sensor if you have
 one, and your weather entity — so a picture made during a rainy night
 actually looks like one.
 
+The moon follows the real phase too, if you have configured a moon
+sensor — waxing on the right, waning on the left, a faint disc at new
+moon. Without one it stays the same crescent the Day & Night card has
+always drawn.
+
 Nothing is bundled for this. There are no background images in the
 repository, which is why installing and updating the integration stays
 small.

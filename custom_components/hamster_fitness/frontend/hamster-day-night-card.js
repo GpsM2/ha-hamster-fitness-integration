@@ -48,12 +48,14 @@ import {
   memoizedEditorSchema,
   renderCardHeader,
   siblingEntityId,
+  moonBody,
+  moonPhase,
   skyState,
   sunBelowHorizon,
   sunElevation,
   t,
   WEATHER_SCENES,
-} from "./hamster-fitness-shared.js?v=17";
+} from "./hamster-fitness-shared.js?v=18";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -74,30 +76,8 @@ const SPIN_BASE_MS = 2000;
 
 // WEATHER_SCENES moved to hamster-fitness-shared.js.
 
-/**
- * Home Assistant's eight moon-phase states (the built-in Moon
- * integration), as an illuminated fraction plus which limb is lit.
- *
- * `lit` is the fraction of the disc that is bright; `waxing` says whether
- * that bright part is on the right (growing towards full) or the left
- * (shrinking towards new). Both are what _moonPath() needs to draw the
- * terminator - the curved edge between light and shadow.
- *
- * Orientation is the northern-hemisphere one, matching the fixed crescent
- * this card has always drawn. Below the equator the moon appears mirrored;
- * Home Assistant's sensor doesn't report that, and guessing it from the
- * configured latitude is a separate question from reading the phase.
- */
-const MOON_PHASES = {
-  new_moon: { lit: 0, waxing: true },
-  waxing_crescent: { lit: 0.25, waxing: true },
-  first_quarter: { lit: 0.5, waxing: true },
-  waxing_gibbous: { lit: 0.75, waxing: true },
-  full_moon: { lit: 1, waxing: true },
-  waning_gibbous: { lit: 0.75, waxing: false },
-  last_quarter: { lit: 0.5, waxing: false },
-  waning_crescent: { lit: 0.25, waxing: false },
-};
+// MOON_PHASES moved to hamster-fitness-shared.js - the share image
+// draws the same phase.
 
 // Centre and radius of the moon disc, matched to the fixed crescent this
 // card has always drawn so every phase lands in exactly the same spot.
@@ -712,56 +692,17 @@ class HamsterDayNightCard extends HTMLElement {
    * default" rather than an error in the sky.
    */
   _moonPhase(healthScore) {
-    const entityId = healthScore.attributes.moon_entity;
-    if (!entityId) return null;
-    const state = this._hass.states[entityId];
-    if (!state) return null;
-    return MOON_PHASES[state.state] ? state.state : null;
-  }
-
-  /**
-   * The lit part of the moon as an SVG path.
-   *
-   * Two arcs: the outer limb (a half circle, on whichever side is lit),
-   * then the terminator back to the start. The terminator is an ellipse
-   * flattened by how full the moon is - at exactly half it collapses to a
-   * straight line, which is what makes a quarter moon a clean half disc.
-   *
-   * Only the bright part is ever drawn. Painting a shadow over a full disc
-   * would need it to match the sky behind it, which changes with the
-   * gradient, the weather overlay and the cage light.
-   */
-  _moonPath(lit, waxing) {
-    const top = `${MOON_CX} ${MOON_CY - MOON_R}`;
-    const bottom = `${MOON_CX} ${MOON_CY + MOON_R}`;
-    // Sweep 1 from top to bottom traces the right half, 0 the left.
-    const outerSweep = waxing ? 1 : 0;
-    // Below half the terminator curves towards the lit limb (a thin
-    // crescent); above half it bulges the other way (a fat gibbous).
-    const innerSweep = lit < 0.5 ? (waxing ? 0 : 1) : waxing ? 1 : 0;
-    const rx = (MOON_R * Math.abs(1 - 2 * lit)).toFixed(2);
-    return (
-      `M ${top}` +
-      ` A ${MOON_R} ${MOON_R} 0 1 ${outerSweep} ${bottom}` +
-      ` A ${rx} ${MOON_R} 0 1 ${innerSweep} ${top} Z`
-    );
+    return moonPhase(this._hass, healthScore);
   }
 
   /** The moon body for a phase, or the long-standing crescent as default. */
   _moonShape(phase) {
-    if (phase === null) {
-      return `<path d="M272 30 a17 17 0 1 0 0.6 0 a13 13 0 1 1 -0.6 0" fill="#F4E285" opacity="0.95"/>`;
-    }
-    const { lit, waxing } = MOON_PHASES[phase];
-    if (lit >= 1) {
-      return `<circle cx="${MOON_CX}" cy="${MOON_CY}" r="${MOON_R}" fill="#F4E285" opacity="0.95"/>`;
-    }
-    // New moon: earthshine only. Drawing nothing at all would read as a
-    // rendering failure rather than as the sky actually looking like that.
-    if (lit <= 0) {
-      return `<circle cx="${MOON_CX}" cy="${MOON_CY}" r="${MOON_R}" fill="#F4E285" opacity="0.13"/>`;
-    }
-    return `<path d="${this._moonPath(lit, waxing)}" fill="#F4E285" opacity="0.95"/>`;
+    // The crescent this card drew before it could read a real phase, and
+    // still the fallback whenever there is no moon sensor to read.
+    return (
+      moonBody(MOON_CX, MOON_CY, MOON_R, phase) ||
+      `<path d="M272 30 a17 17 0 1 0 0.6 0 a13 13 0 1 1 -0.6 0" fill="#F4E285" opacity="0.95"/>`
+    );
   }
 
   /**
@@ -952,11 +893,14 @@ class HamsterDayNightCard extends HTMLElement {
     // The phase is part of the key, so a moon that has moved on to the
     // next phase is redrawn - at most once a day, which is also why
     // rebuilding rather than patching the path is fine here.
-    const moonPhase = this._moonPhase(healthScore);
-    const decorKey = decorMode === "night" ? `night:${moonPhase}` : "day";
+    // Named `phase`, not `moonPhase`: that is the imported helper's name,
+    // and shadowing it here would work only for as long as nobody calls
+    // it from this method.
+    const phase = this._moonPhase(healthScore);
+    const decorKey = decorMode === "night" ? `night:${phase}` : "day";
     if (decorKey !== this._decorKey) {
       this._decorEl.innerHTML =
-        decorMode === "night" ? this._moonSvg(moonPhase) : this._sunSvg();
+        decorMode === "night" ? this._moonSvg(phase) : this._sunSvg();
       this._decorKey = decorKey;
       this._celestialEl = this._decorEl.querySelector(".hdn-celestial");
     }
