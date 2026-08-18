@@ -50,12 +50,17 @@ import {
   siblingEntityId,
   moonBody,
   moonPhase,
+  shade,
   skyState,
+  SHARE_CONTENT_H,
+  SHARE_CONTENT_W,
+  SHARE_CONTENT_X,
+  SHARE_CONTENT_Y,
   sunBelowHorizon,
   sunElevation,
   t,
   WEATHER_SCENES,
-} from "./hamster-fitness-shared.js?v=19";
+} from "./hamster-fitness-shared.js?v=20";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -415,13 +420,20 @@ class HamsterDayNightCard extends HTMLElement {
       deviceDisplayName(this._hass, this._config.entity) ||
       this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
     const speed = this._entity("current_speed");
+    const fur = coatColor(state);
+
+    const nightActive = this._entity("night_active_duration");
+    const activeMinutes = nightActive ? Number(nightActive.state) : 0;
+    const isActive = Number.isFinite(activeMinutes) && activeMinutes > 0;
 
     return {
       hass: this._hass,
       entity: this._config.entity,
       title: name,
       subtitle: t(this._hass, "dayNight.subtitle"),
-      fur: coatColor(state),
+      fur,
+      content: this._shareContent(fur, isActive),
+      contentStyles: `.hdn-zzz { opacity: 0.9; animation: none; }`,
       stats: [
         {
           key: "night",
@@ -603,9 +615,13 @@ class HamsterDayNightCard extends HTMLElement {
     return STATUS_ONLINE;
   }
 
-  _wheelScene() {
+  /**
+   * The wheel scene's markup, without the wrapping `<svg>` - shared
+   * between the card's own DOM and the share image, which places this
+   * same content in its own viewport rather than the card's.
+   */
+  _wheelSceneInner() {
     return `
-      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
         <ellipse cx="110" cy="188" rx="78" ry="7" fill="rgba(0,0,0,0.18)"/>
         <g class="hdn-wheel-stand" stroke="#9AA3AD" stroke-width="6" stroke-linecap="round" fill="none">
           <path d="M40 186 L110 130 L180 186"/>
@@ -633,13 +649,20 @@ class HamsterDayNightCard extends HTMLElement {
           <ellipse cx="149" cy="134" rx="4.5" ry="3.5" fill="#f4d9c6"/>
           <path d="M80 142 q-12 4 -18 12" fill="none" stroke="var(--hf-fur-dark)" stroke-width="4" stroke-linecap="round"/>
         </g>
+    `;
+  }
+
+  _wheelScene() {
+    return `
+      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
+        ${this._wheelSceneInner()}
       </svg>
     `;
   }
 
-  _restScene() {
+  /** The rest scene's markup, without the wrapping `<svg>` - see _wheelSceneInner(). */
+  _restSceneInner() {
     return `
-      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
         <g opacity="0.28" stroke="#AEB6BF" fill="none">
           <circle cx="176" cy="70" r="36" stroke-width="6"/>
           <line x1="176" y1="34" x2="176" y2="106" stroke-width="3"/>
@@ -665,7 +688,39 @@ class HamsterDayNightCard extends HTMLElement {
           <path d="M58 136 q5 4 10 0" fill="none" stroke="#3a2a1a" stroke-width="2.4" stroke-linecap="round"/>
           <ellipse cx="79" cy="143" rx="5" ry="4" fill="#f4d9c6"/>
         </g>
+    `;
+  }
+
+  _restScene() {
+    return `
+      <svg class="hdn-scene-svg" viewBox="0 0 220 200" aria-hidden="true">
+        ${this._restSceneInner()}
       </svg>
+    `;
+  }
+
+  /**
+   * The share image's illustration: the same wheel/rest scene the card
+   * itself draws, scaled into the shared content box and with its fur
+   * colours applied inline rather than via CSS custom properties - the
+   * share SVG is rasterized through an <img>, a separate document from
+   * the card's own DOM, so it cannot inherit --hf-fur set on .hdn-root.
+   * The "Z"s get an explicit opacity override since their animation
+   * (and therefore its 15%-80% visible window) never runs for a still
+   * image - without it they would render at their 0% keyframe, invisible.
+   */
+  _shareContent(fur, isActive) {
+    const light = shade(fur, 0.18);
+    const dark = shade(fur, -0.4);
+    const belly = shade(fur, 0.62);
+    const scale = Math.min(SHARE_CONTENT_W / 220, SHARE_CONTENT_H / 200);
+    const x = SHARE_CONTENT_X + (SHARE_CONTENT_W - 220 * scale) / 2;
+    const y = SHARE_CONTENT_Y + (SHARE_CONTENT_H - 200 * scale) / 2;
+    return `
+      <g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(3)})"
+         style="--hf-fur: ${fur}; --hf-fur-light: ${light}; --hf-fur-dark: ${dark}; --hf-belly: ${belly};">
+        ${isActive ? this._wheelSceneInner() : this._restSceneInner()}
+      </g>
     `;
   }
 

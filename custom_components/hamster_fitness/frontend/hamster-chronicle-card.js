@@ -31,9 +31,15 @@ import {
   DEFAULT_FUR,
   HEADER_STYLES,
   daysBetween,
+  escapeXml,
   fmtDate,
   fmtNumber,
+  hamsterSilhouette,
   bindShareButton,
+  SHARE_CONTENT_H,
+  SHARE_CONTENT_W,
+  SHARE_CONTENT_X,
+  SHARE_CONTENT_Y,
   SHARE_STYLES,
   shareFilename,
   isHamsterFitnessEntity,
@@ -44,7 +50,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=19";
+} from "./hamster-fitness-shared.js?v=20";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -642,6 +648,51 @@ class HamsterChronicleCard extends HTMLElement {
     }
   }
 
+  /** "MM/YYYY", the granularity the share roster uses - a day is more
+   * precision than a household overview needs, and it keeps every row
+   * the same width regardless of language. */
+  _fmtMonthYear(isoString) {
+    if (!isoString) return null;
+    const parsed = new Date(isoString);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return `${String(parsed.getMonth() + 1).padStart(2, "0")}/${parsed.getFullYear()}`;
+  }
+
+  /**
+   * The share image's illustration: a roster of every hamster - name,
+   * a silhouette in its own coat colour, and its MM/YYYY-MM/YYYY span -
+   * rather than just a headcount. Capped at six rows for the same reason
+   * the ranking leaderboard is: past that it stops being a glance.
+   */
+  _shareContent(rows) {
+    const shown = rows.slice(0, 6);
+    const rowH = SHARE_CONTENT_H / shown.length;
+    const r = Math.min(32, rowH * 0.32);
+    return shown
+      .map((row, i) => {
+        const y = SHARE_CONTENT_Y + i * rowH;
+        const cy = y + rowH / 2;
+        const cx = SHARE_CONTENT_X + 40 + r;
+        const from = this._fmtMonthYear(row.acquisitionDate);
+        const until = row.departureDate
+          ? this._fmtMonthYear(row.departureDate)
+          : t(this._hass, "chronicle.present");
+        const span = from ? `${from} – ${until}` : t(this._hass, "chronicle.unknownPeriod");
+        const divider =
+          i < shown.length - 1
+            ? `<line x1="${SHARE_CONTENT_X}" y1="${(y + rowH).toFixed(1)}" x2="${SHARE_CONTENT_X + SHARE_CONTENT_W}" y2="${(y + rowH).toFixed(1)}" stroke="#ffffff" opacity="0.14"/>`
+            : "";
+        return `
+          <g opacity="${row.departureDate ? 0.72 : 1}">
+            ${hamsterSilhouette(cx, cy, r, row.coatHex)}
+            <text x="${(cx + r + 26).toFixed(1)}" y="${(cy - 8).toFixed(1)}" class="roster-name">${escapeXml(row.name)}</text>
+            <text x="${(cx + r + 26).toFixed(1)}" y="${(cy + 26).toFixed(1)}" class="roster-dates">${escapeXml(span)}</text>
+          </g>
+          ${divider}`;
+      })
+      .join("");
+  }
+
   /**
    * What the chronicle offers the share image.
    *
@@ -651,7 +702,13 @@ class HamsterChronicleCard extends HTMLElement {
    */
   _sharePayload() {
     const live = this._liveHamsters();
-    const rows = [...live, ...this._archivedHamsters(new Set(live.map((r) => r.name)))];
+    const liveNames = new Set(live.map((r) => r.name));
+    const rows = [...live, ...this._archivedHamsters(liveNames)].sort((a, b) => {
+      // Same order as the card's own list: current hamsters first, then
+      // by move-in date, newest first.
+      if (!!a.departureDate !== !!b.departureDate) return a.departureDate ? 1 : -1;
+      return String(b.acquisitionDate || "").localeCompare(String(a.acquisitionDate || ""));
+    });
     if (!rows.length) return null;
     const departed = rows.filter((row) => row.departureDate).length;
 
@@ -661,6 +718,11 @@ class HamsterChronicleCard extends HTMLElement {
       title: t(this._hass, "share.allHamsters"),
       subtitle: t(this._hass, "chronicle.subtitle"),
       fur: DEFAULT_FUR,
+      content: this._shareContent(rows),
+      contentStyles: `
+        .roster-name { font-size: 34px; font-weight: 700; }
+        .roster-dates { font-size: 24px; font-weight: 600; opacity: 0.75; }
+      `,
       stats: [
         {
           key: "hamsters",

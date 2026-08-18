@@ -40,13 +40,18 @@ import {
   healthScoreEntityFor,
   healthScoreEntitySelector,
   bindShareButton,
+  shade,
+  SHARE_CONTENT_H,
+  SHARE_CONTENT_W,
+  SHARE_CONTENT_X,
+  SHARE_CONTENT_Y,
   SHARE_STYLES,
   shareFilename,
   memoizedEditorSchema,
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=19";
+} from "./hamster-fitness-shared.js?v=20";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 
@@ -600,12 +605,37 @@ class HamsterRunningCard extends HTMLElement {
       });
     }
 
+    const fur = coatColor(state);
+    const goal = _num(attrs.min_distance_km) || 0;
+
     return {
       hass: this._hass,
       entity: this._config.entity,
       title: name,
       subtitle: t(this._hass, "running.subtitle"),
-      fur: coatColor(state),
+      fur,
+      content: nights.length ? this._shareContent(fur, nights, goal) : null,
+      // The chart styles itself entirely through the card's own <style>
+      // block (HamsterRunningCard.styles), which the share SVG - a
+      // standalone document rasterized through an <img> - never sees.
+      // Every rule the embedded markup depends on has to be repeated
+      // here, not just the ones with no var() fallback - without
+      // .hrc-hit, for instance, its rect has no CSS at all in this
+      // document and falls back to SVG's own default fill: solid black,
+      // covering every bar with an opaque box.
+      contentStyles: `
+        .hrc-hit { fill: transparent; }
+        .hrc-bar { fill: var(--hf-fur, #D48C46); }
+        .hrc-bar-live { fill: transparent; stroke: var(--hf-fur, #D48C46); stroke-width: 1.5; stroke-dasharray: 3 2; }
+        .hrc-ylabel, .hrc-xlabel { fill: #ffffff; opacity: 0.85; font-size: 9px; }
+        .hrc-xlabel-live { font-weight: 700; fill: #ffffff; }
+        .hrc-grid { stroke: #ffffff; stroke-width: 1; opacity: 0.22; }
+        .hrc-sessions { fill: #ffffff; font-size: 9px; font-weight: 700; stroke: var(--hf-fur, #D48C46); stroke-width: 2.5; paint-order: stroke; }
+        .hrc-sessions-live { fill: var(--hf-fur-dark, #8a5a24); stroke: #ffffff; }
+        .hrc-rule-goal { stroke: #2a9d8f; stroke-width: 1.5; stroke-dasharray: 5 3; }
+        .hrc-rule-avg { stroke: #ffffff; stroke-width: 1.2; stroke-dasharray: 2 3; opacity: 0.8; }
+        .hrc-overlay { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      `,
       stats,
       filename: shareFilename(name, "running"),
     };
@@ -826,7 +856,12 @@ class HamsterRunningCard extends HTMLElement {
       .join("");
   }
 
-  _chart(nights, goal) {
+  /**
+   * The chart's markup, without the wrapping `<svg>` - shared between
+   * the card's own DOM and the share image, which places this same
+   * content in its own viewport rather than the card's.
+   */
+  _chartInner(nights, goal) {
     const max = this._distanceMax(nights, goal);
     const average =
       nights.reduce((sum, n) => sum + (Number.isFinite(n.distance) ? n.distance : 0), 0) /
@@ -838,15 +873,42 @@ class HamsterRunningCard extends HTMLElement {
       .join("");
 
     return `
-      <svg class="hrc-chart" viewBox="0 0 ${CHART_W} ${CHART_H}" role="img"
-           aria-label="${t(this._hass, "running.distance")}">
         ${this._yAxis(max)}
         ${this._bars(nights, max)}
         ${this._rule(average, max, "hrc-rule-avg")}
         ${this._rule(goal, max, "hrc-rule-goal")}
         ${lines}
         ${this._sessionLabels(nights, max)}
+    `;
+  }
+
+  _chart(nights, goal) {
+    return `
+      <svg class="hrc-chart" viewBox="0 0 ${CHART_W} ${CHART_H}" role="img"
+           aria-label="${t(this._hass, "running.distance")}">
+        ${this._chartInner(nights, goal)}
       </svg>
+    `;
+  }
+
+  /**
+   * The share image's illustration: the same weekly bar chart the card
+   * itself draws, scaled into the shared content box. Fur colours and
+   * the text/rule colours that lean on HA theme variables (no fallback,
+   * because the live card always has a theme to read) go in inline -
+   * the share SVG is rasterized through an <img>, a standalone document
+   * with no theme to inherit from.
+   */
+  _shareContent(fur, nights, goal) {
+    const dark = shade(fur, -0.4);
+    const scale = Math.min(SHARE_CONTENT_W / CHART_W, SHARE_CONTENT_H / CHART_H);
+    const x = SHARE_CONTENT_X + (SHARE_CONTENT_W - CHART_W * scale) / 2;
+    const y = SHARE_CONTENT_Y + (SHARE_CONTENT_H - CHART_H * scale) / 2;
+    return `
+      <g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(3)})"
+         style="--hf-fur: ${fur}; --hf-fur-dark: ${dark};">
+        ${this._chartInner(nights, goal)}
+      </g>
     `;
   }
 

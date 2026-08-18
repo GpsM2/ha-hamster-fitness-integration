@@ -75,7 +75,7 @@ const STRINGS = {
     "share.subtitleFamily": "Hamster Fitness",
 
     // Day & Night card
-    "dayNight.subtitle": "Day &amp; Night",
+    "dayNight.subtitle": "Day & Night",
     "dayNight.runningFor": "Running for",
     "dayNight.restingFor": "Resting for",
     "dayNight.speed": "Speed",
@@ -246,6 +246,7 @@ const STRINGS = {
     "chronicle.count": "{count} hamster",
     "chronicle.count_plural": "{count} hamsters",
     "chronicle.since": "since {date}",
+    "chronicle.present": "today",
     "chronicle.unknownPeriod": "Period unknown",
     "chronicle.movedOut": "moved out",
     "chronicle.archived": "Archive",
@@ -341,6 +342,7 @@ const STRINGS = {
     "share.statClimate": "Klima",
     "share.subtitleFamily": "Hamster Fitness",
 
+    "dayNight.subtitle": "Tag & Nacht",
     "dayNight.runningFor": "Läuft seit",
     "dayNight.restingFor": "Ruht seit",
     "dayNight.speed": "Geschwindigkeit",
@@ -502,6 +504,7 @@ const STRINGS = {
     "chronicle.count": "{count} Hamster",
     "chronicle.count_plural": "{count} Hamster",
     "chronicle.since": "seit {date}",
+    "chronicle.present": "heute",
     "chronicle.unknownPeriod": "Zeitraum unbekannt",
     "chronicle.movedOut": "ausgezogen",
     "chronicle.archived": "Archiv",
@@ -818,6 +821,40 @@ export function moonBody(cx, cy, r, phase, fill = "#F4E285") {
     return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" opacity="0.13"/>`;
   }
   return `<path d="${moonPath(cx, cy, r, lit, waxing)}" fill="${fill}" opacity="0.95"/>`;
+}
+
+/**
+ * A small hamster silhouette, tinted to one hamster's own coat colour.
+ *
+ * Geometry lifted from the chronicle card's row icon (HAMSTER_MARK,
+ * viewBox 0 0 48 48) rather than redrawn, and now the one copy both the
+ * chronicle/ranking rows and the share image's rosters draw from -
+ * exactly the "one source, not two illustrations to keep in sync"
+ * lesson from #118. `cx`/`cy` are the centre of the drawing, `r` is its
+ * rough visual radius (the silhouette is about 1.5x as wide as `r`).
+ */
+export function hamsterSilhouette(cx, cy, r, furHex) {
+  const fur = furHex || DEFAULT_FUR;
+  const light = shade(fur, 0.18);
+  const dark = shade(fur, -0.4);
+  // The source art is drawn on a 48x48 box centred near (24, 22); scale
+  // and recentre it onto the requested circle.
+  const scale = (r * 1.5) / 24;
+  const x = cx - 24 * scale;
+  const y = cy - 22 * scale;
+  return `
+    <g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(3)})">
+      <ellipse cx="24" cy="30" rx="14" ry="11" fill="${fur}" stroke="${dark}" stroke-width="1.2"/>
+      <ellipse cx="15" cy="34" rx="4" ry="2.8" fill="${fur}" stroke="${dark}" stroke-width="1"/>
+      <ellipse cx="33" cy="34" rx="4" ry="2.8" fill="${fur}" stroke="${dark}" stroke-width="1"/>
+      <circle cx="24" cy="17" r="9.5" fill="${light}" stroke="${dark}" stroke-width="1.2"/>
+      <circle cx="17" cy="10" r="2.8" fill="${fur}" stroke="${dark}" stroke-width="1"/>
+      <circle cx="31" cy="10" r="2.8" fill="${fur}" stroke="${dark}" stroke-width="1"/>
+      <circle cx="20" cy="16" r="1.4" fill="#3a2a1a"/>
+      <circle cx="28" cy="16" r="1.4" fill="#3a2a1a"/>
+      <ellipse cx="24" cy="20" rx="2.2" ry="1.6" fill="#f4d9c6"/>
+    </g>
+  `;
 }
 
 function hexToRgb(hex) {
@@ -1159,6 +1196,15 @@ export function deviceDisplayName(hass, entityId) {
 const SHARE_W = 1080;
 const SHARE_H = 1350;
 
+// The box every card's own illustration renders into, between the
+// title block above and the footer below. Exported so a card's content
+// builder can centre and scale its own artwork into this exact box
+// instead of guessing at numbers that live only here.
+export const SHARE_CONTENT_X = 100;
+export const SHARE_CONTENT_Y = 590;
+export const SHARE_CONTENT_W = 880;
+export const SHARE_CONTENT_H = 490;
+
 // Only fonts a rasterizer can be expected to resolve on its own. Text
 // inside an <img>-loaded SVG cannot reach the page's stylesheets or any
 // webfont loaded there, so a custom family would silently fall back to
@@ -1366,7 +1412,17 @@ function _shareCelestial(night, rand, phase) {
  * Returns SVG source; rasterizing is a separate step, so the composition
  * can be inspected and tested on its own.
  */
-export function buildShareSvg({ title, subtitle, stats, footer, fur, sky, moon = null }) {
+export function buildShareSvg({
+  title,
+  subtitle,
+  stats = [],
+  footer,
+  fur,
+  sky,
+  moon = null,
+  content = null,
+  contentStyles = "",
+}) {
   const rand = _seeded(
     [...String(title || "hamster")].reduce((a, c) => a + c.charCodeAt(0), 7)
   );
@@ -1374,25 +1430,34 @@ export function buildShareSvg({ title, subtitle, stats, footer, fur, sky, moon =
   const from = (sky && sky.from) || NIGHT_GRADIENT[0];
   const to = (sky && sky.to) || NIGHT_GRADIENT[1];
 
-  // Two columns once there are more than three, so a long selection does
-  // not run off the bottom of a fixed-height canvas.
-  const twoCol = stats.length > 3;
-  const cellW = twoCol ? 430 : 880;
-  const startY = 700;
-  const rowH = twoCol ? 168 : 150;
+  // With a card-specific illustration, that illustration is the point -
+  // "which values to show" stays available, but as a single row of
+  // compact chips under the artwork rather than the full tile grid the
+  // card used to be reduced to. Capped at four: a fifth chip would
+  // either overflow the row or need wrapping logic not worth the
+  // complexity for a strip that is supplementary to begin with.
+  const compact = content !== null;
+  const shown = compact ? stats.slice(0, 4) : stats;
+  const twoCol = !compact && stats.length > 3;
+  const cellW = compact ? (SHARE_CONTENT_W - (shown.length - 1) * 20) / Math.max(shown.length, 1) : twoCol ? 430 : 880;
+  const startY = compact ? SHARE_CONTENT_Y + SHARE_CONTENT_H + 40 : 700;
+  const rowH = compact ? 150 : twoCol ? 168 : 150;
 
-  const cells = stats
+  const labelClass = compact ? "s-label-sm" : "s-label";
+  const valueClass = compact ? "s-value-sm" : "s-value";
+  const cells = shown
     .map((stat, i) => {
-      const col = twoCol ? i % 2 : 0;
-      const row = twoCol ? Math.floor(i / 2) : i;
-      const x = 100 + col * (cellW + 20);
+      const col = compact ? i : twoCol ? i % 2 : 0;
+      const row = compact ? 0 : twoCol ? Math.floor(i / 2) : i;
+      const x = SHARE_CONTENT_X + col * (cellW + 20);
       const y = startY + row * rowH;
+      const valueY = compact ? y + 98 : y + 112;
       return `
         <g>
           <rect x="${x}" y="${y}" width="${cellW}" height="${rowH - 18}" rx="26"
                 fill="#ffffff" opacity="0.12"/>
-          <text x="${x + 34}" y="${y + 52}" class="s-label">${escapeXml(stat.label)}</text>
-          <text x="${x + 34}" y="${y + 112}" class="s-value">${escapeXml(stat.value)}</text>
+          <text x="${x + 24}" y="${y + 44}" class="${labelClass}">${escapeXml(stat.label)}</text>
+          <text x="${x + 24}" y="${valueY}" class="${valueClass}">${escapeXml(stat.value)}</text>
         </g>`;
     })
     .join("");
@@ -1415,7 +1480,10 @@ export function buildShareSvg({ title, subtitle, stats, footer, fur, sky, moon =
     .s-sub { font-size: 34px; font-weight: 600; letter-spacing: 7px; opacity: 0.85; }
     .s-label { font-size: 27px; font-weight: 700; letter-spacing: 3px; opacity: 0.8; }
     .s-value { font-size: 62px; font-weight: 800; }
+    .s-label-sm { font-size: 20px; font-weight: 700; letter-spacing: 1.5px; opacity: 0.8; }
+    .s-value-sm { font-size: 38px; font-weight: 800; }
     .s-foot { font-size: 28px; font-weight: 600; opacity: 0.75; }
+    ${contentStyles}
   </style>
 
   <rect width="${SHARE_W}" height="${SHARE_H}" fill="url(#sky)"/>
@@ -1429,6 +1497,7 @@ export function buildShareSvg({ title, subtitle, stats, footer, fur, sky, moon =
     <text x="46" y="62" class="s-sub">${escapeXml(String(subtitle).toUpperCase())}</text>
   </g>
 
+  ${content || ""}
   ${cells}
 
   <text x="100" y="${SHARE_H - 70}" class="s-foot">${escapeXml(footer)}</text>
@@ -1600,6 +1669,8 @@ export function openShareDialog(root, payload) {
         fur: payload.fur,
         sky: skyState(hass, scoreState),
         moon: moonPhase(hass, scoreState),
+        content: payload.content || null,
+        contentStyles: payload.contentStyles || "",
       });
       const blob = await rasterizeSvg(svg);
       const how = await deliverShareImage(blob, `${payload.filename}.png`);

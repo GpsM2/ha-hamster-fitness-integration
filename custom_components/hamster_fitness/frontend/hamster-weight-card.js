@@ -43,9 +43,14 @@ import {
   healthScoreEntitySelector,
   memoizedEditorSchema,
   renderCardHeader,
+  shade,
+  SHARE_CONTENT_H,
+  SHARE_CONTENT_W,
+  SHARE_CONTENT_X,
+  SHARE_CONTENT_Y,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=19";
+} from "./hamster-fitness-shared.js?v=20";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -187,13 +192,36 @@ class HamsterWeightCard extends HTMLElement {
       this._config.title ||
       deviceDisplayName(this._hass, this._config.entity) ||
       this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+    const fur = coatColor(state);
+
+    const weight = this._entity("weight");
+    const grams = weight ? Number(weight.state) : NaN;
+    const hasWeight = !Number.isNaN(grams) && weight && weight.state !== "unknown";
+    const limits = this._limits(state);
+    const status = hasWeight ? attrs.weight_status : null;
 
     return {
       hass: this._hass,
       entity: this._config.entity,
       title: name,
       subtitle: t(this._hass, "weight.subtitle"),
-      fur: coatColor(state),
+      fur,
+      content: this._shareContent(fur, grams, hasWeight, limits, status),
+      // The dial illustration styles itself entirely through the card's
+      // own <style> block (HamsterWeightCard.styles), which the share
+      // SVG - a standalone document rasterized through an <img> - never
+      // sees. Every rule the embedded markup depends on for colour has
+      // to be repeated here, not just the ones with no var() fallback.
+      contentStyles: `
+        .hwc-empty-pan { fill: #ffffff; opacity: 0.75; }
+        .hwc-tick-label { font-size: 11px; font-weight: 700; fill: #5c4a3a; }
+        .hwc-zone { fill: none; stroke-width: 7; stroke-linecap: butt; opacity: 0.75; }
+        .hwc-zone-low { stroke: #4EA8DE; }
+        .hwc-zone-ok { stroke: #4caf50; }
+        .hwc-zone-high { stroke: #e45c5c; }
+        .hwc-dial-value { font-size: 30px; font-weight: 900; fill: #212121; }
+        .hwc-dial-unit { font-size: 13px; font-weight: 700; fill: #8A929A; }
+      `,
       stats: [
         {
           key: "weight",
@@ -335,7 +363,12 @@ class HamsterWeightCard extends HTMLElement {
    * mechanism does, and it keeps the current number upright at the top
    * instead of upside down at the bottom of a sweep.
    */
-  _scene(grams, hasWeight, limits, status) {
+  /**
+   * The dial scene's markup, without the wrapping `<svg>` - shared
+   * between the card's own DOM and the share image, which places this
+   * same content in its own viewport rather than the card's.
+   */
+  _sceneInner(grams, hasWeight, limits, status) {
     const max = limits.max;
     const rotation = hasWeight ? -this._angle(grams, max) : 0;
 
@@ -377,7 +410,6 @@ class HamsterWeightCard extends HTMLElement {
                 class="hwc-zone hwc-zone-high"/>`;
 
     return `
-      <svg class="hwc-svg" viewBox="0 0 300 330" aria-hidden="true">
         <!-- pan on top, hamster sitting in it -->
         <ellipse cx="150" cy="46" rx="88" ry="17" fill="#c9ccd1" stroke="#8A929A" stroke-width="2"/>
         <path d="M62 46 a88 17 0 0 0 176 0 a88 26 0 0 1 -176 0 Z" fill="#b6babf"/>
@@ -428,7 +460,36 @@ class HamsterWeightCard extends HTMLElement {
         <!-- fixed marker at the top of the dial -->
         <path d="M${DIAL_CX - 8} ${DIAL_CY - DIAL_R - 10} L${DIAL_CX + 8} ${DIAL_CY - DIAL_R - 10} L${DIAL_CX} ${DIAL_CY - DIAL_R + 6} Z"
               fill="#c0392b" stroke="#7d2519" stroke-width="1.5"/>
+    `;
+  }
+
+  _scene(grams, hasWeight, limits, status) {
+    return `
+      <svg class="hwc-svg" viewBox="0 0 300 330" aria-hidden="true">
+        ${this._sceneInner(grams, hasWeight, limits, status)}
       </svg>
+    `;
+  }
+
+  /**
+   * The share image's illustration: the same scale dial the card itself
+   * draws, scaled into the shared content box. Fur colours go in inline
+   * rather than via the --hf-fur custom properties applyFur() sets on
+   * the card's own root - the share SVG is rasterized through an <img>,
+   * a separate document that never sees that root.
+   */
+  _shareContent(fur, grams, hasWeight, limits, status) {
+    const light = shade(fur, 0.18);
+    const dark = shade(fur, -0.4);
+    const belly = shade(fur, 0.62);
+    const scale = Math.min(SHARE_CONTENT_W / 300, SHARE_CONTENT_H / 330);
+    const x = SHARE_CONTENT_X + (SHARE_CONTENT_W - 300 * scale) / 2;
+    const y = SHARE_CONTENT_Y + (SHARE_CONTENT_H - 330 * scale) / 2;
+    return `
+      <g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(3)})"
+         style="--hf-fur: ${fur}; --hf-fur-light: ${light}; --hf-fur-dark: ${dark}; --hf-belly: ${belly};">
+        ${this._sceneInner(grams, hasWeight, limits, status)}
+      </g>
     `;
   }
 
