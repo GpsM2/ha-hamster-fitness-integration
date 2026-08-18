@@ -50,10 +50,16 @@ import {
   coatColor,
   daysBetween,
   deviceDisplayName,
+  escapeXml,
   fmtNumber,
   fmtWeekday,
+  hamsterSilhouette,
   healthScoreEntityFor,
   bindShareButton,
+  SHARE_CONTENT_H,
+  SHARE_CONTENT_W,
+  SHARE_CONTENT_X,
+  SHARE_CONTENT_Y,
   SHARE_STYLES,
   shareFilename,
   healthScoreEntitySelector,
@@ -64,7 +70,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=19";
+} from "./hamster-fitness-shared.js?v=20";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -273,6 +279,68 @@ class HamsterFitnessCard extends HTMLElement {
   }
 
   /**
+   * The share image's illustration: the same score ring the card itself
+   * draws (rebuilt here as plain SVG rather than reusing _ring(), which
+   * returns an HTML <div> that a share SVG cannot embed - the formula is
+   * the one trivial thing worth duplicating rather than threading a
+   * second HTML-vs-SVG code path through _ring() itself) plus a mini
+   * bar version of the 7-day trend, since a share image of "just a
+   * number" tells a follower nothing a trend doesn't say better.
+   */
+  _shareContent(score, attrs) {
+    const valid = score !== null && !Number.isNaN(score);
+    const color = scoreColor(valid ? score : null);
+    const cx = SHARE_CONTENT_X + 195;
+    const cy = SHARE_CONTENT_Y + SHARE_CONTENT_H / 2;
+    const r = 150;
+    const sw = 24;
+    const circumference = 2 * Math.PI * r;
+    const pct = valid ? Math.min(Math.max(score, 0), 100) / 100 : 0;
+    const offset = circumference * (1 - pct);
+
+    const ring = `
+      <g>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${valid ? color : "#888888"}" stroke-width="${sw}"
+                stroke-linecap="round" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+                transform="rotate(-90 ${cx} ${cy})"/>
+        <text x="${cx}" y="${cy - 4}" text-anchor="middle" class="ring-value">${valid ? Math.round(score) : "–"}</text>
+        <text x="${cx}" y="${cy + 42}" text-anchor="middle" class="ring-unit">%</text>
+      </g>
+    `;
+
+    const history = attrs.score_history || [];
+    if (!history.length) return ring;
+
+    const trendX = SHARE_CONTENT_X + 460;
+    const trendW = SHARE_CONTENT_W - 460;
+    const trendY = SHARE_CONTENT_Y + 50;
+    const trendH = 330;
+    const barW = trendW / history.length;
+    const bars = history
+      .map((item, i) => {
+        const value = Number(item.score);
+        const barValid = !Number.isNaN(value);
+        const h = barValid ? Math.max(6, (Math.min(100, Math.max(0, value)) / 100) * trendH) : 6;
+        const x = trendX + i * barW + barW * 0.2;
+        const w = barW * 0.6;
+        const y = trendY + trendH - h;
+        return `
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4"
+                fill="${scoreColor(barValid ? value : null)}"/>
+          <text x="${(x + w / 2).toFixed(1)}" y="${(trendY + trendH + 28).toFixed(1)}"
+                text-anchor="middle" class="trend-label">${escapeXml(fmtWeekday(this._hass, item.date))}</text>`;
+      })
+      .join("");
+
+    return `
+      ${ring}
+      <text x="${trendX}" y="${(trendY - 16).toFixed(1)}" class="trend-title">${escapeXml(t(this._hass, "health.trend"))}</text>
+      ${bars}
+    `;
+  }
+
+  /**
    * What this card offers the share image.
    *
    * The demo-data preview deliberately offers nothing: an image of
@@ -286,6 +354,7 @@ class HamsterFitnessCard extends HTMLElement {
       this._config.title ||
       deviceDisplayName(this._hass, this._config.entity) ||
       this._capitalize(this._config.entity.match(ENTITY_PATTERN)[1]);
+    const score = Number(state.state);
 
     const stats = [
       {
@@ -324,6 +393,13 @@ class HamsterFitnessCard extends HTMLElement {
       title: name,
       subtitle: t(this._hass, "health.fallbackSubtitle"),
       fur: coatColor(state),
+      content: this._shareContent(score, attrs),
+      contentStyles: `
+        .ring-value { font-size: 92px; font-weight: 900; }
+        .ring-unit { font-size: 32px; font-weight: 700; opacity: 0.8; }
+        .trend-title { font-size: 26px; font-weight: 700; opacity: 0.85; }
+        .trend-label { font-size: 18px; font-weight: 600; opacity: 0.75; }
+      `,
       stats,
       filename: shareFilename(name, "health"),
     };
@@ -1370,6 +1446,37 @@ class HamsterFitnessRankingCard extends HTMLElement {
    * sky has no single health-score entity to read, so it falls back to
    * the plain sun/weather-free gradient.
    */
+  /**
+   * The leaderboard for the share image: rank, silhouette, name and
+   * lifetime distance for the top hamsters. Capped at six rows - past
+   * that a share image stops being a quick glance and starts being a
+   * table, which is what the card itself is for.
+   */
+  _shareContent(rows) {
+    const shown = rows.slice(0, 6);
+    const rowH = SHARE_CONTENT_H / shown.length;
+    const r = Math.min(34, rowH * 0.36);
+    return shown
+      .map((row, i) => {
+        const y = SHARE_CONTENT_Y + i * rowH;
+        const cy = y + rowH / 2;
+        const cx = SHARE_CONTENT_X + 74;
+        const divider =
+          i < shown.length - 1
+            ? `<line x1="${SHARE_CONTENT_X}" y1="${(y + rowH).toFixed(1)}" x2="${SHARE_CONTENT_X + SHARE_CONTENT_W}" y2="${(y + rowH).toFixed(1)}" stroke="#ffffff" opacity="0.14"/>`
+            : "";
+        return `
+          <g>
+            <text x="${SHARE_CONTENT_X}" y="${(cy + 11).toFixed(1)}" class="rank-num">#${i + 1}</text>
+            ${hamsterSilhouette(cx, cy, r, row.coatHex)}
+            <text x="${(cx + r + 26).toFixed(1)}" y="${(cy - 6).toFixed(1)}" class="rank-name">${escapeXml(row.name)}</text>
+            <text x="${SHARE_CONTENT_X + SHARE_CONTENT_W}" y="${(cy + 11).toFixed(1)}" text-anchor="end" class="rank-dist">${escapeXml(fmtNumber(this._hass, row.distance, 1, "km"))}</text>
+          </g>
+          ${divider}`;
+      })
+      .join("");
+  }
+
   _sharePayload(rows) {
     if (!rows || !rows.length) return null;
     const total = rows.reduce((sum, row) => sum + row.distance, 0);
@@ -1379,6 +1486,12 @@ class HamsterFitnessRankingCard extends HTMLElement {
       title: t(this._hass, "share.allHamsters"),
       subtitle: t(this._hass, "ranking.subtitle"),
       fur: rows[0].coatHex || DEFAULT_FUR,
+      content: this._shareContent(rows),
+      contentStyles: `
+        .rank-num { font-size: 30px; font-weight: 800; opacity: 0.65; }
+        .rank-name { font-size: 34px; font-weight: 700; }
+        .rank-dist { font-size: 32px; font-weight: 800; }
+      `,
       stats: [
         {
           key: "leader",
