@@ -340,7 +340,7 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Fitness Card",
         "filename": "hamster-fitness-card.js",
-        "version": "22",
+        "version": "23",
     },
     {
         "name": "Hamster Day & Night Card",
@@ -350,7 +350,7 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "19",
+        "version": "20",
     },
     {
         "name": "Hamster Running Card",
@@ -360,6 +360,6 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Weight Card",
         "filename": "hamster-weight-card.js",
-        "version": "12",
+        "version": "13",
     },
 ]

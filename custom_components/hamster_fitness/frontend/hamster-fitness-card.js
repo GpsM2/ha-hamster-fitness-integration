@@ -1068,7 +1068,10 @@ HamsterFitnessCard.styles = `
   /* Ranking card (same bundle, see below) */
   .hfc-rank-banner {
     padding: 14px 16px;
-    background: linear-gradient(135deg, #8B5A2B, #C19A6B);
+    /* Royal plum - the one hue none of the other five cards use. The
+       trophy logo keeps its gold rather than following suit: gold on
+       purple is the classic medal-on-velvet pairing, not a mismatch. */
+    background: linear-gradient(135deg, #5B3A6B, #9163A6);
   }
   .hfc-rank-body {
     padding: 10px 12px 14px;

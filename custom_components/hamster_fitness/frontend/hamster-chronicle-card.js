@@ -94,8 +94,8 @@ const HAMSTER_MARK = `
 const LOGO_CHRONICLE = `
 <svg viewBox="0 0 48 48" width="34" height="34" aria-hidden="true">
   <rect x="8" y="7" width="32" height="34" rx="4" fill="#ffffff" opacity="0.92"/>
-  <rect x="8" y="7" width="9" height="34" rx="4" fill="#C19A6B"/>
-  <g stroke="#8B5A2B" stroke-width="2" stroke-linecap="round" opacity="0.65">
+  <rect x="8" y="7" width="9" height="34" rx="4" fill="#8B3A56"/>
+  <g stroke="#5C2A3A" stroke-width="2" stroke-linecap="round" opacity="0.65">
     <line x1="22" y1="16" x2="35" y2="16"/>
     <line x1="22" y1="23" x2="35" y2="23"/>
     <line x1="22" y1="30" x2="31" y2="30"/>
@@ -744,7 +744,7 @@ HamsterChronicleCard.styles = `
   }
   .hch-banner {
     padding: 14px 16px;
-    background: linear-gradient(135deg, #5c4a3a, #8B5A2B);
+    background: linear-gradient(135deg, #5C2A3A, #8B3A56);
   }
   .hch-add-btn {
     flex-shrink: 0;
@@ -802,7 +802,7 @@ HamsterChronicleCard.styles = `
     gap: 9px;
     padding: 12px 14px;
     color: #fff;
-    background: linear-gradient(135deg, #5c4a3a, #8B5A2B);
+    background: linear-gradient(135deg, #5C2A3A, #8B3A56);
   }
   .hch-modal-title {
     font-weight: 800;
