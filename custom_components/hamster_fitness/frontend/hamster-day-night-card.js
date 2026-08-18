@@ -370,20 +370,6 @@ class HamsterDayNightCard extends HTMLElement {
   }
 
   /**
-   * The room's actual brightness when an illuminance sensor is
-   * configured (see coordinator.py's ambient_light_lx), or null to fall
-   * back to sun.sun. null both when nothing was configured and when a
-   * sensor was configured but has no usable reading yet - either way
-   * there is nothing better than the sun to go on.
-   */
-  _ambientLightLx(healthScore) {
-    const raw = healthScore.attributes.ambient_light_lx;
-    if (raw === null || raw === undefined) return null;
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : null;
-  }
-
-  /**
    * Whether sun.sun reports the sun below the horizon, or null when there
    * is no sun entity to ask - Home Assistant can run without one, and
    * "no answer" has to stay distinguishable from "no, it's up".
@@ -541,21 +527,20 @@ class HamsterDayNightCard extends HTMLElement {
   }
 
   /**
-   * Night decides which sky decoration and scene are drawn.
+   * Whether the sky decoration and scene should be night mode.
    *
-   * The real sun wins outright once it has set: a lit room at 10pm used
-   * to keep the sun icon in the sky, which reads as broken however
-   * accurate the lux reading is. While the sun is up, the lux sensor
-   * still decides - that is the whole point of configuring one, so a
-   * covered or blacked-out cage reads as night even at noon.
+   * Delegates to skyState() in the shared module rather than keeping a
+   * second copy of the threshold here - this exact bug already happened
+   * once: a refactor moved AMBIENT_NIGHT_LX there and left this method
+   * calling the name that no longer existed, which only surfaced at
+   * runtime (a ReferenceError inside the render path, not a syntax
+   * error), and took down the whole dashboard section the card sat in.
+   * One function computing "is it night" for both the card and the
+   * share image is what makes that class of bug structurally impossible
+   * instead of merely avoided.
    */
-  _isNight(ambientLx) {
-    const belowHorizon = this._sunBelowHorizon();
-    if (belowHorizon) return true;
-    if (ambientLx !== null) return ambientLx <= AMBIENT_NIGHT_LX;
-    // No lux sensor and no sun entity either: nothing says otherwise, so
-    // keep the card's long-standing "assume night" fallback.
-    return belowHorizon === null;
+  _isNight(healthScore) {
+    return skyState(this._hass, healthScore).night;
   }
 
   /**
@@ -855,7 +840,6 @@ class HamsterDayNightCard extends HTMLElement {
     // hamsters on one dashboard don't look like the same animal.
     applyFur(this._root, coatColor(healthScore));
 
-    const ambientLx = this._ambientLightLx(healthScore);
     this._skyEl.style.background = this._backgroundGradient();
 
     const title =
@@ -889,7 +873,7 @@ class HamsterDayNightCard extends HTMLElement {
       this._weatherKey = weatherKey;
     }
 
-    const decorMode = this._isNight(ambientLx) ? "night" : "day";
+    const decorMode = this._isNight(healthScore) ? "night" : "day";
     // The phase is part of the key, so a moon that has moved on to the
     // next phase is redrawn - at most once a day, which is also why
     // rebuilding rather than patching the path is fine here.

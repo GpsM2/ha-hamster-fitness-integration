@@ -404,3 +404,43 @@ def test_the_night_drilldown_bounds_what_it_draws() -> None:
     """Seven thousand points in one SVG is slow for no visible gain."""
     source = (FRONTEND_DIR / "hamster-running-card.js").read_text(encoding="utf-8")
     assert "TRACE_BUCKETS" in source, "the trace must be downsampled"
+
+
+def test_shared_sky_constants_are_never_shadowed_locally() -> None:
+    """A card must import a shared constant, not redeclare or half-remove it.
+
+    A live regression: a refactor moved the ambient-light thresholds into
+    hamster-fitness-shared.js and deleted the Day & Night card's local
+    copies, but one method still referenced AMBIENT_NIGHT_LX by name.
+    That is not a syntax error - `check_frontend_syntax.py` imports every
+    module and saw nothing wrong - it only throws once the method
+    actually runs, deep inside `set hass`, which is exactly what took
+    down a user's dashboard the first time this happened.
+
+    Every name skyState() exports for this purpose must therefore be
+    either imported by the card (so referencing it is not dangling) or
+    entirely absent from the file (so there is nothing left to
+    reference). A comment mentioning the name in prose is fine either
+    way, which is why this checks word-boundary identifier use, not
+    plain substring containment.
+    """
+    shared = (FRONTEND_DIR / SHARED_MODULE).read_text(encoding="utf-8")
+    exported = set(re.findall(r"^export const (\w+)", shared, flags=re.MULTILINE))
+    sky_constants = {
+        name
+        for name in exported
+        if name.startswith(("AMBIENT_", "DAY_", "NIGHT_", "MOON_"))
+    }
+    assert sky_constants, "guards the guard: the sky constants must still exist"
+
+    for path in _card_files():
+        source = _without_comments(path.read_text(encoding="utf-8"))
+        imported = set(re.findall(r"^\s*(\w+),?\s*$", source.split("} from", 1)[0], flags=re.MULTILINE)) if "} from" in source else set()
+        for name in sky_constants:
+            used = re.search(rf"\b{name}\b", source) is not None
+            if used and name not in imported:
+                raise AssertionError(
+                    f"{path.name} references {name} without importing it from "
+                    f"{SHARED_MODULE} - this throws at runtime the moment the "
+                    "method that uses it actually runs, not at load time"
+                )
