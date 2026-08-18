@@ -586,7 +586,11 @@ HamsterWeightCard.styles = `
   }
   .hwc-banner {
     padding: 14px 16px;
-    background: linear-gradient(135deg, #8B5A2B, #C19A6B);
+    /* Antique gold - matches LOGO_SCALE's own #B8860B/#FFD166, which the
+       banner never picked up before. The dial illustration itself keeps
+       its wood/metal tones (#5c4a3a etc.) rather than following suit -
+       those read as the scale's actual material, not a brand colour. */
+    background: linear-gradient(135deg, #B8860B, #E8B84B);
   }
   .hwc-error {
     color: var(--secondary-text-color);
