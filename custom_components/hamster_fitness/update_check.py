@@ -95,7 +95,7 @@ async def async_setup_update_check(hass: HomeAssistant) -> None:
             hass,
             DOMAIN,
             ISSUE_RESTART_REQUIRED,
-            is_fixable=False,
+            is_fixable=True,
             severity=ir.IssueSeverity.WARNING,
             translation_key=ISSUE_RESTART_REQUIRED,
             translation_placeholders={
