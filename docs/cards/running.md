@@ -88,8 +88,9 @@ visible.
 
 Each run is labelled with the clock time it began, and a dashed divider
 marks where one ended and the next started. Runs are separated by the
-same 30-minute gap the integration uses to count sessions, so the number
-here always matches the number printed on the bar.
+same gap (`SESSION_END_GAP_MINUTES`) the integration uses to count
+sessions, so the number here always matches the number printed on the
+bar.
 
 Below the trace: how many runs, how long the hamster actually ran, its
 fastest moment, and the night's distance.

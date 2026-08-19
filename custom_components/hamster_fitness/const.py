@@ -191,7 +191,7 @@ NIGHT_WINDOW_START_HOUR: Final[int] = 20
 # Wie lange eine Laufpause andauern darf, bevor eine Lauf-Session als
 # beendet gilt (siehe coordinator.py's _calculate()). Kürzere Pausen
 # (z. B. Trinken, Putzen) unterbrechen die Session nicht.
-SESSION_END_GAP_MINUTES: Final[int] = 30
+SESSION_END_GAP_MINUTES: Final[int] = 15
 
 # --- Schlafphasen-Metrik (score_sleep) ---
 # Hauptschlafphase eines dämmerungs-/nachtaktiven Hamsters. Störungen in
@@ -332,7 +332,7 @@ URL_BASE: Final = f"/{DOMAIN}-frontend"
 # Bei jeder Änderung an hamster-fitness-shared.js hochzählen UND denselben
 # Wert in den ?v=-Importen aller Kartendateien nachziehen. tests/
 # test_frontend_resources.py prüft das ab, damit es nicht vergessen wird.
-SHARED_MODULE_VERSION: Final = "20"
+SHARED_MODULE_VERSION: Final = "21"
 # "version" steuert das Cache-Busting (?v=...) der Lovelace-Resource - bei
 # jeder inhaltlichen Änderung an der .js-Datei hochzählen, sonst laden
 # Browser ggf. die alte, gecachte Version weiter aus.
@@ -345,12 +345,12 @@ JS_MODULES: Final[list[dict[str, str]]] = [
     {
         "name": "Hamster Day & Night Card",
         "filename": "hamster-day-night-card.js",
-        "version": "29",
+        "version": "30",
     },
     {
         "name": "Hamster Chronicle Card",
         "filename": "hamster-chronicle-card.js",
-        "version": "20",
+        "version": "21",
     },
     {
         "name": "Hamster Running Card",

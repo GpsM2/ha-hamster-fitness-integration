@@ -36,8 +36,6 @@ const STRINGS = {
   en: {
     // Shared
     "common.online": "Online",
-    "common.offline": "Offline",
-    "common.unavailable": "Unavailable",
     "common.notFound":
       'Entity "{entity}" not found. Check the card configuration.',
     "common.optionalTitle": "Title (optional)",
@@ -76,6 +74,7 @@ const STRINGS = {
 
     // Day & Night card
     "dayNight.subtitle": "Day & Night",
+    "dayNight.sensorOffline": "Sensor offline",
     "dayNight.runningFor": "Running for",
     "dayNight.restingFor": "Resting for",
     "dayNight.speed": "Speed",
@@ -304,8 +303,6 @@ const STRINGS = {
 
   de: {
     "common.online": "Online",
-    "common.offline": "Offline",
-    "common.unavailable": "Nicht verfügbar",
     "common.notFound":
       'Entity "{entity}" nicht gefunden. Prüfe die Karten-Konfiguration.',
     "common.optionalTitle": "Titel (optional)",
@@ -343,6 +340,7 @@ const STRINGS = {
     "share.subtitleFamily": "Hamster Fitness",
 
     "dayNight.subtitle": "Tag & Nacht",
+    "dayNight.sensorOffline": "Sensor offline",
     "dayNight.runningFor": "Läuft seit",
     "dayNight.restingFor": "Ruht seit",
     "dayNight.speed": "Geschwindigkeit",

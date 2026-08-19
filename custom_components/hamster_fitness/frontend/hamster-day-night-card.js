@@ -60,7 +60,7 @@ import {
   sunElevation,
   t,
   WEATHER_SCENES,
-} from "./hamster-fitness-shared.js?v=20";
+} from "./hamster-fitness-shared.js?v=21";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -116,8 +116,7 @@ const STARS = [
 ];
 
 const STATUS_ONLINE = { key: "common.online", color: "#06D6A0" };
-const STATUS_OFFLINE = { key: "common.offline", color: "#EF476F" };
-const STATUS_UNAVAILABLE = { key: "common.unavailable", color: "#8D99AE" };
+const STATUS_OFFLINE = { key: "dayNight.sensorOffline", color: "#EF476F" };
 
 const DEFAULT_TOGGLES = {
   show_speed: true,
@@ -607,11 +606,21 @@ class HamsterDayNightCard extends HTMLElement {
     this._sceneEl.classList.remove("hdn-scene-idle");
   }
 
+  /**
+   * current_speed is a passthrough sensor (see HamsterCurrentSpeedSensor):
+   * its native_value is None whenever the configured speed sensor's own
+   * state isn't a number, which HA always reports as "unknown" - never
+   * "unavailable", since this entity itself keeps updating fine even
+   * when the wheel hardware behind it does not. So "unknown" here *is*
+   * the real-world "sensor offline" signal, not a softer, separate
+   * state; treating it as merely "unavailable"-grey (as this used to)
+   * left the one case that actually happens - the wheel losing wifi -
+   * looking like nothing was wrong.
+   */
   _connectionStatus(currentSpeedEntityId) {
     const state = this._hass.states[currentSpeedEntityId];
     if (!state) return STATUS_ONLINE; // no speed sensor configured - no reliable signal either way
-    if (state.state === "unavailable") return STATUS_OFFLINE;
-    if (state.state === "unknown") return STATUS_UNAVAILABLE;
+    if (state.state === "unavailable" || state.state === "unknown") return STATUS_OFFLINE;
     return STATUS_ONLINE;
   }
 
