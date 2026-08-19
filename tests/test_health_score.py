@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from freezegun import freeze_time
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -112,6 +113,48 @@ async def test_score_stays_high_across_the_night_window_reset(
     assert coordinator.data.last_completed_night_km == good_night_km
     assert coordinator.data.health_score == 100
     assert "too_little_exercise" not in coordinator.data.warning_reasons
+
+
+async def test_bad_night_drags_the_score_down_once_the_night_is_over(
+    hass: HomeAssistant,
+) -> None:
+    """A genuinely bad night must show up in the score, not keep hiding
+    behind the previous good one for the rest of the day.
+
+    Regression test for a production report: the wheel sensor died
+    partway through the night (0.38 km logged instead of a normal
+    4-9 km), but the score stayed at 93%/95% because effective_distance_km
+    took max(tonight, last night) with no time bound - so it kept
+    echoing the previous good night for the full 24h window instead of
+    just the few hours right after NIGHT_WINDOW_START_HOUR the fallback
+    was built to smooth over. Once SLEEP_PHASE_START_HOUR has passed the
+    hamster's main running hours are behind it, and tonight's own tally
+    should be trusted.
+    """
+    entry = await _good_night(hass)
+    coordinator = entry.runtime_data
+    good_night_km = coordinator.data.night_distance_km
+    assert good_night_km > 5.0
+
+    coordinator._async_handle_night_window_reset(dt_util.now())
+    await hass.async_block_till_done()
+    assert coordinator.data.last_completed_night_km == good_night_km
+
+    # Tonight, almost nothing accrues - e.g. the wheel sensor failed
+    # partway through, as in the production report.
+    hass.states.async_set(WHEEL_SENSOR, "400")  # ~0.35 km on this wheel
+    await hass.async_block_till_done()
+    assert coordinator.data.night_distance_km < 1.0
+
+    # 15:00 US/Pacific (the suite's frozen clock is 22:00 the previous
+    # day - well past SLEEP_PHASE_START_HOUR (10:00), unlike the window-
+    # reset test above which fires right at the 20:00 boundary.
+    with freeze_time("2026-08-09T22:00:00+00:00"):
+        hass.states.async_set(WHEEL_SENSOR, "401")
+        await hass.async_block_till_done()
+
+        assert coordinator.data.health_score < 70
+        assert "too_little_exercise" in coordinator.data.warning_reasons
 
 
 async def test_pillar_scores_are_exposed_as_entities(hass: HomeAssistant) -> None:

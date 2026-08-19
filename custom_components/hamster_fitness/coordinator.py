@@ -1357,8 +1357,21 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # und hätte den Score jeden Morgen einbrechen lassen, obwohl der
         # Hamster die Nacht über fleißig gelaufen ist. Der Vergleich mit dem
         # zuletzt abgeschlossenen Nachtfenster verhindert denselben Effekt
-        # beim Fensterwechsel um NIGHT_WINDOW_START_HOUR (20 Uhr).
-        effective_distance_km = max(night_distance_km, self._last_completed_night_km)
+        # beim Fensterwechsel um NIGHT_WINDOW_START_HOUR (20 Uhr) - aber nur
+        # solange die laufende Nacht noch nicht vorbei sein kann: ab
+        # SLEEP_PHASE_START_HOUR hatte der Hamster seine Hauptlaufzeit
+        # bereits, und night_distance_km ist dann die reale Zahl für diese
+        # Nacht, nicht mehr bloß ein noch unvollständiger Zwischenstand. Ein
+        # unbegrenztes max() hätte sonst eine schlechte Nacht (Sensorausfall
+        # oder tatsächlich wenig Aktivität) den ganzen Tag über hinter der
+        # letzten guten Nacht versteckt - genau der Fall, der in Produktion
+        # beobachtet wurde: 0,38 km diese Nacht, aber der Score blieb hoch,
+        # weil er weiter die 4,57 km der Vornacht zeigte.
+        effective_distance_km = (
+            max(night_distance_km, self._last_completed_night_km)
+            if _night_tally_still_settling(now)
+            else night_distance_km
+        )
 
         distance_penalty = _distance_penalty(effective_distance_km, min_distance_km)
         temperature_penalty = (
@@ -1677,6 +1690,21 @@ def _in_sleep_phase(moment: datetime) -> bool:
     """
     hour = dt_util.as_local(moment).hour
     return SLEEP_PHASE_START_HOUR <= hour < SLEEP_PHASE_END_HOUR
+
+
+def _night_tally_still_settling(moment: datetime) -> bool:
+    """Whether the current night window's distance-so-far is too fresh to
+    score on its own.
+
+    True from NIGHT_WINDOW_START_HOUR through SLEEP_PHASE_START_HOUR the
+    next day - the window has either just reset to 0, or the hamster may
+    still be mid-run. False from SLEEP_PHASE_START_HOUR onward: the main
+    running hours are behind it by then, so night_distance_km already is
+    the real number for that night rather than a placeholder waiting to
+    catch up with last night's.
+    """
+    hour = dt_util.as_local(moment).hour
+    return hour >= NIGHT_WINDOW_START_HOUR or hour < SLEEP_PHASE_START_HOUR
 
 
 def _pillar_score(penalty: float, penalty_cap: float) -> int:

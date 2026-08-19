@@ -50,7 +50,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=20";
+} from "./hamster-fitness-shared.js?v=21";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -279,7 +279,6 @@ class HamsterChronicleCard extends HTMLElement {
         const state = this._hass.states[id];
         const scoreId = siblingEntityId(this._hass, id, "health_score");
         const score = scoreId && this._hass.states[scoreId];
-        const speedId = siblingEntityId(this._hass, id, "max_speed_tonight");
         const departureId = siblingEntityId(this._hass, id, "departure_date");
         const departure = departureId && this._hass.states[departureId];
         const departureDate =
@@ -299,9 +298,12 @@ class HamsterChronicleCard extends HTMLElement {
           acquisitionDate: attrs.acquisition_date,
           departureDate,
           distance: state ? Number(state.state) : NaN,
-          topSpeed: speedId && this._hass.states[speedId]
-            ? Number(this._hass.states[speedId].state)
-            : NaN,
+          // The health-score entity's own lifetime_max_speed_kmh - not
+          // the sibling "max speed tonight" sensor, which is a rolling
+          // per-night figure that resets every NIGHT_WINDOW_START_HOUR
+          // and reads nothing like a hamster's actual top speed once
+          // enough nights have passed without beating an old record.
+          topSpeed: Number(attrs.lifetime_max_speed_kmh),
           score: score ? Number(score.state) : NaN,
           archived: false,
         };
