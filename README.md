@@ -1,6 +1,6 @@
 # Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.9.2-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
@@ -14,7 +14,7 @@
 
 Hamster Fitness is a free add-on for Home Assistant. It watches your
 hamster's running wheel, cage climate, and cage door, and turns that into
-one health score you can actually act on — plus alerts, five dashboard
+one health score you can actually act on — plus alerts, six dashboard
 cards, and a cage light that switches itself on when you open the lid.
 
 ## Features
@@ -81,12 +81,23 @@ its own.
 
 ### Step 2: Install the integration
 
-**Option A — with HACS** (once this repo is public and added to HACS):
+**Option A — with HACS** (recommended):
 
-1. Open HACS → Integrations → three-dot menu → "Custom repositories."
-2. Add this repo's URL, category "Integration."
-3. Find "Hamster Fitness" in HACS and install it.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GpsM2&repository=ha-hamster-fitness-integration&category=integration)
+
+The button opens this repository directly in your own HACS — no URL to
+type. Then click **Download** and restart Home Assistant.
+
+Prefer to do it by hand, or the button doesn't reach your instance?
+
+1. Open HACS → three-dot menu → **Custom repositories**.
+2. Paste `https://github.com/GpsM2/ha-hamster-fitness-integration`,
+   pick category **Integration**, and click **Add**.
+3. Search HACS for "Hamster Fitness" and download it.
 4. Restart Home Assistant.
+
+Hamster Fitness isn't in the HACS default store, so searching HACS
+without adding it as a custom repository first won't turn it up.
 
 **Option B — manually:** copy `custom_components/hamster_fitness/` into
 your Home Assistant `custom_components` folder and restart.

@@ -53,6 +53,26 @@ jobs:
       - name: pytest
         run: pytest tests/ -q
 
+  hacs:
+    # Catches hacs.json/manifest.json mistakes here instead of at
+    # submission time. HACS reads repository metadata over the API, so
+    # this job needs the repository to be public and to have a
+    # description set - both are true.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+          # The "brands" check verifies that the domain is listed in
+          # home-assistant/brands. That submission is a separate PR
+          # against a repository we do not control, and it is still
+          # pending - see issue #87. Drop this line once it is merged,
+          # so the check starts guarding us instead of being skipped.
+          ignore: brands
+
   frontend-syntax:
     runs-on: ubuntu-latest
     steps:

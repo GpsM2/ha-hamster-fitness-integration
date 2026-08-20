@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 .DS_Store
 
+# Agent working notes - local only, never part of the published repo
+.claude/
+
 # Local dev/test tooling (see requirements_test.txt)
 .venv/
 .mypy_cache/
