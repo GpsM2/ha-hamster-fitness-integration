@@ -81,14 +81,19 @@ its own.
 
 ### Step 2: Install the integration
 
-**Option A — with HACS** (recommended):
+**Option A — with HACS** (recommended)
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GpsM2&repository=ha-hamster-fitness-integration&category=integration)
 
 The button opens this repository directly in your own HACS — no URL to
-type. Then click **Download** and restart Home Assistant.
+type. Click **Download**, then restart Home Assistant.
 
-Prefer to do it by hand, or the button doesn't reach your instance?
+Hamster Fitness isn't in the HACS default store, so searching HACS won't
+find it until the repository has been added — which is precisely what the
+button does for you.
+
+<details>
+<summary>Adding it to HACS by hand, if the button can't reach your instance</summary>
 
 1. Open HACS → three-dot menu → **Custom repositories**.
 2. Paste `https://github.com/GpsM2/ha-hamster-fitness-integration`,
@@ -96,16 +101,30 @@ Prefer to do it by hand, or the button doesn't reach your instance?
 3. Search HACS for "Hamster Fitness" and download it.
 4. Restart Home Assistant.
 
-Hamster Fitness isn't in the HACS default store, so searching HACS
-without adding it as a custom repository first won't turn it up.
+</details>
 
-**Option B — manually:** copy `custom_components/hamster_fitness/` into
-your Home Assistant `custom_components` folder and restart.
+<details>
+<summary><b>Option B — without HACS</b>, by copying the files yourself</summary>
+
+Copy `custom_components/hamster_fitness/` into your Home Assistant
+`custom_components` folder and restart.
+
+Worth knowing: you'll have to repeat this for every update, and you won't
+be told when one is available — both of which HACS handles for you.
+
+</details>
 
 ### Step 3: Set up your hamster
 
-Go to **Settings → Devices & Services → Add Integration** and search for
-"Hamster Fitness." You'll be asked for:
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hamster_fitness)
+
+This button starts the setup wizard straight away. It only works once
+step 2 is done **and** Home Assistant has been restarted — before that,
+Home Assistant doesn't know the integration exists yet and will say so.
+The manual route is **Settings → Devices & Services → Add Integration**,
+then search for "Hamster Fitness."
+
+Either way, you'll be asked for:
 
 - your hamster's name, the date it moved in, its breed and coat colour,
   and the wheel diameter (the number on the wheel's packaging — the same
