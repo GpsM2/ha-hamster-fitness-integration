@@ -240,6 +240,18 @@ MAX_LIGHT_PAUSE_MINUTES: Final[int] = 1440
 
 # --- Storage ---
 STORAGE_VERSION: Final[int] = 1
+# Vertrauensstufe der gespeicherten Fenster-Baselines. Hochzählen, wenn
+# eine Version Baselines geschrieben haben kann, denen nicht zu trauen ist -
+# beim Laden werden ältere Stufen dann einmalig verworfen und aus dem
+# aktuellen Zählerstand neu gesetzt.
+#
+# Stufe 2: Bis einschließlich 0.9.3-beta.1 wurde eine Baseline auf 0
+# gesetzt, wenn der Rad-Sensor beim Speichern nicht lesbar war. Danach galt
+# der KOMPLETTE Zählerstand als Strecke des laufenden Fensters (live
+# beobachtet: 5,356 km Tagesstrecke bei 21 tatsächlich gelaufenen
+# Umdrehungen). Eine gespeicherte 0 ist nicht davon zu unterscheiden, dass
+# das Fenster echt bei 0 begann - deshalb wird verworfen statt geraten.
+BASELINE_TRUST_VERSION: Final[int] = 2
 
 # --- Benachrichtigungen ---
 NOTIFY_DOMAIN: Final = "notify"

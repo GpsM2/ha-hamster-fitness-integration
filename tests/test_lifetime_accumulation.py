@@ -217,3 +217,76 @@ async def test_configure_can_correct_the_total_once(hass: HomeAssistant) -> None
     await hass.async_block_till_done()
 
     assert entry.runtime_data.data.lifetime_distance_km == after_running
+
+
+async def test_upgrade_discards_a_poisoned_baseline(
+    hass: HomeAssistant,
+    hass_storage: dict,
+) -> None:
+    """An old-format baseline of 0 must not be trusted on upgrade.
+
+    The previous version wrote 0 whenever the counter was unreadable at
+    save time, which then made the *entire* counter look like distance
+    run in the current window. On the live instance that produced a daily
+    distance of 5.356 km against 21 rotations actually run.
+
+    A stored 0 cannot be told apart from a window that genuinely started
+    at 0, so neither baseline is carried across the format change.
+    """
+    hass_storage[f"{DOMAIN}_{ENTRY_ID}_baseline"] = {
+        "version": STORAGE_VERSION,
+        "data": {
+            "wheel_sensor": WHEEL_SENSOR,
+            # No "lifetime_rotations" key: this is the old format.
+            "lifetime_offset_count": 0.0,
+            "baseline_count": 0.0,
+            "night_baseline_count": 0.0,
+            "baseline_window_start": "2026-08-20T06:00:00+00:00",
+            "night_window_start": "2026-08-20T18:00:00+00:00",
+        },
+    }
+    _seed_sources(hass, "5858")
+    entry = await _setup(hass, _entry())
+
+    hass.states.async_set(WHEEL_SENSOR, "5879")
+    await hass.async_block_till_done()
+
+    # 21 rotations run since the upgrade - not the whole 5,879.
+    assert entry.runtime_data.data.daily_distance_km == _km(21)
+    assert entry.runtime_data.data.night_distance_km == _km(21)
+
+
+async def test_beta1_storage_still_gets_its_baseline_discarded(
+    hass: HomeAssistant,
+    hass_storage: dict,
+) -> None:
+    """0.9.3-beta.1 wrote the new lifetime field but kept the bad baseline.
+
+    Detecting the old format by the presence of `lifetime_rotations`
+    would therefore have skipped exactly the installations that were
+    running the bug in production. The trust marker catches them.
+    """
+    hass_storage[f"{DOMAIN}_{ENTRY_ID}_baseline"] = {
+        "version": STORAGE_VERSION,
+        "data": {
+            "wheel_sensor": WHEEL_SENSOR,
+            # beta.1 storage: new field present, no trust marker,
+            # baseline still poisoned.
+            "lifetime_rotations": 148_148.0,
+            "last_known_count": 5858.0,
+            "baseline_count": 0.0,
+            "night_baseline_count": 0.0,
+            "baseline_window_start": "2026-08-20T06:00:00+00:00",
+            "night_window_start": "2026-08-20T18:00:00+00:00",
+        },
+    }
+    _seed_sources(hass, "5858")
+    entry = await _setup(hass, _entry())
+
+    hass.states.async_set(WHEEL_SENSOR, "5879")
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.data.daily_distance_km == _km(21)
+    assert entry.runtime_data.data.night_distance_km == _km(21)
+    # The lifetime total carries over untouched - only baselines are dropped.
+    assert entry.runtime_data.data.lifetime_distance_km == _km(148_148 + 21)
