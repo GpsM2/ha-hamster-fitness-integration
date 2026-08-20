@@ -73,6 +73,7 @@ from .const import (
     IDEAL_DISTANCE_MIN_KM,
     LIGHT_SECTION,
     MAX_HEAT_FORECAST_THRESHOLD_C,
+    MAX_LIFETIME_DISTANCE_KM,
     MAX_WEIGHT_REMINDER_DAYS,
     MAX_WHEEL_DIAMETER_CM,
     MIN_HEAT_FORECAST_THRESHOLD_C,
@@ -84,6 +85,7 @@ from .const import (
     OPTION_HEAT_FORECAST_THRESHOLD_C,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
+    OPTION_LIFETIME_DISTANCE_KM,
     OPTION_LIGHT_BRIGHTNESS_PCT,
     OPTION_LIGHT_TRANSITION_S,
     OPTION_LIGHT_TURN_OFF_DELAY_S,
@@ -442,6 +444,18 @@ def _options_schema(current: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Required(
+                OPTION_LIFETIME_DISTANCE_KM,
+                default=current.get(OPTION_LIFETIME_DISTANCE_KM, 0.0),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=0,
+                    max=MAX_LIFETIME_DISTANCE_KM,
+                    step=0.001,
+                    unit_of_measurement="km",
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
                 OPTION_MIN_DISTANCE_KM,
                 default=current.get(OPTION_MIN_DISTANCE_KM, DEFAULT_MIN_DISTANCE_KM),
             ): NumberSelector(
@@ -644,8 +658,18 @@ class HamsterFitnessOptionsFlow(OptionsFlowWithReload):
             else:
                 return self.async_create_entry(data=options)
 
+        # Die Gesamtstrecke wird mit dem TATSÄCHLICHEN Stand vorbelegt, nicht
+        # mit dem zuletzt eingetippten. Sonst zeigt das Feld eine alte
+        # Korrektur an, und wer das Formular nur wegen einer anderen
+        # Einstellung öffnet und speichert, würde die seither gelaufene
+        # Strecke stillschweigend zurücksetzen.
+        current = dict(self.config_entry.options)
+        coordinator = getattr(self.config_entry, "runtime_data", None)
+        if coordinator is not None and coordinator.data is not None:
+            current[OPTION_LIFETIME_DISTANCE_KM] = coordinator.data.lifetime_distance_km
+
         return self.async_show_form(
             step_id="init",
-            data_schema=_options_schema(dict(self.config_entry.options)),
+            data_schema=_options_schema(current),
             errors=errors,
         )

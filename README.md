@@ -1,6 +1,6 @@
 # Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.9.2-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/badge/version-0.9.3-blue.svg)](custom_components/hamster_fitness/manifest.json)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
@@ -55,7 +55,10 @@ cards, and a cage light that switches itself on when you open the lid.
   [Chronicle](docs/cards/chronicle.md) ·
   [Track Weight](docs/cards/weighing.md)
 - **Keeps the wheel diameter in sync** with your sensor device, so you
-  never type the same number into two places.
+  never type the same number into two places. Hamster Fitness owns the
+  value: if the device ever reports a different one — re-flashing it
+  resets the number to the firmware default — it gets set back. Change
+  the diameter here, not on the device.
 
 ## What you need
 
@@ -139,6 +142,14 @@ device → "Reconfigure." The **Configure** button holds the fine-tuning:
 ideal temperature range, minimum nightly distance, notification switches
 and time, the weigh-in reminder, the heat reminder and its temperature
 threshold, and the cage light's brightness, fade time and turn-off delay.
+
+Configure also carries a **lifetime distance** field. You should never
+need it: Hamster Fitness counts the total itself and keeps it in its own
+storage, so it survives restarts, re-flashing the sensor, and swapping
+the device out — and it is included in your Home Assistant backups. It is
+there for the cases where history genuinely went missing, so you can put
+the number back. The field always opens showing the current total, so
+saving it unchanged does nothing.
 
 ### Step 4: Add the cards
 

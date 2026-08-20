@@ -75,6 +75,7 @@ from .const import (
     NIGHT_WINDOW_START_HOUR,
     OPTION_IDEAL_TEMP_MAX,
     OPTION_IDEAL_TEMP_MIN,
+    OPTION_LIFETIME_DISTANCE_KM,
     OPTION_MIN_DISTANCE_KM,
     SCORE_HISTORY_DAYS,
     SESSION_END_GAP_MINUTES,
@@ -157,8 +158,10 @@ class HamsterFitnessData:
     # diesen Wert würde der Health-Score bei jedem Fensterwechsel abstürzen,
     # nur weil der Zähler wieder bei 0 beginnt.
     last_completed_night_km: float = 0.0
-    # Strecke seit dem allerersten Einrichten dieses Rad-Sensors, überlebt
-    # Geräte-Reboots (siehe _lifetime_offset_count) - wird nur beim Wechsel
+    # Strecke seit dem allerersten Einrichten dieses Rad-Sensors. Wird aus
+    # _lifetime_rotations berechnet, also aus einem in Home Assistant
+    # aufsummierten und persistierten Stand - überlebt damit Neustarts,
+    # Neu-Flashen und den Austausch des Geräts und wird nur beim Wechsel
     # des Rad-Sensors selbst zurückgesetzt. Grundlage für einen Vergleich
     # zwischen (auch bereits ausgezogenen) Hamstern.
     lifetime_distance_km: float = 0.0
@@ -299,12 +302,22 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}_{entry.entry_id}_baseline"
         )
-        self._baseline_count: float = 0.0
+        # None heißt "noch offen": der Rad-Sensor war nicht lesbar, als die
+        # Baseline gesetzt werden musste (Neustart oder Fenster-Reset,
+        # während das Gerät gerade offline war). _calculate() übernimmt
+        # dann den ersten echten Zählerstand, den es sieht.
+        #
+        # Früher stand hier `_current_wheel_count() or 0.0`, was denselben
+        # Fall auf 0 abbildete - mit der Folge, dass anschließend der
+        # KOMPLETTE Zählerstand als Strecke dieses Fensters galt. Auf der
+        # Produktivinstanz erschien so eine Tagesstrecke von 5,337 km, die
+        # exakt dem gesamten Zählerstand entsprach.
+        self._baseline_count: float | None = 0.0
         self._baseline_window_start: datetime | None = None
         self._last_known_count: float | None = None
         self._previous_day_distance_km: float = 0.0
 
-        self._night_baseline_count: float = 0.0
+        self._night_baseline_count: float | None = 0.0
         self._night_window_start: datetime | None = None
         # Persistiert - siehe _night_active_minutes unten: geht auch in
         # den night_history-Eintrag der Nacht ein.
@@ -387,10 +400,24 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._session_start_at: datetime | None = None
         self._last_activity_at: datetime | None = None
 
-        # Rotationen, die vor dem aktuellen Zähler-Stand "gebankt" wurden
-        # (siehe _calculate()'s Reset-Erkennung) - macht lifetime_distance_km
-        # robust gegenüber Geräte-Reboots des Rad-Sensors.
-        self._lifetime_offset_count: float = 0.0
+        # Gesamtzahl der jemals gezählten Umdrehungen. Home Assistant ist
+        # dafür die führende Instanz, NICHT das Gerät: Der Wert wird aus
+        # Differenzen aufsummiert und persistiert, statt aus dem absoluten
+        # Zählerstand des Rad-Sensors hergeleitet zu werden.
+        #
+        # Der Unterschied ist nicht akademisch. Vorher hing die Gesamtstrecke
+        # am Absolutwert des ESP; ein Neu-Flashen setzt dessen Zähler zurück,
+        # und ein Home-Assistant-Backup sichert ihn nicht. Am 19.08.2026 gingen
+        # so 148.148 Umdrehungen (134,97 km) verloren. Da jedes Firmware-Update
+        # ein Flashen bedeutet, hätte sich das beliebig wiederholt.
+        self._lifetime_rotations: float = 0.0
+        # Nur während der Migration vom alten Offset-Modell gesetzt: hält den
+        # gespeicherten Offset, bis ein echter Zählerstand vorliegt, aus dem
+        # sich der Gesamtstand rekonstruieren lässt. Siehe _async_restore_state().
+        self._lifetime_migration_offset: float | None = None
+        # Zuletzt per Configure-Dialog angewandter Korrekturwert, damit
+        # derselbe Wert nicht bei jedem Reload erneut greift.
+        self._lifetime_correction_applied: float | None = None
         self._departure_date: date | None = None
         # Vorübergehende Abwesenheit (Pflegestelle, Tierarzt, Urlaub) -
         # siehe async_set_boarding(). Anders als departure_date endgültig
@@ -523,6 +550,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 dt_util.parse_datetime(weighed_raw) if weighed_raw else None
             )
 
+            # Die zuletzt berechneten Strecken in self.data vorbelegen.
+            # _calculate() greift darauf zurück, wenn der Rad-Sensor nicht
+            # lesbar ist; ohne das steht dort die frische Datenklasse mit
+            # 0,0 und die Gesamtdistanz fällt bei jedem Aussetzer des
+            # Geräts auf null - was für einen total_increasing-Sensor als
+            # Zählerreset gilt und die Langzeitstatistik verdirbt.
+            self.data = HamsterFitnessData(
+                daily_distance_km=stored.get("last_daily_distance_km", 0.0),
+                night_distance_km=stored.get("last_night_distance_km", 0.0),
+                lifetime_distance_km=stored.get("last_lifetime_distance_km", 0.0),
+                previous_day_distance_km=self._previous_day_distance_km,
+                last_completed_night_km=self._last_completed_night_km,
+            )
+
         departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
         self._boarding = stored.get("boarding", False)
@@ -577,8 +618,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             # Kein brauchbarer Wert für das laufende Tagesfenster: bei
             # Neustart NICHT bei 0 anfangen, sondern beim aktuellen
             # Zählerstand - sonst "erfindet" ein Neustart mitten im Fenster
-            # zusätzliche Strecke.
-            self._baseline_count = self._current_wheel_count() or 0.0
+            # zusätzliche Strecke. Ist der Sensor gerade nicht lesbar,
+            # bleibt die Baseline offen (None) statt auf 0 zu fallen; das
+            # wäre derselbe Fehler, nur unbemerkt.
+            self._baseline_count = self._current_wheel_count()
             self._baseline_window_start = expected_daily_start
             needs_save = True
 
@@ -594,16 +637,57 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._night_baseline_count = stored.get("night_baseline_count", 0.0)
             self._night_window_start = expected_night_start
         else:
-            self._night_baseline_count = self._current_wheel_count() or 0.0
+            self._night_baseline_count = self._current_wheel_count()
             self._night_window_start = expected_night_start
             needs_save = True
 
-        # Ein Sensor-Wechsel invalidiert auch den Lifetime-Offset - siehe
+        # Ein Sensor-Wechsel invalidiert auch den Gesamtstand - siehe
         # Kommentar oben, dieselbe Skalen-Inkompatibilität gilt hier genauso.
         if sensor_changed or not stored:
-            self._lifetime_offset_count = 0.0
+            self._lifetime_rotations = 0.0
+            self._last_known_count = None
+        elif "lifetime_rotations" in stored:
+            self._lifetime_rotations = stored["lifetime_rotations"]
+            self._last_known_count = stored.get("last_known_count")
         else:
-            self._lifetime_offset_count = stored.get("lifetime_offset_count", 0.0)
+            # Migration vom alten Offset-Modell: Dort galt
+            # Gesamtstrecke = (Offset + aktueller Zählerstand), der
+            # äquivalente aufsummierte Stand ist also Offset + Zählerstand.
+            #
+            # Ist der Zähler gerade nicht lesbar, wird NICHT 0 angenommen -
+            # das wäre exakt der Fehler, den diese Umstellung behebt. Die
+            # Migration wartet stattdessen auf den ersten echten Wert.
+            offset = stored.get("lifetime_offset_count", 0.0)
+            current = self._current_wheel_count()
+            if current is None:
+                self._lifetime_migration_offset = offset
+                self._lifetime_rotations = stored.get("last_lifetime_rotations", 0.0)
+            else:
+                self._lifetime_rotations = offset + current
+            self._last_known_count = current
+            needs_save = True
+
+        # Korrekturwert aus dem Configure-Dialog. Wird nur angewandt, wenn er
+        # sich seit der letzten Anwendung geändert hat - sonst würde jeder
+        # Reload die Gesamtstrecke auf den damals eingetippten Stand
+        # zurückwerfen und alles Seitherige verwerfen.
+        requested = self._entry.options.get(OPTION_LIFETIME_DISTANCE_KM)
+        applied = stored.get("lifetime_correction_applied")
+        if requested is not None and requested != applied:
+            self._lifetime_rotations = (
+                float(requested) * CM_PER_KM
+            ) / self._wheel_circumference_cm
+            self._lifetime_correction_applied = float(requested)
+            self._lifetime_migration_offset = None
+            needs_save = True
+            _LOGGER.info(
+                "Hamster Fitness (%s): Gesamtstrecke per Konfiguration auf "
+                "%.3f km gesetzt",
+                self._entry.data[CONF_HAMSTER_NAME],
+                float(requested),
+            )
+        else:
+            self._lifetime_correction_applied = applied
 
         if needs_save:
             await self._async_save_state()
@@ -613,6 +697,21 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             {
                 "wheel_sensor": self._wheel_sensor,
                 "baseline_count": self._baseline_count,
+                # Zuletzt berechnete Strecken. Nur dafür da, nach einem
+                # Neustart etwas Echtes anzeigen zu können, solange der
+                # Rad-Sensor noch nicht lesbar ist - ohne sie startet
+                # self.data bei 0,0 und die Karten behaupten, der Hamster
+                # sei noch nie gelaufen. Nicht die Quelle der Wahrheit,
+                # sondern nur der Rückfallwert.
+                "last_daily_distance_km": (
+                    self.data.daily_distance_km if self.data else 0.0
+                ),
+                "last_night_distance_km": (
+                    self.data.night_distance_km if self.data else 0.0
+                ),
+                "last_lifetime_distance_km": (
+                    self.data.lifetime_distance_km if self.data else 0.0
+                ),
                 "baseline_window_start": (
                     self._baseline_window_start.isoformat()
                     if self._baseline_window_start
@@ -655,7 +754,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     if self._night_window_start
                     else None
                 ),
-                "lifetime_offset_count": self._lifetime_offset_count,
+                "lifetime_rotations": self._lifetime_rotations,
+                "lifetime_correction_applied": self._lifetime_correction_applied,
+                # Ohne diesen Wert kann nach einem Neustart keine Differenz
+                # gebildet werden - und genau daran scheiterte früher die
+                # Reset-Erkennung: Der Offset wurde persistiert, der dafür
+                # nötige Vergleichswert nicht.
+                "last_known_count": self._last_known_count,
                 "departure_date": (
                     self._departure_date.isoformat() if self._departure_date else None
                 ),
@@ -697,7 +802,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._score_samples_today = 0
         self._sleep_door_openings = 0
         self._sleep_activity_sessions = 0
-        self._baseline_count = self._current_wheel_count() or 0.0
+        self._baseline_count = self._current_wheel_count()
         self._baseline_window_start = _compute_window_start(
             dt_util.now(), DAILY_RESET_HOUR
         )
@@ -756,7 +861,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         if self.data is not None:
             self._last_completed_night_km = self.data.night_distance_km
             self._record_night()
-        self._night_baseline_count = self._current_wheel_count() or 0.0
+        self._night_baseline_count = self._current_wheel_count()
         self._night_window_start = _compute_window_start(
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
@@ -1088,17 +1193,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         phantom-distance failure the sensor-swap detection already guards
         against elsewhere.
 
-        The lifetime offset is rebased too, so lifetime_distance picks up
-        exactly where it was frozen instead of jumping.
+        The accumulated lifetime total needs no rebasing - it is not
+        derived from the counter, so it simply stays where it was frozen.
+        Only the comparison value has to be re-anchored, so the rotations
+        that happened during the pause aren't credited retroactively.
         """
         current = self._current_wheel_count()
         if current is None:
             return
-
-        frozen_lifetime_rotations = (
-            self.data.lifetime_distance_km * CM_PER_KM
-        ) / self._wheel_circumference_cm
-        self._lifetime_offset_count = frozen_lifetime_rotations - current
 
         self._last_known_count = current
         self._baseline_count = current
@@ -1253,18 +1355,43 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 self._last_known_count is not None
                 and current_count > self._last_known_count
             )
-            if (
-                self._last_known_count is not None
-                and current_count < self._last_known_count
-            ):
-                # Quell-Zähler wurde zurückgesetzt (z. B. Geräte-Reboot):
-                # der bisherige Stand wird in den Lifetime-Offset gebankt,
-                # damit lifetime_distance_km trotzdem weiterwächst, und
-                # beide Tages-/Nacht-Baselines beginnen neu bei 0, statt
-                # eine negative Strecke zu zählen.
-                self._lifetime_offset_count += self._last_known_count
+            if self._lifetime_migration_offset is not None:
+                # Erster echter Zählerstand nach der Migration vom alten
+                # Offset-Modell: Der damalige Gesamtstand war
+                # (Offset + Zählerstand), also genau das übernehmen.
+                self._lifetime_rotations = (
+                    self._lifetime_migration_offset + current_count
+                )
+                self._lifetime_migration_offset = None
+                self.hass.async_create_task(self._async_save_state())
+            elif self._last_known_count is None:
+                # Kein Vergleichswert (Neuinstallation): übernehmen, ohne
+                # etwas gutzuschreiben - was vor diesem Moment lief, ist
+                # nicht zurechenbar.
+                pass
+            elif current_count >= self._last_known_count:
+                self._lifetime_rotations += current_count - self._last_known_count
+            else:
+                # Quell-Zähler wurde zurückgesetzt: Gerät neu geflasht oder
+                # ausgetauscht. Alles auf dem NEUEN Zähler zählt ab jetzt
+                # mit; der bisher aufsummierte Gesamtstand bleibt stehen,
+                # statt neu berechnet zu werden. Deshalb kostet ein Flash
+                # nur noch die Umdrehungen zwischen der letzten Messung
+                # und dem Flash statt der gesamten Vorgeschichte.
+                self._lifetime_rotations += current_count
                 self._baseline_count = 0.0
                 self._night_baseline_count = 0.0
+                self.hass.async_create_task(self._async_save_state())
+            if self._baseline_count is None or self._night_baseline_count is None:
+                # Offene Baseline aus einer Phase, in der der Rad-Sensor
+                # nicht lesbar war: jetzt den ersten echten Zählerstand
+                # übernehmen. Ab hier zählt nur, was DANACH dazukommt -
+                # was während der Lücke lief, ist nicht rekonstruierbar
+                # und wird lieber verschwiegen als erfunden.
+                if self._baseline_count is None:
+                    self._baseline_count = current_count
+                if self._night_baseline_count is None:
+                    self._night_baseline_count = current_count
                 self.hass.async_create_task(self._async_save_state())
             self._last_known_count = current_count
             self._update_activity_session(now, activity_detected)
@@ -1276,10 +1403,6 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             night_distance_km = (
                 rotations_tonight * self._wheel_circumference_cm
             ) / CM_PER_KM
-            lifetime_distance_km = (
-                (self._lifetime_offset_count + current_count)
-                * self._wheel_circumference_cm
-            ) / CM_PER_KM
             night_avg_speed_kmh = (
                 round(night_distance_km / (self._night_active_minutes / 60), 1)
                 if self._night_active_minutes >= MIN_ACTIVE_MINUTES_FOR_AVERAGE
@@ -1288,8 +1411,17 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         else:
             distance_km = self.data.daily_distance_km if self.data else 0.0
             night_distance_km = self.data.night_distance_km if self.data else 0.0
-            lifetime_distance_km = self.data.lifetime_distance_km if self.data else 0.0
             night_avg_speed_kmh = self.data.night_avg_speed_kmh if self.data else None
+
+        # Bewusst AUSSERHALB des Zweigs oben: Die Gesamtstrecke wird
+        # ausschliesslich aus dem aufsummierten, persistierten Stand
+        # berechnet und braucht den aktuellen Zählerstand nicht. Damit
+        # bleibt sie richtig, wenn das Gerät offline ist, wenn es neu
+        # geflasht wird und wenn es ganz ersetzt wird - und sie liegt in
+        # .storage, wird also vom Home-Assistant-Backup mitgesichert.
+        lifetime_distance_km = (
+            self._lifetime_rotations * self._wheel_circumference_cm
+        ) / CM_PER_KM
 
         temp_state = self.hass.states.get(self._temperature_sensor)
         temperature = _as_float(temp_state.state) if temp_state else None

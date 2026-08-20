@@ -7,9 +7,17 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-from homeassistant.core import CoreState, Event, HomeAssistant
+from homeassistant.const import (
+    EVENT_HOMEASSISTANT_STARTED,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
+from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import (
+    EventStateChangedData,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -261,31 +269,84 @@ async def async_unload_entry(hass: HomeAssistant, entry: HamsterFitnessConfigEnt
 async def _async_sync_wheel_diameter(
     hass: HomeAssistant, entry: HamsterFitnessConfigEntry
 ) -> None:
-    """Push CONF_WHEEL_DIAMETER to CONF_WHEEL_DIAMETER_SYNC_ENTITY, if set.
+    """Keep CONF_WHEEL_DIAMETER_SYNC_ENTITY at CONF_WHEEL_DIAMETER.
 
-    A one-way, one-shot push - runs once per entry setup, which also
-    covers every Reconfigure (that fully reloads the entry). The typical
-    target is the "Hamster Wheel Diameter" number entity on an ESPHome
-    device (see esphome/hamster-wheel-sensor.yaml), which would otherwise
-    have to be kept in sync with this value by hand. The sync entity
-    might not be available yet right after a Home Assistant restart (its
-    own integration may still be connecting) - that's logged, not raised,
-    since it shouldn't block this entry from setting up.
+    One-way: this integration is the authority for the value, so the user
+    only ever types it in one place. The typical target is the "Hamster
+    Wheel Diameter" number entity on an ESPHome device (see
+    esphome/hamster-wheel-sensor.yaml).
+
+    This used to be a single push at setup time, which failed in exactly
+    the situation it mattered most. Re-flashing the sensor resets that
+    number entity to the firmware's default, and while the device is
+    being flashed it is unavailable - so the push landed on nothing, got
+    logged, and nothing ever tried again. On the live instance the
+    configured 29 cm silently stayed 28 cm on the device from
+    2026-08-19 onwards, understating every speed it reported.
+
+    So the value is now asserted rather than pushed once: whenever the
+    target becomes available, or comes back reporting something else, it
+    is set again. A change made directly on the device is therefore
+    overwritten - that is the intended trade for having one place to type
+    the number, and the README says so.
     """
     sync_entity = entry.data.get(CONF_WHEEL_DIAMETER_SYNC_ENTITY)
     if not sync_entity:
         return
-    try:
-        await hass.services.async_call(
-            NUMBER_DOMAIN,
-            NUMBER_SERVICE_SET_VALUE,
-            {"entity_id": sync_entity, "value": entry.data[CONF_WHEEL_DIAMETER]},
-            blocking=True,
-        )
-    except Exception:  # noqa: BLE001 - ein Sync-Fehler darf HA nicht crashen
-        _LOGGER.exception(
-            "Hamster Fitness (%s): Raddurchmesser konnte nicht an %s "
-            "übertragen werden",
-            entry.data[CONF_HAMSTER_NAME],
-            sync_entity,
-        )
+
+    target = float(entry.data[CONF_WHEEL_DIAMETER])
+    hamster = entry.data[CONF_HAMSTER_NAME]
+
+    async def _async_push(reason: str) -> None:
+        try:
+            await hass.services.async_call(
+                NUMBER_DOMAIN,
+                NUMBER_SERVICE_SET_VALUE,
+                {"entity_id": sync_entity, "value": target},
+                blocking=True,
+            )
+        except Exception:  # noqa: BLE001 - ein Sync-Fehler darf HA nicht crashen
+            # Kein exception() mehr: Das hier ist erwartbar, solange das
+            # Gerät noch verbindet, und der Listener unten versucht es
+            # ohnehin erneut. Ein Stacktrace pro Neustart wäre Lärm.
+            _LOGGER.debug(
+                "Hamster Fitness (%s): Raddurchmesser konnte (noch) nicht an "
+                "%s übertragen werden (%s)",
+                hamster,
+                sync_entity,
+                reason,
+            )
+        else:
+            _LOGGER.info(
+                "Hamster Fitness (%s): Raddurchmesser %.1f cm an %s übertragen (%s)",
+                hamster,
+                target,
+                sync_entity,
+                reason,
+            )
+
+    def _needs_push(state: State | None) -> bool:
+        """True if the target is readable and not already at the target value."""
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return False
+        try:
+            return abs(float(state.state) - target) > 1e-9
+        except (TypeError, ValueError):
+            # Unlesbarer Zustand: nicht raten, der nächste Event kommt.
+            return False
+
+    @callback
+    def _async_state_changed(event: Event[EventStateChangedData]) -> None:
+        if _needs_push(event.data["new_state"]):
+            entry.async_create_task(
+                hass, _async_push("Zielwert wich ab"), eager_start=False
+            )
+
+    entry.async_on_unload(
+        async_track_state_change_event(hass, [sync_entity], _async_state_changed)
+    )
+
+    # Beim Setup einmal aktiv angleichen. Ist das Ziel gerade nicht
+    # lesbar, übernimmt der Listener oben, sobald es zurückkommt.
+    if _needs_push(hass.states.get(sync_entity)):
+        await _async_push("Einrichtung")

@@ -122,12 +122,14 @@
         "data": {
           "ideal_temp_min": "Ideal temperature (min)",
           "ideal_temp_max": "Ideal temperature (max)",
-          "min_distance_km": "Minimum nightly distance"
+          "min_distance_km": "Minimum nightly distance",
+          "lifetime_distance_km": "Lifetime distance (km)"
         },
         "data_description": {
           "ideal_temp_min": "Lower bound of the ideal cage temperature range.",
           "ideal_temp_max": "Upper bound of the ideal cage temperature range.",
-          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started."
+          "min_distance_km": "Below this distance run in a night, the health score drops sharply. Rated against the current night and the last completed one, whichever is higher - so the score never dips just because a new night has only started.",
+          "lifetime_distance_km": "Only needed to correct the total - normally it looks after itself. Set this after replacing the wheel sensor, or if history was lost. The field always opens showing the current total, so saving it unchanged does nothing."
         },
         "sections": {
           "notification_settings": {

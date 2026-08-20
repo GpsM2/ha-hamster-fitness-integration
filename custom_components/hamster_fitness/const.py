@@ -107,6 +107,18 @@ SKIP_VALIDATION_STATES: Final[set[str]] = {"unknown", "unavailable"}
 OPTION_IDEAL_TEMP_MIN: Final = "ideal_temp_min"
 OPTION_IDEAL_TEMP_MAX: Final = "ideal_temp_max"
 OPTION_MIN_DISTANCE_KM: Final = "min_distance_km"
+# Korrekturwert für die Gesamtstrecke. Normalerweise nie nötig - die
+# Integration summiert selbst auf. Gebraucht wird er, wenn die
+# Vorgeschichte trotzdem verloren ging: Rad-Sensor ausgetauscht, oder
+# eine Installation, die von vor der Umstellung auf das aufsummierte
+# Modell stammt (siehe coordinator.py, _lifetime_rotations).
+#
+# Wirkt bewusst als einmalige Korrektur, nicht als dauerhafter Sollwert:
+# Der zuletzt angewandte Wert wird mitgespeichert, damit ein Reload nicht
+# jedes Mal auf denselben Stand zurücksetzt und die seither gelaufene
+# Strecke verwirft.
+OPTION_LIFETIME_DISTANCE_KM: Final = "lifetime_distance_km"
+MAX_LIFETIME_DISTANCE_KM: Final[float] = 100_000.0
 # Sieben Felder rund um Benachrichtigungen, im Options-Flow als
 # eingeklappte Section NOTIFICATION_SECTION gruppiert - gespeichert werden
 # sie aber flach wie alle anderen Options auch, siehe _flatten_options()
