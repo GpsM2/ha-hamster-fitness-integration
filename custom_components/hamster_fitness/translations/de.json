@@ -122,12 +122,14 @@
         "data": {
           "ideal_temp_min": "Ideal-Temperatur (min)",
           "ideal_temp_max": "Ideal-Temperatur (max)",
-          "min_distance_km": "Mindeststrecke pro Nacht"
+          "min_distance_km": "Mindeststrecke pro Nacht",
+          "lifetime_distance_km": "Gesamtstrecke (km)"
         },
         "data_description": {
           "ideal_temp_min": "Untergrenze des idealen Käfig-Temperaturbereichs.",
           "ideal_temp_max": "Obergrenze des idealen Käfig-Temperaturbereichs.",
-          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat."
+          "min_distance_km": "Unterhalb dieser in einer Nacht gelaufenen Strecke sinkt der Health-Score deutlich. Bewertet wird der höhere Wert aus laufender und zuletzt abgeschlossener Nacht - so fällt der Score nie nur deshalb, weil eine neue Nacht gerade erst begonnen hat.",
+          "lifetime_distance_km": "Nur zum Korrigieren nötig - normalerweise führt sich der Wert von selbst. Nach einem Austausch des Rad-Sensors setzen, oder wenn Vorgeschichte verlorengegangen ist. Das Feld zeigt beim Öffnen immer den aktuellen Stand; unverändert speichern ändert nichts."
         },
         "sections": {
           "notification_settings": {
