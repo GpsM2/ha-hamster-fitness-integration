@@ -44,6 +44,7 @@ from homeassistant.util import dt as dt_util
 
 from . import archive
 from .const import (
+    BASELINE_TRUST_VERSION,
     BREED_OTHER,
     COAT_COLOR_HEX,
     CONF_ACQUISITION_DATE,
@@ -605,13 +606,29 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # gespeicherten Wert.
         sensor_changed = bool(stored) and stored.get("wheel_sensor") != self._wheel_sensor
 
+        # Baselines aus einer Version, die sie auf 0 setzen konnte, werden
+        # einmalig verworfen - siehe BASELINE_TRUST_VERSION in const.py für
+        # das Warum. Bewusst über einen eigenen Marker und NICHT daran
+        # festgemacht, ob das neue Lifetime-Feld vorhanden ist: 0.9.3-beta.1
+        # hat dieses Feld bereits geschrieben, aber die vergiftete Baseline
+        # unverändert mitgeschleppt. Eine Erkennung am Feld hätte genau die
+        # Installationen übersehen, die den Fehler live hatten.
+        #
+        # Preis: Tages- und Nachtstrecke beginnen beim Update einmalig neu.
+        # Das ist ehrlicher als eine Zahl, die um den gesamten Zählerstand
+        # zu hoch sein kann.
+        stale_baselines = (
+            bool(stored)
+            and stored.get("baseline_trust_version", 1) < BASELINE_TRUST_VERSION
+        )
+
         expected_daily_start = _compute_window_start(dt_util.now(), DAILY_RESET_HOUR)
         stored_daily_start = (
             dt_util.parse_datetime(stored["baseline_window_start"])
             if stored.get("baseline_window_start")
             else None
         )
-        if not sensor_changed and stored_daily_start == expected_daily_start:
+        if not sensor_changed and not stale_baselines and stored_daily_start == expected_daily_start:
             self._baseline_count = stored.get("baseline_count", 0.0)
             self._baseline_window_start = expected_daily_start
         else:
@@ -633,7 +650,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             if stored.get("night_window_start")
             else None
         )
-        if not sensor_changed and stored_night_start == expected_night_start:
+        if not sensor_changed and not stale_baselines and stored_night_start == expected_night_start:
             self._night_baseline_count = stored.get("night_baseline_count", 0.0)
             self._night_window_start = expected_night_start
         else:
@@ -696,6 +713,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         await self._store.async_save(
             {
                 "wheel_sensor": self._wheel_sensor,
+                "baseline_trust_version": BASELINE_TRUST_VERSION,
                 "baseline_count": self._baseline_count,
                 # Zuletzt berechnete Strecken. Nur dafür da, nach einem
                 # Neustart etwas Echtes anzeigen zu können, solange der
