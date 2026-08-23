@@ -106,6 +106,7 @@
       "invalid_name": "Bitte gib einen Namen für deinen Hamster ein.",
       "invalid_diameter": "Der Raddurchmesser muss größer als 0 sein.",
       "not_numeric": "Der Zustand des ausgewählten Rad-Sensors ist keine Zahl.",
+      "not_a_counter": "Diese Entity liefert einen Momentanwert, keinen fortlaufenden Zählerstand. Wähle den Sensor, der die Radumdrehungen zählt - bei der mitgelieferten Firmware heißt er „Hamster Wheel Total Rotations\". Ein Geschwindigkeits- oder Distanzsensor funktioniert nicht: die daraus abgeleiteten Strecken wären falsch.",
       "entity_not_found": "Diese Entität wurde nicht gefunden. Bitte erneut auswählen.",
       "breed_required": "Bitte die Rasse benennen - oder oben statt \"Sonstige\" eine aus der Liste wählen."
     },
