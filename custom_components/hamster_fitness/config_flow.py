@@ -6,13 +6,17 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from homeassistant.components.sensor import (
+    ATTR_STATE_CLASS,
+    SensorStateClass,
+)
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlowWithReload,
 )
-from homeassistant.const import Platform
+from homeassistant.const import ATTR_DEVICE_CLASS, Platform
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
@@ -298,6 +302,8 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if not self._is_numeric_state(user_input[CONF_WHEEL_SENSOR]):
                 errors[CONF_WHEEL_SENSOR] = "not_numeric"
+            elif not self._looks_like_a_counter(user_input[CONF_WHEEL_SENSOR]):
+                errors[CONF_WHEEL_SENSOR] = "not_a_counter"
             if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
                 errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
             if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):
@@ -332,6 +338,42 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         except (TypeError, ValueError):
             return False
         return True
+
+    @callback
+    def _looks_like_a_counter(self, entity_id: str) -> bool:
+        """Return True unless the entity is plainly not a rotation counter.
+
+        There is no `device_class` for "counts rotations", which is why the
+        picker can only filter on the domain - and the attribute that would
+        actually tell them apart, `state_class`, is not something the entity
+        selector can filter on (EntitySelectorConfig takes integration,
+        domain, device_class and supported_features, nothing else). So this
+        has to be checked after the fact.
+
+        Two rules, both drawn from what the real entities look like. The
+        bundled firmware's counter carries no device class and
+        `state_class: total_increasing`; the two entities most likely to be
+        picked by mistake sit on the other side of exactly one of those:
+
+        - the speed sensor is `device_class: speed`, `state_class:
+          measurement` - picked by accident on 2026-08-21, which produced
+          three days of phantom zeros, because a speed reading falls back
+          to 0 whenever the hamster stops and a counter that falls reads as
+          a device reset;
+        - the device's own distance sensor is `device_class: distance`,
+          which looks plausible but reports kilometres that would then be
+          multiplied by the wheel circumference a second time.
+
+        A missing `state_class` is accepted: a hand-written template counter
+        may legitimately set none, and rejecting those would be stricter
+        than the problem warrants.
+        """
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state in SKIP_VALIDATION_STATES:
+            return True
+        if state.attributes.get(ATTR_DEVICE_CLASS) is not None:
+            return False
+        return state.attributes.get(ATTR_STATE_CLASS) != SensorStateClass.MEASUREMENT
 
     @callback
     def _entity_exists(self, entity_id: str) -> bool:
@@ -387,6 +429,8 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if not self._is_numeric_state(user_input[CONF_WHEEL_SENSOR]):
                 errors[CONF_WHEEL_SENSOR] = "not_numeric"
+            elif not self._looks_like_a_counter(user_input[CONF_WHEEL_SENSOR]):
+                errors[CONF_WHEEL_SENSOR] = "not_a_counter"
             if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
                 errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
             if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):

@@ -106,6 +106,7 @@
       "invalid_name": "Please enter a name for your hamster.",
       "invalid_diameter": "Wheel diameter must be greater than 0.",
       "not_numeric": "The selected wheel sensor's current state is not a number.",
+      "not_a_counter": "That entity reports a live reading, not a running total. Pick the sensor that counts wheel rotations - with the bundled firmware it is named \"Hamster Wheel Total Rotations\". A speed or distance sensor will not work: the distances derived from it would be wrong.",
       "entity_not_found": "This entity could not be found. Please pick it again.",
       "breed_required": "Please name the breed, or pick one from the list instead of \"Other\"."
     },
