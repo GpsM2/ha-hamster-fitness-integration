@@ -719,15 +719,7 @@ class HamsterRunningCard extends HTMLElement {
         const label = night.live
           ? t(this._hass, "running.tonight")
           : fmtWeekday(this._hass, night.date);
-        // A generous invisible hit area: the bar itself can be a few
-        // pixels wide on a thin night, which is not something to ask
-        // anyone to hit with a thumb.
-        const hit = `<rect class="hrc-hit" x="${(x - slot / 2).toFixed(1)}" y="${PAD_TOP}"
-                width="${slot.toFixed(1)}" height="${PLOT_H}"
-                data-night="${night.date}" role="button" tabindex="0"
-                aria-label="${t(this._hass, "running.nightDetail")}"/>`;
         return `
-          ${hit}
           <rect class="hrc-bar${night.live ? " hrc-bar-live" : ""}"
                 x="${(x - width / 2).toFixed(1)}" y="${y.toFixed(1)}"
                 width="${width.toFixed(1)}" height="${Math.max(h, valid ? 1.5 : 0).toFixed(1)}"
@@ -736,6 +728,37 @@ class HamsterRunningCard extends HTMLElement {
                 x="${x.toFixed(1)}" y="${CHART_H - 5}"
                 text-anchor="middle">${label}</text>
         `;
+      })
+      .join("");
+  }
+
+  /**
+   * Invisible click/tap targets, one generous strip per night - the bar
+   * itself can be a few pixels wide on a thin night, which is not
+   * something to ask anyone to hit with a thumb.
+   *
+   * Rendered as a SEPARATE pass from `_bars()`, and placed LAST in the
+   * `<svg>` markup by the caller - not inline with each bar. SVG paints
+   * later elements on top, and on top is also what wins hit-testing
+   * where shapes overlap. Emitting the hit rect right next to its bar
+   * put the *visible* bar on top of its own hit target, so a tap
+   * landing on the bar itself hit the bar (no `data-night`, click
+   * silently swallowed) instead of the hit rect underneath it; only
+   * the empty space above the bar, where nothing else was painted
+   * later, actually worked. Same problem for a tap on the average/goal
+   * line or an overlay line, both drawn after the bars too. Rendering
+   * every hit rect after all of that fixes it regardless of which
+   * overlays are switched on.
+   */
+  _hitAreas(nights) {
+    const slot = PLOT_W / nights.length;
+    return nights
+      .map((night, i) => {
+        const x = PAD_LEFT + slot * (i + 0.5);
+        return `<rect class="hrc-hit" x="${(x - slot / 2).toFixed(1)}" y="${PAD_TOP}"
+                width="${slot.toFixed(1)}" height="${PLOT_H}"
+                data-night="${night.date}" role="button" tabindex="0"
+                aria-label="${t(this._hass, "running.nightDetail")}"/>`;
       })
       .join("");
   }
@@ -879,6 +902,7 @@ class HamsterRunningCard extends HTMLElement {
         ${this._rule(goal, max, "hrc-rule-goal")}
         ${lines}
         ${this._sessionLabels(nights, max)}
+        ${this._hitAreas(nights)}
     `;
   }
 
