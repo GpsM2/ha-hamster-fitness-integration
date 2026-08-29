@@ -296,19 +296,19 @@ async def test_night_counters_survive_a_restart(hass: HomeAssistant) -> None:
     """
     coordinator = await _setup(hass)
 
-    coordinator._night_active_minutes = 84.0
+    coordinator._night_moving_minutes = 84.0
     coordinator._night_sessions = 5
     coordinator._max_speed_tonight_kmh = 7.3
     await coordinator._async_save_state()
 
     # Whatever a restart would wipe.
-    coordinator._night_active_minutes = 0.0
+    coordinator._night_moving_minutes = 0.0
     coordinator._night_sessions = 0
     coordinator._max_speed_tonight_kmh = None
 
     await coordinator._async_restore_state()
 
-    assert coordinator._night_active_minutes == 84.0
+    assert coordinator._night_moving_minutes == 84.0
     assert coordinator._night_sessions == 5
     assert coordinator._max_speed_tonight_kmh == 7.3
 

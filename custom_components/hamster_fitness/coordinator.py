@@ -71,6 +71,7 @@ from .const import (
     DEFAULT_MIN_DISTANCE_KM,
     DOMAIN,
     IDEAL_DISTANCE_MIN_KM,
+    MOVING_PULSE_GAP_SECONDS,
     NEGLECT_THRESHOLD_HOURS,
     NIGHT_HISTORY_NIGHTS,
     NIGHT_WINDOW_START_HOUR,
@@ -93,6 +94,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CM_PER_KM: Final = 100_000.0
 SESSION_END_GAP: Final = timedelta(minutes=SESSION_END_GAP_MINUTES)
+MOVING_PULSE_GAP: Final = timedelta(seconds=MOVING_PULSE_GAP_SECONDS)
 # Below this, night_avg_speed_kmh stays None rather than dividing by a
 # near-zero denominator - a few seconds into a session, distance/time
 # would just read back the instantaneous speed, not a meaningful average.
@@ -143,7 +145,7 @@ class HamsterFitnessData:
     night_distance_km: float = 0.0
     # night_distance_km / tatsächlich gelaufene Zeit dieses Nachtfensters
     # (nicht Wanduhrzeit seit Fensterstart) - siehe
-    # HamsterFitnessCoordinator._night_active_minutes. None, solange noch
+    # HamsterFitnessCoordinator._night_moving_minutes. None, solange noch
     # keine volle Minute Laufzeit vorliegt: ein Schnitt über wenige
     # Sekunden würde nur die gerade aktuelle Geschwindigkeit wiedergeben,
     # nicht "wie ist der Hamster heute Nacht gelaufen".
@@ -320,23 +322,29 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         self._night_baseline_count: float | None = 0.0
         self._night_window_start: datetime | None = None
-        # Persistiert - siehe _night_active_minutes unten: geht auch in
+        # Persistiert - siehe _night_moving_minutes unten: geht auch in
         # den night_history-Eintrag der Nacht ein.
         self._max_speed_tonight_kmh: float | None = None
         self._lifetime_max_speed_kmh: float | None = None
         self._last_completed_night_km: float = 0.0
-        # Tatsächlich gelaufene Minuten seit dem letzten Nachtfenster-Start
-        # (Summe über ALLE Lauf-Sessions dieser Nacht, nicht nur die
-        # aktuelle) - siehe _update_activity_session().
+        # Sum of pulse-to-pulse gaps short enough to count as genuinely
+        # moving (MOVING_PULSE_GAP_SECONDS), across every session tonight -
+        # the denominator for night_avg_speed_kmh. Deliberately NOT the
+        # session's wall-clock span: SESSION_END_GAP (15 min) tolerates
+        # pauses within a session so brief interruptions don't split one
+        # outing into several - right for the session-count/duration
+        # stats, but wrong for average SPEED, where that same tolerance
+        # diluted it by whatever idle time a session happened to contain.
+        # On the live instance a night with four sessions averaged
+        # 1.5 km/h against a 12.6 km/h peak, implying ~4.5 hours credited
+        # as "moving" for what was actually a few minutes of running -
+        # see _update_activity_session().
         #
-        # Wird persistiert, seit _record_night() daraus die avg_speed_kmh
-        # einer Nacht in night_history schreibt. Vorher speiste der Wert
-        # nur einen Live-Chip, den der nächste Tick ohnehin neu berechnet -
-        # da war ein Neustart folgenlos. Jetzt landet er in einem Eintrag,
-        # der nie wieder korrigiert wird: ohne Persistenz zeichnet jeder
-        # Neustart im Nachtfenster die Nacht dauerhaft falsch auf.
-        self._night_active_minutes: float = 0.0
-        self._last_activity_tick_at: datetime | None = None
+        # Persisted since _record_night() writes the resulting
+        # avg_speed_kmh into a night_history entry that is never
+        # recalculated once the night closes - without persistence, a
+        # restart mid-window would permanently misrecord that night.
+        self._night_moving_minutes: float = 0.0
 
         # Störungszähler der laufenden Schlafphase (siehe _sleep_penalty()).
         # Werden bei jedem Tages-Reset geleert und persistiert, damit ein
@@ -355,7 +363,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # Wie viele getrennte Lauf-Sessions dieses Nachtfenster hatte.
         # Aussagekräftig zusätzlich zur Gesamtzeit: 90 Minuten am Stück
         # sehen anders aus als sechsmal 15 Minuten, obwohl die Summe
-        # gleich ist. Wird wie _night_active_minutes persistiert.
+        # gleich ist. Wird wie _night_moving_minutes persistiert.
         self._night_sessions: int = 0
         self._night_temp_sum: float = 0.0
         self._night_temp_samples: int = 0
@@ -528,7 +536,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._night_temp_samples = stored.get("night_temp_samples", 0)
             self._night_humidity_sum = stored.get("night_humidity_sum", 0.0)
             self._night_humidity_samples = stored.get("night_humidity_samples", 0)
-            self._night_active_minutes = stored.get("night_active_minutes", 0.0)
+            self._night_moving_minutes = stored.get("night_moving_minutes", 0.0)
             self._night_sessions = stored.get("night_sessions", 0)
             self._max_speed_tonight_kmh = stored.get("max_speed_tonight_kmh")
             self._best_night_km = stored.get("best_night_km")
@@ -748,7 +756,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 "night_temp_samples": self._night_temp_samples,
                 "night_humidity_sum": self._night_humidity_sum,
                 "night_humidity_samples": self._night_humidity_samples,
-                "night_active_minutes": self._night_active_minutes,
+                "night_moving_minutes": self._night_moving_minutes,
                 "night_sessions": self._night_sessions,
                 "max_speed_tonight_kmh": self._max_speed_tonight_kmh,
                 "best_night_km": self._best_night_km,
@@ -884,7 +892,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
         self._max_speed_tonight_kmh = None
-        self._night_active_minutes = 0.0
+        self._night_moving_minutes = 0.0
         self._night_sessions = 0
         self._night_temp_sum = 0.0
         self._night_temp_samples = 0
@@ -1305,38 +1313,25 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         start/end boundary (not on every pulse) to avoid writing to disk
         on every single wheel rotation during an active run.
 
-        Also accumulates _night_active_minutes, the running total this
-        method's docstring above doesn't otherwise track: night_active_
-        duration_min covers only the *current* session, but the night's
-        average speed (see night_avg_speed_kmh) needs the sum across
-        every session tonight. Credited BEFORE the state below changes
-        _session_start_at - the elapsed interval belongs to whatever was
-        true for its whole span, including the tail end of a session that
-        happens to be ending, or the lead-up to one that's starting, right
-        at this exact call.
-
-        The credited interval is capped at the session's own end boundary
-        (last activity + SESSION_END_GAP), not run all the way to `now`.
-        Without that cap, a tick that happens to land long after a
-        session quietly expired - the next sensor event might not fire
-        for hours - would credit the entire idle gap as active, the same
-        way night_active_duration_min would visibly keep counting up
-        through the grace period if nothing checked it sooner. Capping
-        matches what that display would have shown at the moment the
-        session actually ended, not one silent tick later.
+        Also accumulates _night_moving_minutes - the sum of pulse-to-pulse
+        gaps short enough to count as genuinely moving (MOVING_PULSE_GAP),
+        which night_avg_speed_kmh divides by. A stricter measure than
+        session wall-clock time on purpose: see the field's own comment
+        in __init__ for why that distinction matters.
         """
-        if self._session_start_at is not None and self._last_activity_tick_at is not None:
-            session_end_boundary = (
-                self._last_activity_at + SESSION_END_GAP
-                if self._last_activity_at is not None
-                else now
-            )
-            credit_until = min(now, session_end_boundary)
-            elapsed_min = (credit_until - self._last_activity_tick_at).total_seconds() / 60
-            self._night_active_minutes += max(0.0, elapsed_min)
-        self._last_activity_tick_at = now
-
         if activity_detected:
+            # Credit genuine moving time BEFORE overwriting _last_activity_at
+            # below - the gap to the PREVIOUS pulse is exactly what
+            # MOVING_PULSE_GAP judges. A gap this short can only mean the
+            # wheel kept turning; a longer one means whatever came before
+            # was a pause (or this is the very first pulse of a new burst,
+            # with nothing to credit yet either way) and contributes nothing.
+            if (
+                self._last_activity_at is not None
+                and now - self._last_activity_at <= MOVING_PULSE_GAP
+            ):
+                moving_min = (now - self._last_activity_at).total_seconds() / 60
+                self._night_moving_minutes += moving_min
             self._last_activity_at = now
             if self._session_start_at is None:
                 self._session_start_at = now
@@ -1421,9 +1416,15 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             night_distance_km = (
                 rotations_tonight * self._wheel_circumference_cm
             ) / CM_PER_KM
+            # _night_moving_minutes, not _night_active_minutes: the latter
+            # tolerates gaps up to SESSION_END_GAP so brief pauses don't
+            # split one outing into several sessions, which is right for
+            # session-count/duration but would dilute an average SPEED by
+            # whatever idle time a session happened to contain. See
+            # _update_activity_session().
             night_avg_speed_kmh = (
-                round(night_distance_km / (self._night_active_minutes / 60), 1)
-                if self._night_active_minutes >= MIN_ACTIVE_MINUTES_FOR_AVERAGE
+                round(night_distance_km / (self._night_moving_minutes / 60), 1)
+                if self._night_moving_minutes >= MIN_ACTIVE_MINUTES_FOR_AVERAGE
                 else None
             )
         else:
