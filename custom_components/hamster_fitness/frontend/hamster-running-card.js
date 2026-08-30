@@ -440,10 +440,22 @@ class HamsterRunningCard extends HTMLElement {
     const peak = Math.max(...buckets.filter((v) => v !== null), 0.5);
     const runMinutes = Math.round(total / 60000);
 
+    // The coordinator's own count, NOT segments.length. Both used to be
+    // shown side by side - the bar above this dialog reads night.sessions
+    // (built live, from wheel-rotation pulses), while this used to be
+    // segments.length (rebuilt after the fact from the speed sensor's
+    // recorder history, an independent signal with its own gap logic).
+    // They can disagree - confirmed against a real instance, "3" on the
+    // bar next to "2" here for the same night - with nothing explaining
+    // why. segments.length still drives the chart itself: rebuilding the
+    // trace from speed history is still the only way to draw it, this
+    // only stops it from also being treated as the authoritative count.
+    const runCount = Number.isFinite(night.sessions) ? night.sessions : segments.length;
+
     body.innerHTML = `
       ${this._traceChart(buckets, marks, total, peak)}
       <div class="hrc-night-facts">
-        ${this._nightFact("running.nightRuns", String(segments.length))}
+        ${this._nightFact("running.nightRuns", String(runCount))}
         ${this._nightFact("running.nightRunTime", fmtDuration(this._hass, runMinutes))}
         ${this._nightFact(
           "running.nightPeak",
