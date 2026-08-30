@@ -285,3 +285,50 @@ async def test_health_score_sensor_exposes_the_average(hass: HomeAssistant) -> N
     state = hass.states.get(HEALTH_SCORE)
     expected = round(_distance_km(rotations) / (moving / 60), 1)
     assert state.attributes["night_avg_speed_kmh"] == expected
+
+
+async def test_moving_minutes_survives_a_restart_mid_session(
+    hass: HomeAssistant,
+) -> None:
+    """Regression test for real data loss: both hamsters lost a whole
+    night's average the day the integration was restarted to update.
+
+    _night_moving_minutes used to be saved only at session start/end,
+    which can be hours apart - a restart landing inside an open session
+    lost everything accumulated since the last save. The periodic tick
+    now saves too, so restarting mid-session only loses whatever
+    accumulated since the LAST periodic tick, not the whole session.
+    """
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
+    now = dt_util.utcnow()
+
+    # A single long-running session: comfortably past the 1-minute floor,
+    # and never closed - SESSION_END_GAP is 15 minutes, this burst spans
+    # nowhere near that.
+    now, rotations, moving = await _burst(
+        hass, now, pulses=QUALIFYING_PULSES, gap=CLOSE_GAP, rotations_start=0
+    )
+    assert moving * 60 >= 60, "test setup: must clear the 1-minute floor"
+
+    # The scheduled per-minute tick - not _tick_at(), which only
+    # recomputes without saving. This is what the fix adds a save to.
+    with patch("homeassistant.util.dt.utcnow", return_value=now):
+        coordinator._async_handle_periodic_update(now)
+    await hass.async_block_till_done()
+
+    before_reload = coordinator.data.night_avg_speed_kmh
+    assert before_reload is not None
+
+    # Simulate a restart. The session is still open (no SESSION_END_GAP
+    # has passed) - exactly the scenario that lost data in production.
+    with patch("homeassistant.util.dt.utcnow", return_value=now):
+        await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    reloaded = entry.runtime_data
+    with patch("homeassistant.util.dt.utcnow", return_value=now):
+        reloaded.async_set_updated_data(reloaded._calculate())
+    await hass.async_block_till_done()
+
+    assert reloaded.data.night_avg_speed_kmh == before_reload

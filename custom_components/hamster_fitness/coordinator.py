@@ -980,10 +980,24 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         Doubles as the sampling tick for the daily score average: an
         evenly spaced sample every minute, independent of how much the
         source sensors happen to be firing.
+
+        Also the only place several fast-changing fields (currently
+        _night_moving_minutes, _max_speed_tonight_kmh) get persisted while
+        a session is still open - everywhere else that touches them saves
+        only at session start/end, which can be hours apart. A restart
+        landing inside that gap - reported from production, both hamsters
+        lost their night's average speed the day the integration itself
+        was restarted to update - loses whatever accumulated since the
+        last save entirely, because the in-memory value a restart would
+        otherwise resume from was never written to disk. This bounds that
+        loss to under a minute instead of "however long the session had
+        been running", the same way this method already bounds how stale
+        session/rest durations can get.
         """
         self.async_set_updated_data(self._calculate())
         self._sample_score()
         self._sample_night_climate()
+        self.hass.async_create_task(self._async_save_state())
 
     # ------------------------------------------------------------------
     # Gewicht (siehe number.py und die Wiege-Erinnerung in notify.py)
