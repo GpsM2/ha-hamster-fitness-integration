@@ -205,6 +205,21 @@ NIGHT_WINDOW_START_HOUR: Final[int] = 20
 # (z. B. Trinken, Putzen) unterbrechen die Session nicht.
 SESSION_END_GAP_MINUTES: Final[int] = 15
 
+# --- Nacht-Durchschnittsgeschwindigkeit (night_avg_speed_kmh) ---
+# Maximaler Abstand zwischen zwei Radumdrehungen, der noch als
+# "durchgehend gelaufen" zählt statt als Pause - unabhängig von
+# SESSION_END_GAP_MINUTES, das eine andere Frage beantwortet (siehe
+# coordinator.py's _update_activity_session()).
+#
+# Ermittelt aus echten Produktivdaten (Rad-Zähler-Historie einer aktiven
+# Nacht, 2959 Impuls-zu-Impuls-Abstände): Median 1,3 s, 90. Perzentil
+# 1,8 s, 96,2 % aller Abstände während tatsächlicher Aktivität ≤ 3 s.
+# Danach folgt ein langer dünner Ausläufer (48 Abstände zwischen 3-5 s,
+# 25 zwischen 5-10 s, ...) - das sind eher kurze Unterbrechungen als
+# Teil des Laufens. 5 s deckt noch 97,8 % der echten Lauf-Abstände ab,
+# schneidet aber den Ausläufer ab.
+MOVING_PULSE_GAP_SECONDS: Final[float] = 5.0
+
 # --- Schlafphasen-Metrik (score_sleep) ---
 # Hauptschlafphase eines dämmerungs-/nachtaktiven Hamsters. Störungen in
 # diesem Fenster (Deckel öffnen, dadurch geweckt werden und ins Rad
