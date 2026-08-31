@@ -116,10 +116,17 @@ _TEMP_PENALTY_CAP = _TEMP_BUFFER_PENALTY_MAX + _TEMP_SEVERE_PENALTY_MAX
 _SLEEP_DOOR_PENALTY = 20.0
 _SLEEP_ACTIVITY_PENALTY = 10.0
 _SLEEP_PENALTY_CAP = 100.0
+# Türöffnungen während der Schlafphase, die pro Tag folgenlos bleiben, bevor
+# _SLEEP_DOOR_PENALTY erstmals greift - siehe _sleep_penalty(). Nur auf
+# Öffnungen, nicht auf Lauf-Sessions: an echten Produktivdaten geprüft
+# (Käfig 3x geöffnet, aber 0 Lauf-Sessions an dem Tag - der Hamster holt
+# sich den Snack, ohne loszulaufen), eine gleichzeitige Freimenge auf
+# Sessions hätte an diesem Fall gar nichts geändert.
+_SLEEP_DOOR_FREE_ALLOWANCE = 1
 # Anteil des Schlaf-Abzugs, der in den Gesamt-Health-Score einfließt.
-# Bewusst klein gehalten: eine einzelne Käfigöffnung um die Mittagszeit ist
-# nicht gut für den Hamster, soll den Gesamtscore aber auch nicht dominieren
-# wie eine zu kalte Umgebung oder tagelang zu wenig Bewegung. Bei voll
+# Bewusst klein gehalten: eine zweimal am Tag geöffnete Klappe ist nicht
+# gut für den Hamster, soll den Gesamtscore aber auch nicht dominieren wie
+# eine zu kalte Umgebung oder tagelang zu wenig Bewegung. Bei voll
 # ausgereiztem Schlaf-Abzug (100) sind das 15 Punkte.
 _SLEEP_SCORE_WEIGHT = 0.15
 
@@ -1896,10 +1903,19 @@ def _sleep_penalty(door_openings: int, activity_sessions: int) -> float:
       itself, weighted heavier), and
     - the hamster starting a fresh run session during it (usually the
       *consequence* of having been woken up).
+
+    The first opening of the day is free (_SLEEP_DOOR_FREE_ALLOWANCE):
+    checking on a hamster once, e.g. a midday feeding, is routine care,
+    not a disturbance worth penalising - reported and confirmed against
+    real data, where a hamster collects a snack without ever starting a
+    run (0 activity_sessions that day), so the opening itself needed the
+    allowance. Only the *first* one - a second opening the same day still
+    costs the full penalty, which is the actual point: routine care isn't
+    a disturbance, a repeatedly opened lid is.
     """
     return min(
         _SLEEP_PENALTY_CAP,
-        door_openings * _SLEEP_DOOR_PENALTY
+        max(0, door_openings - _SLEEP_DOOR_FREE_ALLOWANCE) * _SLEEP_DOOR_PENALTY
         + activity_sessions * _SLEEP_ACTIVITY_PENALTY,
     )
 

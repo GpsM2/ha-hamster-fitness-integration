@@ -326,11 +326,38 @@ def test_pillar_score_scales_to_its_own_maximum() -> None:
 def test_sleep_penalty_weighs_openings_heavier_than_wake_ups() -> None:
     """Opening the cage is the disturbance; running is its consequence."""
     assert _sleep_penalty(0, 0) == 0.0
-    assert _sleep_penalty(1, 0) == 20.0
+    # The first opening of the day is free - see
+    # test_first_daily_door_opening_is_free below for why.
+    assert _sleep_penalty(1, 0) == 0.0
+    assert _sleep_penalty(2, 0) == 20.0
     assert _sleep_penalty(0, 1) == 10.0
-    assert _sleep_penalty(1, 1) == 30.0
+    assert _sleep_penalty(1, 1) == 10.0
+    assert _sleep_penalty(2, 1) == 30.0
     # Capped, so a chaotic day can't push the pillar below 0.
     assert _sleep_penalty(20, 20) == 100.0
+
+
+def test_first_daily_door_opening_is_free() -> None:
+    """Routine care - checking on the hamster once - isn't a disturbance.
+
+    Reported and confirmed against real production data: a hamster
+    collects a snack around midday without ever starting a run (0
+    activity_sessions that day), so only the opening itself needed
+    forgiving - an allowance on activity_sessions too would have changed
+    nothing for that exact case, which is why there isn't one.
+    """
+    assert _sleep_penalty(1, 0) == 0.0
+
+    # A second opening still costs the full penalty - one free opening a
+    # day, not free openings in general. A repeatedly opened lid is a
+    # disturbance regardless of what came before it.
+    assert _sleep_penalty(2, 0) == 20.0
+    assert _sleep_penalty(3, 0) == 40.0
+
+    # The allowance is on openings specifically, not folded into a shared
+    # budget with activity sessions - a wake-up still costs the full
+    # per-session penalty even on a day with no openings at all.
+    assert _sleep_penalty(0, 1) == 10.0
 
 
 def test_sleep_phase_window_is_wall_clock_local() -> None:
