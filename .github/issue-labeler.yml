@@ -100,3 +100,6 @@ weather:
 # than being relabelled later.
 'card: running':
   - '/hamster-running-card|running[ -]?(card|karte)|lauf[ -]?(karte|historie|statistik)|running (history|session)|laufsession|nacht[ -]?historie|night history|bestleistung|personal best|pers(ö|oe)nliche bestzeit/i'
+
+'card: guest-share':
+  - '/hamster-guest-share-card|guest[ -]?(access|share)[ -]?(card|karte)|gäste(zugang|freigabe)|qr[ -]?code|guest link|gast[ -]?link|unauthenticated|ohne (login|anmeldung)/i'

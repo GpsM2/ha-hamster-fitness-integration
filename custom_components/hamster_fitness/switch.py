@@ -12,6 +12,7 @@ coordinator (see coordinator.py), so `door_light.py`, this entity and the
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -20,12 +21,14 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     ATTR_DURATION_MINUTES,
     CONF_LIGHT_ENTITY,
     DEFAULT_LIGHT_PAUSE_MINUTES,
+    GUEST_URL_PREFIX,
     MAX_LIGHT_PAUSE_MINUTES,
     SERVICE_PAUSE_LIGHT_AUTOMATION,
 )
@@ -35,6 +38,8 @@ from .coordinator import (
     hamster_device_info,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -42,7 +47,10 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Hamster Fitness switches from a config entry."""
-    entities: list[SwitchEntity] = [HamsterBoardingSwitch(entry.runtime_data, entry)]
+    entities: list[SwitchEntity] = [
+        HamsterBoardingSwitch(entry.runtime_data, entry),
+        HamsterGuestShareSwitch(hass, entry.runtime_data, entry),
+    ]
 
     if not entry.data.get(CONF_LIGHT_ENTITY):
         async_add_entities(entities)
@@ -157,3 +165,72 @@ class HamsterLightAutomationSwitch(
     async def async_pause_automation(self, duration_minutes: float) -> None:
         """Handle `hamster_fitness.pause_light_automation`."""
         await self.coordinator.async_pause_light_automation(duration_minutes)
+
+
+class HamsterGuestShareSwitch(
+    CoordinatorEntity[HamsterFitnessCoordinator], SwitchEntity
+):
+    """Turns the read-only guest link on or off (#147).
+
+    The entity is the source of truth for whether a link exists at all -
+    the `hamster-guest-share-card` is just a friendlier surface for the
+    same on/off state and its `share_url` attribute, and an automation
+    can flip it exactly the same way. Turning it on mints a fresh,
+    unguessable link; turning it off invalidates whatever was shared
+    immediately, see `HamsterFitnessCoordinator.async_set_guest_share()`.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "guest_share"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: HamsterFitnessCoordinator,
+        entry: HamsterFitnessConfigEntry,
+    ) -> None:
+        """Initialize the guest-share switch."""
+        super().__init__(coordinator)
+        self._hass = hass
+        self._attr_unique_id = f"{entry.entry_id}_guest_share"
+        self._attr_device_info = hamster_device_info(entry)
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether a guest link currently exists."""
+        return self.coordinator.guest_share_token is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the full guest URL, if sharing is on.
+
+        Built from Home Assistant's own configured URL rather than
+        stored - so it always reflects the instance's current
+        internal/external address instead of going stale if that ever
+        changes. Preferring the external URL matches the actual use case
+        (a boarding sitter checking in from outside the house); on a
+        purely local setup with no external URL configured at all, the
+        link falls back to the internal one, which still works for
+        anyone on the same network.
+        """
+        token = self.coordinator.guest_share_token
+        if token is None:
+            return {"share_url": None}
+        try:
+            base_url = get_url(self._hass, prefer_external=True)
+        except NoURLAvailableError:
+            _LOGGER.warning(
+                "Hamster Fitness: Kein Gast-Link möglich - Home Assistant "
+                "hat weder eine interne noch eine externe URL konfiguriert."
+            )
+            return {"share_url": None}
+        return {"share_url": f"{base_url}{GUEST_URL_PREFIX}/{token}"}
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Generate a fresh guest link."""
+        await self.coordinator.async_set_guest_share(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Revoke the guest link immediately."""
+        await self.coordinator.async_set_guest_share(False)

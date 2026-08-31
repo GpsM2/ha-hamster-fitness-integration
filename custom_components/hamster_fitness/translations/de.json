@@ -254,6 +254,9 @@
       },
       "boarding": {
         "name": "Vorübergehend abwesend"
+      },
+      "guest_share": {
+        "name": "Gästezugang"
       }
     },
     "button": {

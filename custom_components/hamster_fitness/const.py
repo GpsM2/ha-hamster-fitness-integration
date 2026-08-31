@@ -401,4 +401,25 @@ JS_MODULES: Final[list[dict[str, str]]] = [
         "filename": "hamster-weight-card.js",
         "version": "13",
     },
+    {
+        "name": "Hamster Guest Share Card",
+        "filename": "hamster-guest-share-card.js",
+        "version": "1",
+    },
 ]
+
+# --- Gästezugang (#147) ---
+# Eigenes URL-Präfix, bewusst getrennt von URL_BASE (der authentifizierte
+# statische Pfad für die Kartendateien) - unter diesem Präfix liegen die
+# beiden einzigen unauthentifizierten Routen der Integration, siehe
+# guest_share.py.
+GUEST_URL_PREFIX: Final = f"/{DOMAIN}/guest"
+# 32 Byte (256 Bit) Zufall, URL-sicher kodiert via secrets.token_urlsafe -
+# das Token selbst ist die einzige Sicherheitsgrenze (siehe guest_share.py),
+# nicht die Netzwerkposition der Anfrage.
+GUEST_SHARE_TOKEN_BYTES: Final[int] = 32
+# Höflichkeitsschicht gegen plumpes Token-Raten von einer einzelnen IP -
+# kein Ersatz für die Token-Entropie, da sich die tatsächliche Adresse
+# hinter Nabu Casa/einem Reverse Proxy nicht verlässlich prüfen lässt.
+GUEST_SHARE_RATE_LIMIT_REQUESTS: Final[int] = 30
+GUEST_SHARE_RATE_LIMIT_WINDOW_SECONDS: Final[float] = 60.0

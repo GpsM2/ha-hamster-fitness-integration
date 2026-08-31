@@ -32,6 +32,26 @@ if not hasattr(config_entries, "OptionsFlowWithReload"):
 
 
 if sys.platform == "win32":
+    # aiohttp's test client (hass_client/hass_client_no_auth - see
+    # test_guest_share.py) builds a real TCPConnector, which resolves
+    # DNS through `aiodns` whenever that package happens to be importable
+    # (it is here, pulled in transitively). aiodns hard-requires a
+    # SelectorEventLoop, but Home Assistant's own event loop policy
+    # (HassEventLoopPolicy, subclassing asyncio.DefaultEventLoopPolicy)
+    # runs ProactorEventLoop on Windows - so every test that spins up an
+    # aiohttp client fails with "aiodns needs a SelectorEventLoop on
+    # Windows" before a single request goes out, despite every request
+    # in this suite staying on loopback and never needing real DNS at
+    # all. `aiohttp.connector` binds `DefaultResolver` into its own
+    # module namespace at import time (`from .resolver import
+    # DefaultResolver`), so the swap has to happen there, not on
+    # `aiohttp.resolver` - by the time this module runs, `homeassistant`
+    # has already imported `aiohttp.connector` and captured the old
+    # reference.
+    import aiohttp.connector
+    import aiohttp.resolver
+
+    aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver
 
     def _allow_loopback_sockets(allow_unix_socket: bool = False) -> None:
         """Let asyncio create its self-pipe socket on Windows.
