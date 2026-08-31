@@ -188,7 +188,7 @@ function baseHass({ night, active, speed, lightOn, paused, automationOn = true, 
   };
 }
 
-function healthHass({ score, warn, coat = "#D48C46", history = true }) {
+function healthHass({ score, warn, coat = "#D48C46", history = true, door = true }) {
   const hass = baseHass({ night: true, active: true, speed: 3.4, lightOn: false, coat });
   hass.states["sensor.hamster_taco_health_score"] = {
     state: String(score),
@@ -227,9 +227,13 @@ function healthHass({ score, warn, coat = "#D48C46", history = true }) {
   pillar("score_climate", "sensor.hamster_taco_climate_score", warn ? 10 : 100, {
     temperature: warn ? 12.5 : 21.4, humidity: 52,
   });
-  pillar("score_care", "sensor.hamster_taco_care_score", 92, {
-    hours_door_closed: 14, door_open: false, neglect_threshold_hours: 48,
-  });
+  // #143: without a door sensor, this entity simply doesn't exist -
+  // no state, no entity-registry entry.
+  if (door) {
+    pillar("score_care", "sensor.hamster_taco_care_score", 92, {
+      hours_door_closed: 14, door_open: false, neglect_threshold_hours: 48,
+    });
+  }
   hass.states["binary_sensor.hamster_taco_warning"] = {
     state: warn ? "on" : "off",
     attributes: { warning_reason: "Im Käfig ist es ziemlich kalt: 12,5 °C." },
@@ -333,6 +337,7 @@ grid(
     ["Voll vital (88)", { score: 88, warn: false }],
     ["Tierarzt prüfen (42) mit Warnung", { score: 42, warn: true, coat: "#8A929A" }],
     ["Beobachten (62), noch keine Historie", { score: 62, warn: false, history: false }],
+    ["Ohne Türsensor (#143) – 3 statt 4 Pillars", { score: 88, warn: false, door: false }],
   ],
   (opts) => makeCard("hamster-fitness-card",
     { entity: "sensor.hamster_taco_health_score" }, healthHass(opts))

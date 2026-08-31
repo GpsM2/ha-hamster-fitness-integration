@@ -39,6 +39,12 @@ Tapping a tile opens a detail dialog with the concrete numbers behind
 that score and a short husbandry note explaining why it matters. Escape
 or the × closes it.
 
+🧹 Pflege only appears if you configured a door/lid sensor — without one
+there's nothing to measure it from, so the grid shows three tiles instead
+of four rather than a fourth tile stuck at a meaningless 100%. 😴 Schlaf
+still works either way; it just tracks wake-up runs alone, without the
+door-opening count.
+
 Weight sits outside the four pillars: it isn't measured, it's typed in.
 Once you have recorded one, being under- or overweight for the breed
 takes up to 20 points off the overall score — before that it counts for

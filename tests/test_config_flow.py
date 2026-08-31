@@ -59,6 +59,31 @@ async def test_user_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["data"][CONF_WHEEL_SENSOR] == "sensor.wheel_rotations"
 
 
+async def test_user_flow_creates_entry_without_a_door_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """CONF_DOOR_SENSOR is optional (#143) - omitting it still creates an
+    entry, and it simply isn't in the stored data."""
+    hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    sensors_input = {
+        k: v for k, v in SENSORS_INPUT.items() if k != CONF_DOOR_SENSOR
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], sensors_input
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert CONF_DOOR_SENSOR not in result["data"]
+
+
 async def test_user_flow_stores_an_optional_illuminance_sensor(
     hass: HomeAssistant,
 ) -> None:
@@ -187,3 +212,31 @@ async def test_reconfigure_flow_updates_entry(hass: HomeAssistant) -> None:
     assert result["reason"] == "reconfigure_successful"
     assert entry.data[CONF_WHEEL_DIAMETER] == 30.0
     assert entry.unique_id == "taco"
+
+
+async def test_reconfigure_flow_without_a_door_sensor(hass: HomeAssistant) -> None:
+    """Reconfigure also succeeds when the door sensor is left out (#143)."""
+    hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="taco",
+        title="Taco",
+        data={**BASIC_INPUT, **SENSORS_INPUT},
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    assert result["step_id"] == "reconfigure_sensors"
+
+    sensors_input = {
+        k: v for k, v in SENSORS_INPUT.items() if k != CONF_DOOR_SENSOR
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], sensors_input
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"

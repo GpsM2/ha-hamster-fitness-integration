@@ -226,7 +226,10 @@ class HamsterFitnessData:
     score_activity: int = 100
     score_sleep: int = 100
     score_climate: int = 100
-    score_care: int = 100
+    # None ohne Türsensor - misst nichts, statt fälschlich 100 zu zeigen
+    # (siehe sensor.py: die Pflege-Pillar-Entity wird dann gar nicht erst
+    # angelegt).
+    score_care: int | None = 100
     # Rollierende Historie abgeschlossener Tage für das Trend-Diagramm:
     # [{"date": "2026-08-05", "score": 88}, ...], maximal
     # SCORE_HISTORY_DAYS Einträge, ältester zuerst.
@@ -293,8 +296,12 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._wheel_circumference_cm: float = entry.data[CONF_WHEEL_DIAMETER] * math.pi
         self._wheel_sensor: str = entry.data[CONF_WHEEL_SENSOR]
         self._temperature_sensor: str = entry.data[CONF_TEMPERATURE_SENSOR]
-        self._door_sensor: str = entry.data[CONF_DOOR_SENSOR]
-        # Optional - None, wenn beim Einrichten nicht ausgewählt.
+        # Optional - None, wenn beim Einrichten nicht ausgewählt. Ohne ihn
+        # bleiben door_open/hours_door_closed auf ihren "kein Signal"-Werten
+        # (siehe _calculate()), der Pflege-Pillar wird gar nicht erst
+        # angelegt (sensor.py) und der Schlaf-Pillar zählt nur noch
+        # Aktivitätssitzungen.
+        self._door_sensor: str | None = entry.data.get(CONF_DOOR_SENSOR)
         self._humidity_sensor: str | None = entry.data.get(CONF_HUMIDITY_SENSOR)
         self._speed_sensor: str | None = entry.data.get(CONF_SPEED_SENSOR)
         self._illuminance_sensor: str | None = entry.data.get(CONF_ILLUMINANCE_SENSOR)
@@ -459,7 +466,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         entry.async_on_unload(self._cancel_light_pause_timer)
 
         await self._async_restore_state()
-        tracked_entities = [self._wheel_sensor, self._temperature_sensor, self._door_sensor]
+        tracked_entities = [self._wheel_sensor, self._temperature_sensor]
+        if self._door_sensor:
+            tracked_entities.append(self._door_sensor)
         if self._humidity_sensor:
             tracked_entities.append(self._humidity_sensor)
         if self._speed_sensor:
@@ -1499,25 +1508,28 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             else 0.0
         )
 
-        door_state = self.hass.states.get(self._door_sensor)
-        door_open = bool(door_state and door_state.state == "on")
-        if (
-            door_open
-            and self._previous_door_open is False
-            and _in_sleep_phase(now)
-        ):
-            # Nur die Flanke zählen (geschlossen -> offen), nicht jeden Tick,
-            # in dem der Deckel offen steht. Beim allerersten Durchlauf ist
-            # _previous_door_open None: ein beim Start bereits offener Deckel
-            # wird bewusst nicht als frische Störung gewertet.
-            self._sleep_door_openings += 1
-            self.hass.async_create_task(self._async_save_state())
-        self._previous_door_open = door_open
+        door_open = False
         hours_door_closed: float | None = None
-        if not door_open and door_state and door_state.last_changed:
-            hours_door_closed = (
-                now - door_state.last_changed
-            ).total_seconds() / 3600
+        if self._door_sensor:
+            door_state = self.hass.states.get(self._door_sensor)
+            door_open = bool(door_state and door_state.state == "on")
+            if (
+                door_open
+                and self._previous_door_open is False
+                and _in_sleep_phase(now)
+            ):
+                # Nur die Flanke zählen (geschlossen -> offen), nicht jeden
+                # Tick, in dem der Deckel offen steht. Beim allerersten
+                # Durchlauf ist _previous_door_open None: ein beim Start
+                # bereits offener Deckel wird bewusst nicht als frische
+                # Störung gewertet.
+                self._sleep_door_openings += 1
+                self.hass.async_create_task(self._async_save_state())
+            self._previous_door_open = door_open
+            if not door_open and door_state and door_state.last_changed:
+                hours_door_closed = (
+                    now - door_state.last_changed
+                ).total_seconds() / 3600
 
         options = self._entry.options
         ideal_temp_min = options.get(OPTION_IDEAL_TEMP_MIN, DEFAULT_IDEAL_TEMP_MIN)
@@ -1659,7 +1671,11 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             score_activity=_pillar_score(distance_penalty, _DISTANCE_PENALTY_CAP),
             score_sleep=_pillar_score(sleep_penalty, _SLEEP_PENALTY_CAP),
             score_climate=_pillar_score(temperature_penalty, _TEMP_PENALTY_CAP),
-            score_care=_pillar_score(care_penalty, _CARE_PENALTY_CAP),
+            score_care=(
+                _pillar_score(care_penalty, _CARE_PENALTY_CAP)
+                if self._door_sensor
+                else None
+            ),
             score_history=list(self._score_history),
             night_history=list(self._night_history),
             session_gap_minutes=SESSION_END_GAP_MINUTES,

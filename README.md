@@ -67,10 +67,13 @@ cards, and a cage light that switches itself on when you open the lid.
   [hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
   to build the small, cheap ESPHome-based one this project was designed
   around — a few euros in parts. Any other rotation counter works too.
-- A temperature sensor and a door/lid sensor for the cage.
-- Optional: humidity sensor, speed sensor, ambient light sensor, a
-  weather entity, a moon phase sensor, and a cage light. Anything
-  optional is simply skipped if you don't have it.
+- A temperature sensor for the cage.
+- Optional: a door/lid sensor, humidity sensor, speed sensor, ambient
+  light sensor, a weather entity, a moon phase sensor, and a cage light.
+  Anything optional is simply skipped if you don't have it — without a
+  door sensor specifically, there's no Care pillar and no
+  `binary_sensor.<name>_cage_door`, and the Sleep pillar tracks activity
+  sessions only (no door-opening count).
 
 ## Installation
 
@@ -132,8 +135,8 @@ Either way, you'll be asked for:
 - your hamster's name, the date it moved in, its breed and coat colour,
   and the wheel diameter (the number on the wheel's packaging — the same
   one you entered in the ESPHome sensor, if you built one);
-- then the sensors that feed it: wheel rotations, temperature and
-  cage/lid sensor are required, humidity, speed, ambient light,
+- then the sensors that feed it: wheel rotations and temperature are
+  required; the cage/lid sensor, humidity, speed, ambient light,
   weather, moon phase, cage light, the wheel diameter sync target and
   notification targets are optional.
 
@@ -272,7 +275,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `sensor.hamster_<name>_activity_score` | Pillar: nightly running distance |
 | `sensor.hamster_<name>_sleep_score` | Pillar: undisturbed daytime sleep |
 | `sensor.hamster_<name>_climate_score` | Pillar: cage temperature |
-| `sensor.hamster_<name>_care_score` | Pillar: how regularly the cage is opened |
+| `sensor.hamster_<name>_care_score`⁴ | Pillar: how regularly the cage is opened |
 | `sensor.hamster_<name>_night_distance` | Distance run tonight |
 | `sensor.hamster_<name>_daily_distance` | Distance run today (resets 9 AM) |
 | `sensor.hamster_<name>_lifetime_distance` | Total distance ever run |
@@ -282,7 +285,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `sensor.hamster_<name>_rest_duration` | How long your hamster has been resting |
 | `sensor.hamster_<name>_humidity`² | Cage humidity |
 | `binary_sensor.hamster_<name>_warning` | On when something needs attention |
-| `binary_sensor.hamster_<name>_cage_door` | Cage door open or closed |
+| `binary_sensor.hamster_<name>_cage_door`⁴ | Cage door open or closed |
 | `switch.hamster_<name>_light_automation`³ | Cage light automation on/off |
 | `switch.hamster_<name>_boarding` | Pause everything while the hamster is temporarily away |
 | `date.hamster_<name>_departure_date` | Set this when the hamster moves out |
@@ -290,7 +293,8 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `number.hamster_<name>_weight` | Type in the hamster's weight (grams, up to 250) |
 
 ¹ Only if you picked a speed sensor. ² Only if you picked a humidity
-sensor. ³ Only if you picked a cage light.
+sensor. ³ Only if you picked a cage light. ⁴ Only if you picked a door/lid
+sensor.
 
 ### Action
 

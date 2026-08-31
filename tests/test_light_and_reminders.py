@@ -50,9 +50,13 @@ REMINDER_OPTIONS = {
 
 
 async def _setup_entry(
-    hass: HomeAssistant, *, with_light: bool = True, options: dict | None = None
+    hass: HomeAssistant,
+    *,
+    with_light: bool = True,
+    with_door: bool = True,
+    options: dict | None = None,
 ) -> MockConfigEntry:
-    """Set up a Taco entry, optionally with a cage light configured."""
+    """Set up a Taco entry, optionally with a cage light/door configured."""
     hass.states.async_set(WHEEL_SENSOR, "0")
     hass.states.async_set(TEMPERATURE_SENSOR, "22")
     hass.states.async_set(DOOR_SENSOR, "off")
@@ -64,9 +68,10 @@ async def _setup_entry(
         CONF_WHEEL_DIAMETER: 28.0,
         CONF_WHEEL_SENSOR: WHEEL_SENSOR,
         CONF_TEMPERATURE_SENSOR: TEMPERATURE_SENSOR,
-        CONF_DOOR_SENSOR: DOOR_SENSOR,
         CONF_NOTIFY_SERVICES: [NOTIFY_TARGET],
     }
+    if with_door:
+        data[CONF_DOOR_SENSOR] = DOOR_SENSOR
     if with_light:
         data[CONF_LIGHT_ENTITY] = CAGE_LIGHT
 
@@ -117,6 +122,26 @@ async def test_automation_turns_the_light_on_while_enabled(
 
     assert len(turn_on) == 1
     assert turn_on[0].data["entity_id"] == CAGE_LIGHT
+
+
+async def test_light_automation_stays_inactive_without_a_door_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """A light entity with no door sensor (#143) is configured but inert.
+
+    door_light.py only ever reacts to coordinator.data.door_open, which
+    stays False forever without a door sensor - not to the raw entity
+    directly, so flipping some unrelated/unconfigured binary_sensor with
+    the same entity_id must not turn the light on either.
+    """
+    turn_on = async_mock_service(hass, "light", "turn_on")
+    await _setup_entry(hass, with_door=False)
+
+    assert hass.states.get(SWITCH_ENTITY) is not None  # light automation exists
+
+    await _open_the_cage(hass)
+
+    assert turn_on == []
 
 
 async def test_switching_the_automation_off_stops_it(hass: HomeAssistant) -> None:
