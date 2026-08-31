@@ -741,8 +741,13 @@ class HamsterFitnessCard extends HTMLElement {
       }
     `;
 
+    // A pillar without a backing entity (e.g. Care with no door sensor
+    // configured) is left out of the grid entirely rather than shown as a
+    // permanently dead "–" tile - preview mode always shows all four, a
+    // real hamster only shows the pillars it actually has.
+    const visiblePillars = preview ? PILLARS : PILLARS.filter((pillar) => this._entity(pillar.key));
     const pillars = this._config.show_pillars
-      ? `<div class="hfc-tiles">${PILLARS.map((pillar) => {
+      ? `<div class="hfc-tiles${visiblePillars.length === 3 ? " hfc-tiles-three" : ""}">${visiblePillars.map((pillar) => {
           const state = this._entity(pillar.key);
           const value = preview
             ? MOCK.pillars[pillar.id]
@@ -922,6 +927,11 @@ HamsterFitnessCard.styles = `
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 9px;
     margin-top: 12px;
+  }
+  /* Care pillar left out (no door sensor): the 3rd tile spans the row
+     instead of leaving a dangling empty slot next to it. */
+  .hfc-tiles-three > :last-child {
+    grid-column: span 2;
   }
   .hfc-tile {
     padding: 10px 12px;

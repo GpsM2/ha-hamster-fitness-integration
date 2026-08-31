@@ -193,7 +193,11 @@ def _sensors_schema() -> vol.Schema:
                     multiple=False,
                 )
             ),
-            vol.Required(CONF_DOOR_SENSOR): EntitySelector(
+            # Optional: ohne diese Entity gibt es keinen Pflege-Pillar und
+            # keine binary_sensor.<name>_cage_door-Entity (siehe sensor.py,
+            # binary_sensor.py) - der Schlaf-Pillar zählt dann nur noch
+            # Aktivitätssitzungen, nicht mehr Türöffnungen (coordinator.py).
+            vol.Optional(CONF_DOOR_SENSOR): EntitySelector(
                 EntitySelectorConfig(
                     domain=Platform.BINARY_SENSOR,
                     device_class=["door", "opening"],
@@ -306,7 +310,9 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_WHEEL_SENSOR] = "not_a_counter"
             if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
                 errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
-            if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):
+            if user_input.get(CONF_DOOR_SENSOR) and not self._entity_exists(
+                user_input[CONF_DOOR_SENSOR]
+            ):
                 errors[CONF_DOOR_SENSOR] = "entity_not_found"
 
             if not errors:
@@ -433,7 +439,9 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_WHEEL_SENSOR] = "not_a_counter"
             if not self._entity_exists(user_input[CONF_TEMPERATURE_SENSOR]):
                 errors[CONF_TEMPERATURE_SENSOR] = "entity_not_found"
-            if not self._entity_exists(user_input[CONF_DOOR_SENSOR]):
+            if user_input.get(CONF_DOOR_SENSOR) and not self._entity_exists(
+                user_input[CONF_DOOR_SENSOR]
+            ):
                 errors[CONF_DOOR_SENSOR] = "entity_not_found"
 
             if not errors:

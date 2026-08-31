@@ -15,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    CONF_DOOR_SENSOR,
     CONF_HUMIDITY_SENSOR,
     CONF_SPEED_SENSOR,
     IDEAL_DISTANCE_MAX_KM,
@@ -50,11 +51,12 @@ async def async_setup_entry(
         HamsterActivityScoreSensor(coordinator, entry),
         HamsterSleepScoreSensor(coordinator, entry),
         HamsterClimateScoreSensor(coordinator, entry),
-        HamsterCareScoreSensor(coordinator, entry),
     ]
     # Nur anlegen, wenn beim Einrichten ein entsprechender Quell-Sensor
-    # ausgewählt wurde - siehe CONF_HUMIDITY_SENSOR/CONF_SPEED_SENSOR in
-    # const.py.
+    # ausgewählt wurde - siehe CONF_DOOR_SENSOR/CONF_HUMIDITY_SENSOR/
+    # CONF_SPEED_SENSOR in const.py.
+    if entry.data.get(CONF_DOOR_SENSOR):
+        entities.append(HamsterCareScoreSensor(coordinator, entry))
     if entry.data.get(CONF_HUMIDITY_SENSOR):
         entities.append(HamsterHumiditySensor(coordinator, entry))
     if entry.data.get(CONF_SPEED_SENSOR):
@@ -367,8 +369,14 @@ class HamsterCareScoreSensor(HamsterPillarScoreBase):
         super().__init__(coordinator, entry, "score_care")
 
     @property
-    def native_value(self) -> int:
-        """Return the care pillar score (0-100)."""
+    def native_value(self) -> int | None:
+        """Return the care pillar score (0-100).
+
+        Only ever None in practice if the door sensor was removed via
+        Reconfigure after this entity was created - async_setup_entry
+        only creates it when CONF_DOOR_SENSOR is set, but the entity
+        itself isn't torn down until the entry reloads.
+        """
         return self.coordinator.data.score_care
 
     @property

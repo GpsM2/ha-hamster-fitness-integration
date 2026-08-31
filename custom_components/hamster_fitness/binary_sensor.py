@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import CONF_DOOR_SENSOR
 from .coordinator import (
     HamsterFitnessConfigEntry,
     HamsterFitnessCoordinator,
@@ -24,12 +25,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Hamster Fitness binary sensors from a config entry."""
     coordinator = entry.runtime_data
-    async_add_entities(
-        [
-            HamsterWarningBinarySensor(coordinator, entry),
-            HamsterDoorBinarySensor(coordinator, entry),
-        ]
-    )
+    entities: list[CoordinatorEntity[HamsterFitnessCoordinator]] = [
+        HamsterWarningBinarySensor(coordinator, entry),
+    ]
+    # Nur anlegen, wenn beim Einrichten ein Türsensor ausgewählt wurde -
+    # ohne ihn gibt es nichts zu spiegeln (siehe CONF_DOOR_SENSOR in
+    # const.py).
+    if entry.data.get(CONF_DOOR_SENSOR):
+        entities.append(HamsterDoorBinarySensor(coordinator, entry))
+    async_add_entities(entities)
 
 
 class HamsterWarningBinarySensor(

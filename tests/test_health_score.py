@@ -176,6 +176,83 @@ async def test_pillar_scores_are_exposed_as_entities(hass: HomeAssistant) -> Non
     assert hass.states.get("sensor.hamster_taco_climate_score").state == "100"
 
 
+async def test_care_pillar_is_not_created_without_a_door_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """No door sensor (#143) -> no Care pillar and no cage-door entity.
+
+    The other three pillars are unaffected - only Care depends entirely
+    on the door sensor.
+    """
+    hass.states.async_set(WHEEL_SENSOR, "0")
+    hass.states.async_set(TEMPERATURE_SENSOR, "22")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="taco",
+        title="Taco",
+        data={
+            CONF_HAMSTER_NAME: "Taco",
+            CONF_ACQUISITION_DATE: "2024-01-01",
+            CONF_WHEEL_DIAMETER: 28.0,
+            CONF_WHEEL_SENSOR: WHEEL_SENSOR,
+            CONF_TEMPERATURE_SENSOR: TEMPERATURE_SENSOR,
+        },
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.hamster_taco_care_score") is None
+    assert hass.states.get("binary_sensor.hamster_taco_cage_door") is None
+    for pillar in ("activity", "sleep", "climate"):
+        assert hass.states.get(f"sensor.hamster_taco_{pillar}_score") is not None
+
+
+async def test_health_score_is_not_inflated_by_a_missing_door_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Same wheel/temperature inputs, with vs. without a door sensor: the
+    overall health_score must be identical either way (#143) - a missing
+    Care pillar must not silently read as a "perfect" 100 that then
+    props up the composite score any differently than a door sensor that
+    genuinely shows good care.
+    """
+    with_door = await _good_night(hass)
+
+    # A second hamster needs its own source entities - reusing WHEEL_SENSOR
+    # would make this entry's setup (resetting it to "0") also fire a
+    # state-change event on with_door's coordinator, corrupting its
+    # already-recorded good night.
+    wheel_sensor_2 = "sensor.wheel_rotations_fips"
+    temperature_sensor_2 = "sensor.cage_temperature_fips"
+    hass.states.async_set(wheel_sensor_2, "0")
+    hass.states.async_set(temperature_sensor_2, "22")
+    entry_without_door = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="fips",
+        title="Fips",
+        data={
+            CONF_HAMSTER_NAME: "Fips",
+            CONF_ACQUISITION_DATE: "2024-01-01",
+            CONF_WHEEL_DIAMETER: 28.0,
+            CONF_WHEEL_SENSOR: wheel_sensor_2,
+            CONF_TEMPERATURE_SENSOR: temperature_sensor_2,
+        },
+    )
+    entry_without_door.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry_without_door.entry_id)
+    await hass.async_block_till_done()
+    hass.states.async_set(wheel_sensor_2, GOOD_NIGHT_ROTATIONS)
+    await hass.async_block_till_done()
+
+    assert (
+        with_door.runtime_data.data.health_score
+        == entry_without_door.runtime_data.data.health_score
+    )
+    assert with_door.runtime_data.data.score_care == 100
+    assert entry_without_door.runtime_data.data.score_care is None
+
+
 async def test_cold_cage_only_drags_down_the_climate_pillar(
     hass: HomeAssistant,
 ) -> None:
