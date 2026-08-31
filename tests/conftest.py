@@ -31,27 +31,37 @@ if not hasattr(config_entries, "OptionsFlowWithReload"):
     config_entries.OptionsFlowWithReload = _OptionsFlowWithReload  # type: ignore[attr-defined]
 
 
-if sys.platform == "win32":
-    # aiohttp's test client (hass_client/hass_client_no_auth - see
-    # test_guest_share.py) builds a real TCPConnector, which resolves
-    # DNS through `aiodns` whenever that package happens to be importable
-    # (it is here, pulled in transitively). aiodns hard-requires a
-    # SelectorEventLoop, but Home Assistant's own event loop policy
-    # (HassEventLoopPolicy, subclassing asyncio.DefaultEventLoopPolicy)
-    # runs ProactorEventLoop on Windows - so every test that spins up an
-    # aiohttp client fails with "aiodns needs a SelectorEventLoop on
-    # Windows" before a single request goes out, despite every request
-    # in this suite staying on loopback and never needing real DNS at
-    # all. `aiohttp.connector` binds `DefaultResolver` into its own
-    # module namespace at import time (`from .resolver import
-    # DefaultResolver`), so the swap has to happen there, not on
-    # `aiohttp.resolver` - by the time this module runs, `homeassistant`
-    # has already imported `aiohttp.connector` and captured the old
-    # reference.
-    import aiohttp.connector
-    import aiohttp.resolver
+# aiohttp's test client (hass_client/hass_client_no_auth - see
+# test_guest_share.py) builds a real TCPConnector, which resolves DNS
+# through `aiodns` whenever that package happens to be importable - and
+# it always is here, since `homeassistant` itself requires it. Every
+# request this suite ever makes stays on loopback and never needs real
+# DNS at all, but aiodns's presence still causes two separate, platform-
+# specific problems if left alone:
+#   - Windows: aiodns hard-requires a SelectorEventLoop, but Home
+#     Assistant's own event loop policy (HassEventLoopPolicy, subclassing
+#     asyncio.DefaultEventLoopPolicy) runs ProactorEventLoop there - so
+#     every test using an aiohttp client fails with "aiodns needs a
+#     SelectorEventLoop on Windows" before a single request goes out.
+#   - Linux (seen in CI): aiodns's underlying `pycares` leaves a
+#     background thread ("_run_safe_shutdown_loop") running past a
+#     test's teardown, which the harness's lingering-thread check
+#     correctly flags as a leak.
+# Both disappear by using the plain stdlib-based ThreadedResolver
+# instead - not platform-gated, since neither the cause (aiodns being
+# installed) nor the fix depends on which platform is running.
+# `aiohttp.connector` binds `DefaultResolver` into its own module
+# namespace at import time (`from .resolver import DefaultResolver`), so
+# the swap has to happen there, not on `aiohttp.resolver` - by the time
+# this module runs, `homeassistant` has already imported
+# `aiohttp.connector` and captured the old reference.
+import aiohttp.connector  # noqa: E402
+import aiohttp.resolver  # noqa: E402
 
-    aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver
+aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver
+
+
+if sys.platform == "win32":
 
     def _allow_loopback_sockets(allow_unix_socket: bool = False) -> None:
         """Let asyncio create its self-pipe socket on Windows.
