@@ -240,3 +240,42 @@ async def test_reconfigure_flow_without_a_door_sensor(hass: HomeAssistant) -> No
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
+
+
+async def test_reconfigure_flow_removes_a_previously_set_door_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Clearing the door sensor on an already-configured hamster must
+    actually remove it - regression test for a live bug: self._data
+    started as a copy of the entry's *existing* data, so a plain
+    self._data.update(user_input) left CONF_DOOR_SENSOR (and everything
+    #143 gates on it - the Care pillar, the cage-door binary sensor)
+    exactly as before, since a cleared field is simply absent from
+    user_input rather than submitted as falsy.
+    """
+    hass.states.async_set("sensor.wheel_rotations", "42")
+    hass.states.async_set("sensor.cage_temperature", "22")
+    hass.states.async_set("binary_sensor.cage_door", "off")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="taco",
+        title="Taco",
+        data={**BASIC_INPUT, **SENSORS_INPUT},
+    )
+    assert CONF_DOOR_SENSOR in entry.data  # sanity check on the fixture itself
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], BASIC_INPUT
+    )
+    sensors_input = {
+        k: v for k, v in SENSORS_INPUT.items() if k != CONF_DOOR_SENSOR
+    }
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], sensors_input
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert CONF_DOOR_SENSOR not in entry.data
