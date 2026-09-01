@@ -193,6 +193,26 @@ async def test_guest_data_endpoint_404s_for_an_unknown_token(
     assert resp.status == 404
 
 
+async def test_unknown_token_404_identifies_itself(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """Our "no such link" 404 must be distinguishable from any other 404.
+
+    While Home Assistant starts up, its HTTP server already answers but
+    this integration has not registered its routes yet, so the very same
+    URL returns aiohttp's own bare "404: Not Found". The guest page uses
+    the body to tell them apart - without it, a poll landing in that
+    window would tell a guest their link had been revoked, permanently
+    and wrongly, on every restart.
+    """
+    await _setup_entry(hass)
+    client = await hass_client_no_auth()
+
+    resp = await client.get(f"{GUEST_URL_PREFIX}/never-issued/data")
+    assert resp.status == 404
+    assert (await resp.json()) == {"error": "unknown_token"}
+
+
 async def test_guest_data_endpoint_404s_for_a_non_ascii_token(
     hass: HomeAssistant, hass_client_no_auth
 ) -> None:

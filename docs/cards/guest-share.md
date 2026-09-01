@@ -94,3 +94,11 @@ entity: sensor.hamster_taco_health_score
   Assistant produced it, so the page can tell a fresh answer from an old
   one being handed back, rather than trusting that a reply arrived at
   all.
+- The page re-reads every 15 seconds, and additionally the moment the
+  device reports losing or regaining connectivity, or whenever the page
+  is brought back to the foreground — so a phone that has been in a
+  pocket shows current readings immediately rather than after the next
+  tick.
+- Opening the link with no connectivity at all gives the browser's own
+  error page, not this one: nothing about the guest view is stored on
+  the device (deliberately — the page must not outlive a revoked link).
