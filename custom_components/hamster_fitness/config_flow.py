@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Final
 
 import voluptuous as vol
 from homeassistant.components.sensor import (
@@ -265,6 +265,32 @@ def _sensors_schema() -> vol.Schema:
     )
 
 
+# Every `_sensors_schema()` key that is vol.Optional with no default - i.e.
+# every one the form simply omits from `user_input` when the user clears it
+# rather than submitting an empty/falsy placeholder. CONF_NOTIFY_SERVICES is
+# excluded: its `default=list` means voluptuous always includes it.
+#
+# Needed specifically for async_step_reconfigure_sensors(): unlike the
+# initial setup (where self._data starts empty), a Reconfigure pre-seeds
+# self._data from the entry's EXISTING data, so `self._data.update(user_input)`
+# alone only ever adds/overwrites keys the new submission actually contains -
+# a key the user just cleared simply isn't in user_input, so update() leaves
+# the old value sitting there untouched. Confirmed live: clearing the door
+# sensor on an already-configured hamster left CONF_DOOR_SENSOR (and
+# everything downstream - the Care pillar, binary_sensor.<name>_cage_door)
+# exactly as before, #143's whole point notwithstanding.
+_SENSORS_SCHEMA_OPTIONAL_KEYS: Final = (
+    CONF_WHEEL_DIAMETER_SYNC_ENTITY,
+    CONF_DOOR_SENSOR,
+    CONF_HUMIDITY_SENSOR,
+    CONF_SPEED_SENSOR,
+    CONF_LIGHT_ENTITY,
+    CONF_ILLUMINANCE_SENSOR,
+    CONF_WEATHER_ENTITY,
+    CONF_MOON_ENTITY,
+)
+
+
 class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Hamster Fitness."""
 
@@ -445,6 +471,13 @@ class HamsterFitnessConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_DOOR_SENSOR] = "entity_not_found"
 
             if not errors:
+                # A key the user just cleared in the form is absent from
+                # user_input, not falsy - update() alone would leave
+                # whatever this hamster had configured before sitting
+                # there untouched. See _SENSORS_SCHEMA_OPTIONAL_KEYS.
+                for key in _SENSORS_SCHEMA_OPTIONAL_KEYS:
+                    if key not in user_input:
+                        self._data.pop(key, None)
                 self._data.update(user_input)
                 return self.async_update_reload_and_abort(
                     reconfigure_entry,
