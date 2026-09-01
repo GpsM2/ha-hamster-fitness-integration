@@ -201,7 +201,18 @@ class GuestDataView(HomeAssistantView):
         if entry is None:
             # Same response whether the token never existed or was just
             # revoked - nothing useful to a caller either way.
-            return web.Response(status=404)
+            #
+            # The body is what makes this OUR "no such link" rather than
+            # any old 404, and the page relies on that: while Home
+            # Assistant is starting up, its HTTP server is already
+            # answering but this integration has not registered these
+            # routes yet, so the very same URL returns aiohttp's own bare
+            # "404: Not Found". Without something to tell the two apart, a
+            # poll landing in that window would tell a guest their link
+            # had been revoked - permanently, and wrongly.
+            return web.json_response(
+                {"error": "unknown_token"}, status=404, headers=_NO_CACHE_HEADERS
+            )
 
         return web.json_response(_guest_payload(entry), headers=_NO_CACHE_HEADERS)
 

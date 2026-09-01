@@ -406,16 +406,40 @@
     }
   }
 
-  var POLL_INTERVAL_MS = 25000;
+  // 15s rather than 25s: the page can only discover an outage by trying,
+  // so the interval is also the worst-case delay before a guest is told
+  // anything is wrong. A Home Assistant restart is often over inside 25
+  // seconds, which is why one could pass without leaving a trace on
+  // screen. The request budget is comfortable at this rate (see
+  // GUEST_SHARE_RATE_LIMIT_REQUESTS in const.py).
+  var POLL_INTERVAL_MS = 15000;
   var dataUrl = window.location.pathname.replace(/\/$/, "") + "/data";
+
+  function revokedError() {
+    var gone = new Error("revoked");
+    gone.revoked = true;
+    return gone;
+  }
 
   function poll() {
     fetch(dataUrl, { cache: "no-store" })
       .then(function (res) {
         if (res.status === 404) {
-          var gone = new Error("revoked");
-          gone.revoked = true;
-          throw gone;
+          // Only a 404 that names itself is a revoked link. While Home
+          // Assistant is starting up its HTTP server already answers but
+          // the integration has not registered these routes yet, so the
+          // same URL returns a bare "404: Not Found" - treating that as
+          // revocation would tell a guest their perfectly good link was
+          // dead, permanently, every time the instance rebooted.
+          return res.json().then(
+            function (body) {
+              if (body && body.error === "unknown_token") throw revokedError();
+              throw new Error("transient");
+            },
+            function () {
+              throw new Error("transient");
+            }
+          );
         }
         if (!res.ok) throw new Error("transient");
         return res.json();
@@ -458,6 +482,21 @@
 
   poll();
   pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+
+  // The interval alone is a poor way to notice trouble: it can only find
+  // out by trying, so a short outage - a Home Assistant restart is often
+  // shorter than one tick - can pass unseen between two successful polls.
+  // The browser already knows some of this without being asked, so ask it.
+  window.addEventListener("offline", markStale);
+  window.addEventListener("online", poll);
+
+  // Coming back to the page should show current data, not whatever was on
+  // screen when it was last looked at - a phone that has been in a pocket
+  // for an hour would otherwise present hour-old readings as live until
+  // the next tick.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") poll();
+  });
 })();
 </script>
 </body>
