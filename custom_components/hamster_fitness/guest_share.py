@@ -41,6 +41,7 @@ from typing import Any
 from aiohttp import web
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_HAMSTER_NAME,
@@ -217,6 +218,16 @@ def _guest_payload(entry: HamsterFitnessConfigEntry) -> dict[str, Any]:
     data = entry.runtime_data.data
     active = data.night_active_duration_min > 0
     return {
+        # Lets the page tell "Home Assistant answered just now" apart from
+        # "something replayed an older answer at me". The page cannot
+        # infer that on its own: it stamps its own clock when it renders,
+        # so a cached 200 from a reverse proxy would be drawn with a
+        # brand-new timestamp over stale readings - reported from a real
+        # setup, where the guest page looked perfectly healthy while Home
+        # Assistant itself was restarting. Compared for equality only,
+        # never subtracted from the viewer's clock, so the two machines'
+        # clocks disagreeing costs nothing.
+        "generated_at": dt_util.utcnow().isoformat(),
         "name": entry.data[CONF_HAMSTER_NAME],
         "coat_color_hex": profile["coat_color_hex"],
         "health_score": data.health_score,

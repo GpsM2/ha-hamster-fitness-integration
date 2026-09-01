@@ -83,7 +83,14 @@ entity: sensor.hamster_taco_health_score
   logged into it. A sitter whose phone is set to English sees
   "Running for 2 h 18 min" and "6.1 km".
 - A momentary hiccup (your instance restarting, a phone losing signal)
-  leaves the last reading on screen and recovers by itself; the "last
-  updated" time visibly stops advancing while that lasts. Only a
-  genuinely revoked link replaces the page with "this link is no longer
-  valid".
+  doesn't break the link. The last reading stays on screen but is greyed
+  out and the footer says "No connection", so nobody mistakes a stale
+  number for a current one; it clears itself as soon as the data starts
+  flowing again. Only a genuinely revoked link replaces the page with
+  "this link is no longer valid".
+- That also covers the case where something between the viewer and Home
+  Assistant — a reverse proxy, a CDN — answers with a cached copy while
+  the instance itself is down. Each response carries the moment Home
+  Assistant produced it, so the page can tell a fresh answer from an old
+  one being handed back, rather than trusting that a reply arrived at
+  all.

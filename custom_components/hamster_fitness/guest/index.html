@@ -125,6 +125,22 @@
     color: var(--muted);
     padding: 18px 20px 4px;
   }
+  /* Nothing on this page is live any more: grey the readings out so a
+     stale number can't be mistaken for a current one, and say so in the
+     footer. A frozen timestamp alone is not a signal - a viewer has no
+     reference for what "now" is, so 18:28 looks identical whether it is
+     four seconds or four hours old. */
+  .card.stale .illustration,
+  .card.stale .ring-wrap,
+  .card.stale .stats,
+  .card.stale .status-line {
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
+  }
+  .footer.footer-stale {
+    color: var(--bad);
+    font-weight: 700;
+  }
   .error {
     text-align: center;
     padding: 60px 24px;
@@ -227,6 +243,8 @@
       runningFor: "Running for {time}",
       restingFor: "Resting for {time}",
       lastUpdated: "Last updated: {time}",
+      offline: "No connection · as of {time}",
+      offlineNoData: "No connection to Home Assistant",
       linkInvalid: "This link is no longer valid.",
       minutes: "{m} min",
       hoursMinutes: "{h} h {m} min",
@@ -239,6 +257,8 @@
       runningFor: "Läuft seit {time}",
       restingFor: "Ruht seit {time}",
       lastUpdated: "Zuletzt aktualisiert: {time}",
+      offline: "Keine Verbindung · Stand {time}",
+      offlineNoData: "Keine Verbindung zu Home Assistant",
       linkInvalid: "Dieser Link ist nicht mehr gültig.",
       minutes: "{m} Min.",
       hoursMinutes: "{h} Std. {m} Min.",
@@ -293,6 +313,8 @@
   var root = document.documentElement;
   var illustrationEl = document.getElementById("illustration");
   var lastState = null;
+  var lastFreshAt = null;
+  var lastGeneratedAt = null;
 
   // Static labels, filled in before the first fetch so the page never
   // flashes empty chrome while waiting on the network.
@@ -334,12 +356,38 @@
         ? "–"
         : fmtNumber(data.current_speed_kmh, 1) + " km/h";
 
-    document.getElementById("footer").textContent = t("lastUpdated", {
-      time: new Date().toLocaleTimeString(LOCALE, {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+    lastFreshAt = new Date();
+    markFresh();
+  }
+
+  function fmtClock(date) {
+    return date.toLocaleTimeString(LOCALE, {
+      hour: "2-digit",
+      minute: "2-digit",
     });
+  }
+
+  function markFresh() {
+    document.getElementById("card").classList.remove("stale");
+    var footer = document.getElementById("footer");
+    footer.classList.remove("footer-stale");
+    footer.textContent = t("lastUpdated", { time: fmtClock(lastFreshAt) });
+  }
+
+  /**
+   * The readings on screen are no longer known to be current - either a
+   * poll failed outright, or one came back carrying data we had already
+   * seen (a cached response replayed by something between here and Home
+   * Assistant). Either way the honest thing is to say so rather than
+   * keep drawing a confident timestamp over it.
+   */
+  function markStale() {
+    document.getElementById("card").classList.add("stale");
+    var footer = document.getElementById("footer");
+    footer.classList.add("footer-stale");
+    footer.textContent = lastFreshAt
+      ? t("offline", { time: fmtClock(lastFreshAt) })
+      : t("offlineNoData");
   }
 
   var pollTimer = null;
@@ -372,7 +420,22 @@
         if (!res.ok) throw new Error("transient");
         return res.json();
       })
-      .then(render)
+      .then(function (data) {
+        // A response carrying a generated_at we have already seen is not
+        // fresh data, it is an older answer handed back to us again -
+        // which is what a caching reverse proxy does while the instance
+        // behind it is restarting. Rendering it would repaint the same
+        // readings and stamp the current time on them.
+        if (
+          data.generated_at !== undefined &&
+          data.generated_at === lastGeneratedAt
+        ) {
+          markStale();
+          return;
+        }
+        lastGeneratedAt = data.generated_at;
+        render(data);
+      })
       .catch(function (err) {
         if (err && err.revoked) {
           showRevoked();
@@ -384,9 +447,12 @@
         // those the way a revocation is treated used to blank the page
         // and permanently stop polling behind the message "this link is
         // no longer valid" - actively wrong, and only fixable by
-        // manually reloading. Keep the last good reading on screen and
-        // let the next tick sort it out; the footer's "last updated"
-        // time visibly stops advancing, which is the honest signal.
+        // manually reloading. The readings stay on screen and the next
+        // tick sorts it out, but markStale() greys them and names the
+        // state outright: a frozen timestamp on its own was not a
+        // signal anyone could read, since a viewer has no reference for
+        // what "now" is.
+        markStale();
       });
   }
 
