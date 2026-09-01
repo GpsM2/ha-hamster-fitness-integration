@@ -254,6 +254,9 @@
       },
       "boarding": {
         "name": "Boarding"
+      },
+      "guest_share": {
+        "name": "Guest access"
       }
     },
     "button": {

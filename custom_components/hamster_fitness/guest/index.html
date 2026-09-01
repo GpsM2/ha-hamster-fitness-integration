@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Hamster Fitness</title>
+<style>
+  :root {
+    --bg: #FBF7F1;
+    --surface: #FFFFFF;
+    --text: #2B231C;
+    --muted: #7A6D5F;
+    --border: #EAE0D2;
+    --good: #4CAF50;
+    --watch: #F0A63C;
+    --bad: #E45C5C;
+    --fur: #D48C46;
+    --fur-light: #E0A869;
+    --fur-dark: #7F5429;
+    --belly: #F2DDC4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17130E;
+      --surface: #231D16;
+      --text: #F5EEE3;
+      --muted: #B8A98F;
+      --border: #3A2F22;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+  }
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px 32px;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 4px 0 20px;
+  }
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    margin: 16px auto 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+  .illustration {
+    margin: 14px 18px 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 4px 8px 0;
+  }
+  .scene-svg { display: block; width: 100%; height: auto; }
+  .name {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 16px 0 0;
+    text-wrap: balance;
+  }
+  .status-line {
+    text-align: center;
+    font-size: 0.86rem;
+    color: var(--muted);
+    margin: 3px 0 0;
+    min-height: 1.2em;
+  }
+  .ring-wrap { display: flex; justify-content: center; margin: 18px 0 4px; }
+  .ring-num { font-size: 2.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ring-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .stats { display: flex; justify-content: center; gap: 10px; padding: 0 18px; margin-top: 6px; }
+  .stat {
+    flex: 1;
+    min-width: 0;
+    max-width: 140px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat .v { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .l {
+    font-size: 0.64rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .footer {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 18px 20px 4px;
+  }
+  .error {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .hidden { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; }
+  }
+  @keyframes gsSpin { to { transform: rotate(360deg); } }
+  @keyframes gsRunBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes gsBreath { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.03); opacity: 0.92; } }
+  @keyframes gsZzz { 0% { opacity: 0; transform: translateY(8px); } 15% { opacity: 0.9; } 80% { opacity: 0.3; } 100% { opacity: 0; transform: translateY(-16px); } }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="badge">🔒 Nur-Lese-Ansicht</div>
+    <div class="illustration"><svg class="scene-svg" id="illustration" viewBox="0 0 220 200" aria-hidden="true"></svg></div>
+    <div class="name" id="name">–</div>
+    <div class="status-line" id="statusLine"></div>
+    <div class="ring-wrap">
+      <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+        <circle cx="66" cy="66" r="56" fill="none" stroke-width="12" stroke="var(--border)"/>
+        <circle id="ringProgress" cx="66" cy="66" r="56" fill="none" stroke-width="12" stroke="var(--good)"
+          stroke-linecap="round" stroke-dasharray="351.9" stroke-dashoffset="351.9"
+          transform="rotate(-90 66 66)"/>
+        <text x="66" y="60" text-anchor="middle" class="ring-num" fill="var(--text)" id="ringNum">–</text>
+        <text x="66" y="80" text-anchor="middle" class="ring-label" fill="var(--muted)">Health</text>
+      </svg>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="distanceVal">–</div><div class="l">Diese Nacht</div></div>
+      <div class="stat"><div class="v" id="speedVal">–</div><div class="l">Tempo</div></div>
+    </div>
+    <div class="footer" id="footer"></div>
+  </div>
+  <div class="error hidden" id="errorState">Dieser Link ist nicht mehr gültig.</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var WHEEL_SCENE =
+    '<ellipse cx="110" cy="188" rx="78" ry="7" fill="rgba(0,0,0,0.14)"/>' +
+    '<g stroke="#9AA3AD" stroke-width="6" stroke-linecap="round" fill="none">' +
+    '<path d="M40 186 L110 130 L180 186"/><path d="M62 186 H158"/></g>' +
+    '<g style="transform-origin:110px 100px; animation: gsSpin 1.6s linear infinite;">' +
+    '<circle cx="110" cy="100" r="80" fill="none" stroke="#AEB6BF" stroke-width="10"/>' +
+    '<circle cx="110" cy="100" r="68" fill="none" stroke="#C19A6B" stroke-width="9" opacity="0.75"/>' +
+    '<g stroke="#AEB6BF" stroke-width="5" stroke-linecap="round">' +
+    '<line x1="110" y1="24" x2="110" y2="176"/><line x1="34" y1="100" x2="186" y2="100"/>' +
+    '<line x1="56" y1="46" x2="164" y2="154"/><line x1="164" y1="46" x2="56" y2="154"/></g>' +
+    '<circle cx="110" cy="100" r="12" fill="#8A929A"/></g>' +
+    '<g style="animation: gsRunBob 0.5s ease-in-out infinite; transform-origin:108px 164px;">' +
+    '<ellipse cx="96" cy="164" rx="11" ry="6" fill="var(--fur)" stroke="var(--fur-dark)" stroke-width="2"/>' +
+    '<ellipse cx="124" cy="164" rx="11" ry="6" fill="var(--fur-light)" stroke="var(--fur-dark)" stroke-width="2"/>' +
+    '<ellipse cx="108" cy="146" rx="30" ry="21" fill="var(--fur)" stroke="var(--fur-dark)" stroke-width="2.5"/>' +
+    '<ellipse cx="104" cy="152" rx="18" ry="12" fill="var(--belly)" opacity="0.75"/>' +
+    '<circle cx="134" cy="130" r="17" fill="var(--fur-light)" stroke="var(--fur-dark)" stroke-width="2.5"/>' +
+    '<circle cx="126" cy="116" r="6" fill="var(--fur)" stroke="var(--fur-dark)" stroke-width="2"/>' +
+    '<circle cx="141" cy="127" r="2.6" fill="#3a2a1a"/>' +
+    '<ellipse cx="149" cy="134" rx="4.5" ry="3.5" fill="#f4d9c6"/>' +
+    '<path d="M80 142 q-12 4 -18 12" fill="none" stroke="var(--fur-dark)" stroke-width="4" stroke-linecap="round"/></g>';
+
+  var REST_SCENE =
+    '<g opacity="0.28" stroke="#AEB6BF" fill="none"><circle cx="176" cy="70" r="36" stroke-width="6"/>' +
+    '<line x1="176" y1="34" x2="176" y2="106" stroke-width="3"/><line x1="140" y1="70" x2="212" y2="70" stroke-width="3"/>' +
+    '<path d="M148 108 L176 84 L204 108" stroke-width="4"/></g>' +
+    '<text x="104" y="74" style="font-size:20px; font-weight:800; fill:var(--muted); animation: gsZzz 3s ease-in infinite;">z</text>' +
+    '<text x="118" y="56" style="font-size:20px; font-weight:800; fill:var(--muted); animation: gsZzz 3s ease-in infinite; animation-delay:0.6s;">Z</text>' +
+    '<text x="136" y="38" style="font-size:20px; font-weight:800; fill:var(--muted); animation: gsZzz 3s ease-in infinite; animation-delay:1.2s;">Z</text>' +
+    '<ellipse cx="100" cy="164" rx="76" ry="26" fill="#e6cfa0"/><ellipse cx="100" cy="158" rx="60" ry="20" fill="#f0e0bb"/>' +
+    '<g stroke="#cbab72" stroke-width="2.5" stroke-linecap="round" fill="none">' +
+    '<path d="M34 164 q10 -8 20 0"/><path d="M50 172 q10 -8 20 0"/><path d="M126 172 q10 -8 20 0"/><path d="M146 164 q10 -8 20 0"/></g>' +
+    '<g style="animation: gsBreath 3.5s ease-in-out infinite; transform-origin:100px 150px;">' +
+    '<ellipse cx="100" cy="150" rx="42" ry="30" fill="var(--fur)" stroke="var(--fur-dark)" stroke-width="3"/>' +
+    '<ellipse cx="104" cy="158" rx="26" ry="16" fill="var(--belly)" opacity="0.7"/>' +
+    '<circle cx="68" cy="136" r="22" fill="var(--fur-light)" stroke="var(--fur-dark)" stroke-width="3"/>' +
+    '<circle cx="55" cy="122" r="8" fill="var(--fur)" stroke="var(--fur-dark)" stroke-width="2"/>' +
+    '<path d="M58 136 q5 4 10 0" fill="none" stroke="#3a2a1a" stroke-width="2.4" stroke-linecap="round"/>' +
+    '<ellipse cx="79" cy="143" rx="5" ry="4" fill="#f4d9c6"/></g>';
+
+  // Same derivation as hamster-fitness-shared.js's shade() - copied, not
+  // imported, on purpose: this page runs outside any HA session and has
+  // no access to the authenticated static path that file lives under.
+  function shade(hex, amount) {
+    var n = parseInt(String(hex).replace("#", ""), 16);
+    var rgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (channel) {
+      var target = amount > 0 ? 255 : 0;
+      return Math.round(channel + (target - channel) * Math.abs(amount));
+    });
+    return "rgb(" + rgb.join(", ") + ")";
+  }
+
+  function scoreColor(value) {
+    if (value === null || value === undefined) return "var(--muted)";
+    if (value >= 75) return "var(--good)";
+    if (value >= 50) return "var(--watch)";
+    return "var(--bad)";
+  }
+
+  function fmtMinutes(min) {
+    var total = Math.max(0, Math.round(min));
+    var h = Math.floor(total / 60);
+    var m = total % 60;
+    if (h === 0) return m + " Min.";
+    return h + " Std. " + m + " Min.";
+  }
+
+  var root = document.documentElement;
+  var illustrationEl = document.getElementById("illustration");
+  var lastState = null;
+
+  function render(data) {
+    root.style.setProperty("--fur", data.coat_color_hex);
+    root.style.setProperty("--fur-light", shade(data.coat_color_hex, 0.18));
+    root.style.setProperty("--fur-dark", shade(data.coat_color_hex, -0.4));
+    root.style.setProperty("--belly", shade(data.coat_color_hex, 0.62));
+
+    if (lastState !== data.active) {
+      illustrationEl.innerHTML = data.active ? WHEEL_SCENE : REST_SCENE;
+      lastState = data.active;
+    }
+
+    document.getElementById("name").textContent = data.name;
+    document.getElementById("statusLine").textContent = data.active
+      ? "Läuft seit " + fmtMinutes(data.since_minutes)
+      : "Ruht seit " + fmtMinutes(data.since_minutes);
+
+    var score = data.health_score;
+    var ring = document.getElementById("ringProgress");
+    var circumference = 351.9;
+    ring.setAttribute("stroke", scoreColor(score));
+    ring.setAttribute("stroke-dashoffset", String(circumference * (1 - score / 100)));
+    document.getElementById("ringNum").textContent = String(Math.round(score));
+
+    document.getElementById("distanceVal").textContent =
+      data.night_distance_km.toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " km";
+    document.getElementById("speedVal").textContent =
+      (data.current_speed_kmh === null
+        ? "–"
+        : data.current_speed_kmh.toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " km/h");
+
+    document.getElementById("footer").textContent =
+      "Zuletzt aktualisiert: " + new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  var pollTimer = null;
+
+  function showError() {
+    document.getElementById("card").classList.add("hidden");
+    document.getElementById("errorState").classList.remove("hidden");
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  var POLL_INTERVAL_MS = 25000;
+  var dataUrl = window.location.pathname.replace(/\/$/, "") + "/data";
+
+  function poll() {
+    fetch(dataUrl, { cache: "no-store" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("not ok");
+        return res.json();
+      })
+      .then(render)
+      .catch(showError);
+  }
+
+  poll();
+  pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+})();
+</script>
+</body>
+</html>

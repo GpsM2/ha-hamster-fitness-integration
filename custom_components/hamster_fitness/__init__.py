@@ -36,6 +36,7 @@ from .const import (
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
 from .door_light import HamsterFitnessDoorLight
 from .frontend import JSModuleRegistration
+from .guest_share import async_setup_guest_share
 from .notify import HamsterFitnessNotifier
 from .update_check import async_setup_update_check
 
@@ -67,6 +68,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, _ws_add_historical_hamster)
     websocket_api.async_register_command(hass, _ws_update_historical_hamster)
     websocket_api.async_register_command(hass, _ws_remove_historical_hamster)
+
+    # The two unauthenticated guest-view routes (#147) - domain-wide, like
+    # the websocket commands above, since they serve every hamster through
+    # the same URL prefix regardless of how many config entries exist.
+    await async_setup_guest_share(hass)
 
     # Raises a Repairs entry when HACS has written a new version to disk
     # but Home Assistant is still running the old one. Domain-wide, like

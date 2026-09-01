@@ -46,14 +46,15 @@ cards, and a cage light that switches itself on when you open the lid.
 - **Boarding mode**: away at a foster home or the vet? Flip one switch
   and scoring, warnings and reminders pause until it's back, without
   archiving anything.
-- **Six dashboard cards built in**, no extra downloads, all following
+- **Seven dashboard cards built in**, no extra downloads, all following
   Home Assistant's language (English and German):
   [Health Score](docs/cards/health-score.md) ·
   [Day & Night](docs/cards/day-and-night.md) ·
   [Running](docs/cards/running.md) ·
   [Ranking](docs/cards/ranking.md) ·
   [Chronicle](docs/cards/chronicle.md) ·
-  [Track Weight](docs/cards/weighing.md)
+  [Track Weight](docs/cards/weighing.md) ·
+  [Guest Access](docs/cards/guest-share.md)
 - **Keeps the wheel diameter in sync** with your sensor device, so you
   never type the same number into two places. Hamster Fitness owns the
   value: if the device ever reports a different one — re-flashing it
@@ -168,6 +169,7 @@ configure it:
 | [Hamster Fitness: Ranking](docs/cards/ranking.md) | All hamsters by lifetime distance |
 | [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
 | [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
+| [Hamster Fitness: Guest Access](docs/cards/guest-share.md) | A read-only link and QR code for one hamster, no Home Assistant account needed |
 
 Every one of them can also [turn its numbers into a picture](docs/sharing.md)
 to save and post, on a sky that follows the real weather.
@@ -287,6 +289,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `binary_sensor.hamster_<name>_warning` | On when something needs attention |
 | `binary_sensor.hamster_<name>_cage_door`⁴ | Cage door open or closed |
 | `switch.hamster_<name>_light_automation`³ | Cage light automation on/off |
+| `switch.hamster_<name>_guest_access` | Turns the read-only guest link on/off - see [Guest Access](docs/cards/guest-share.md) |
 | `switch.hamster_<name>_boarding` | Pause everything while the hamster is temporarily away |
 | `date.hamster_<name>_departure_date` | Set this when the hamster moves out |
 | `button.hamster_<name>_undo_departure` | Undoes a departure set by mistake |

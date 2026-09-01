@@ -190,6 +190,21 @@ const STRINGS = {
     "weight.status.overweight": "Overweight",
     "weight.noBreedRange": "No reference range for this breed",
 
+    // Guest access card
+    "guestShare.subtitle": "Guest Access",
+    "guestShare.pickerName": "Hamster Fitness: Guest Access",
+    "guestShare.pickerDescription":
+      "Turns on a read-only link and QR code for one hamster - for a boarding sitter or anyone else without a Home Assistant account.",
+    "guestShare.title": "Guest access",
+    "guestShare.offHint":
+      "Off. Turning it on creates a new link - anyone with it sees a live, read-only view of {name}. No Home Assistant account needed.",
+    "guestShare.onHint":
+      "Anyone with this link or QR code sees {name}'s status live - no Home Assistant account needed.",
+    "guestShare.copy": "Copy",
+    "guestShare.copied": "Copied",
+    "guestShare.noUrl":
+      "No link available - Home Assistant needs a reachable URL configured first (Settings → System → Network).",
+
     // Ranking card
     "ranking.title": "Hamster ranking",
     "ranking.subtitle": "By distance run",
@@ -450,6 +465,20 @@ const STRINGS = {
     "weight.status.normal": "Normalgewicht",
     "weight.status.overweight": "Übergewicht",
     "weight.noBreedRange": "Kein Referenzbereich für diese Rasse",
+
+    "guestShare.subtitle": "Gästezugang",
+    "guestShare.pickerName": "Hamster Fitness: Gästezugang",
+    "guestShare.pickerDescription":
+      "Schaltet einen Nur-Lese-Link mit QR-Code für einen Hamster frei - für eine Betreuungsperson oder alle ohne eigenen Home-Assistant-Zugang.",
+    "guestShare.title": "Gästezugang",
+    "guestShare.offHint":
+      "Aus. Einschalten erzeugt einen neuen Link - wer ihn hat, sieht eine reine Nur-Lese-Ansicht von {name}. Kein Home-Assistant-Zugang nötig.",
+    "guestShare.onHint":
+      "Wer diesen Link oder QR-Code hat, sieht {name}s Werte live - ohne eigenen Home-Assistant-Zugang.",
+    "guestShare.copy": "Kopieren",
+    "guestShare.copied": "Kopiert",
+    "guestShare.noUrl":
+      "Kein Link verfügbar - Home Assistant braucht zuerst eine erreichbare URL (Einstellungen → System → Netzwerk).",
 
     "ranking.title": "Hamster-Ranking",
     "ranking.subtitle": "Nach gelaufener Strecke",

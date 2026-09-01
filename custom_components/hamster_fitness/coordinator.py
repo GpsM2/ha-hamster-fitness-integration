@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import math
+import secrets
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Final
@@ -70,6 +71,7 @@ from .const import (
     DEFAULT_IDEAL_TEMP_MIN,
     DEFAULT_MIN_DISTANCE_KM,
     DOMAIN,
+    GUEST_SHARE_TOKEN_BYTES,
     IDEAL_DISTANCE_MIN_KM,
     MOVING_PULSE_GAP_SECONDS,
     NEGLECT_THRESHOLD_HOURS,
@@ -446,6 +448,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # siehe async_set_boarding(). Anders als departure_date endgültig
         # nichts: kein Archiv-Eintrag, jederzeit umkehrbar.
         self._boarding: bool = False
+        # None: Gästefreigabe ist aus. Der Schalter-Zustand IST der
+        # Token-Lebenszyklus (siehe async_set_guest_share()) - kein
+        # separater Rotate-Vorgang, Aus+Ein erzeugt einfach ein neues Token.
+        self._guest_share_token: str | None = None
 
         self.data = HamsterFitnessData()
 
@@ -592,6 +598,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         departure_raw = stored.get("departure_date")
         self._departure_date = date.fromisoformat(departure_raw) if departure_raw else None
         self._boarding = stored.get("boarding", False)
+        self._guest_share_token = stored.get("guest_share_token")
 
         # Reine Wanduhrzeit, nicht an den Rad-Sensor-Zählerstand gekoppelt -
         # anders als die Baselines unten unabhängig von sensor_changed
@@ -807,6 +814,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     self._departure_date.isoformat() if self._departure_date else None
                 ),
                 "boarding": self._boarding,
+                "guest_share_token": self._guest_share_token,
                 "session_start_at": (
                     self._session_start_at.isoformat()
                     if self._session_start_at
@@ -1297,6 +1305,27 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         await self._async_save_state()
         if not enabled:
             self.async_set_updated_data(self._calculate())
+
+    @property
+    def guest_share_token(self) -> str | None:
+        """Return the active guest-share token, or None if sharing is off."""
+        return self._guest_share_token
+
+    async def async_set_guest_share(self, enabled: bool) -> None:
+        """Turn the read-only guest link on or off (#147).
+
+        Turning it on mints a fresh token; turning it off deletes it
+        immediately, so a previously shared link stops working right
+        away. The switch's own on/off state IS the token's lifecycle -
+        there is no separate rotate action, "off then on" is how you get
+        a new link. Doesn't touch `self.data` - unlike boarding, sharing
+        has no effect on anything the health-score calculation produces.
+        """
+        self._guest_share_token = (
+            secrets.token_urlsafe(GUEST_SHARE_TOKEN_BYTES) if enabled else None
+        )
+        await self._async_save_state()
+        self.async_update_listeners()
 
     def _is_paused(self) -> bool:
         """Return True while evaluation is suspended, for either reason.

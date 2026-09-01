@@ -84,6 +84,7 @@ try {
   await import(`${FRONTEND}/hamster-day-night-card.js${BUST}`);
   await import(`${FRONTEND}/hamster-chronicle-card.js${BUST}`);
   await import(`${FRONTEND}/hamster-weight-card.js${BUST}`);
+  await import(`${FRONTEND}/hamster-guest-share-card.js${BUST}`);
 } catch (err) {
   status.className = "fail";
   status.textContent =
@@ -97,6 +98,7 @@ const expected = [
   "hamster-day-night-card",
   "hamster-chronicle-card",
   "hamster-weight-card",
+  "hamster-guest-share-card",
 ];
 const missing = expected.filter((name) => !customElements.get(name));
 if (missing.length) {
@@ -413,6 +415,32 @@ function weightHass(grams, lastWeighedDaysAgo, breed = "golden") {
   hass.entities[id] = { device_id: "d1", translation_key: "weight" };
   return hass;
 }
+
+function guestShareHass(on, coat = "#D48C46") {
+  const hass = baseHass({ night: false, active: false, speed: 0, lightOn: false, coat });
+  const id = "switch.hamster_taco_guest_access";
+  hass.states[id] = {
+    state: on ? "on" : "off",
+    attributes: on
+      ? { share_url: "https://ha.example.com/hamster_fitness/guest/kX9pQ2xY7mZ8vQoRstUvWxYzAbCdEfGhIjKlMnOp" }
+      : { share_url: null },
+  };
+  hass.entities[id] = { device_id: "d1", translation_key: "guest_share" };
+  hass.callService = () => {};
+  return hass;
+}
+
+section("Gästezugang – Freigabe-Karte");
+grid(
+  [
+    ["An – Link & QR-Code", [true]],
+    ["An · silbernes Fell", [true, "#8A929A"]],
+    ["Aus", [false]],
+  ],
+  ([on, coat]) =>
+    makeCard("hamster-guest-share-card", { entity: "sensor.hamster_taco_health_score" },
+      guestShareHass(on, coat))
+);
 
 section("Wiegen – dieselbe Zahl, je nach Rasse ein anderes Urteil");
 grid(
