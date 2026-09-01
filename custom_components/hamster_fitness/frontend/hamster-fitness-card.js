@@ -70,7 +70,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=21";
+} from "./hamster-fitness-shared.js?v=22";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;

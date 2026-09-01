@@ -70,7 +70,12 @@ async def test_switch_generates_and_revokes_a_token(hass: HomeAssistant) -> None
 
     state = hass.states.get(SWITCH_ENTITY)
     assert state.state == "on"
-    assert state.attributes["share_url"].endswith(f"{GUEST_URL_PREFIX}/{token}")
+    # A relative path, not a full URL - the card prefixes it with
+    # window.location.origin itself. See switch.py for why: a
+    # server-computed URL used Home Assistant's configured external_url,
+    # which on the live instance was a stale Fritz!Box address nobody
+    # actually used to reach it any more.
+    assert state.attributes["guest_path"] == f"{GUEST_URL_PREFIX}/{token}"
 
     await hass.services.async_call(
         "switch", "turn_off", {"entity_id": SWITCH_ENTITY}, blocking=True

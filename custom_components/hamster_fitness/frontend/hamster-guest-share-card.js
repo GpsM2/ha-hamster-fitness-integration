@@ -7,10 +7,10 @@
  * is a bad way to do that from a phone (see #147).
  *
  * The switch entity is the actual state - this card is a friendlier
- * surface for it, not a second source of truth. Its `share_url`
- * attribute (built by HamsterGuestShareSwitch from Home Assistant's own
- * configured URL, see switch.py) is used as-is; this card never
- * constructs a URL itself.
+ * surface for it, not a second source of truth. Its `guest_path`
+ * attribute is just the path - this card builds the actual URL from
+ * window.location.origin, deliberately not from anything Home Assistant
+ * itself thinks its address is (see switch.py for why).
  *
  * Config:
  *   type: custom:hamster-guest-share-card
@@ -27,7 +27,7 @@ import {
   memoizedEditorSchema,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=21";
+} from "./hamster-fitness-shared.js?v=22";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -125,9 +125,17 @@ class HamsterGuestShareCard extends HTMLElement {
     });
   }
 
-  async _copyLink() {
+  _shareUrl() {
     const share = this._entity("guest_share");
-    const url = share && share.attributes.share_url;
+    const path = share && share.attributes.guest_path;
+    // Built from wherever this card itself was loaded from, not a
+    // server-computed URL - see HamsterGuestShareSwitch.extra_state_attributes
+    // in switch.py for why (a stale/unused external_url reported live).
+    return path ? window.location.origin + path : null;
+  }
+
+  async _copyLink() {
+    const url = this._shareUrl();
     if (!url) return;
 
     const button = this._panelEl.querySelector("[data-action='copy']");
@@ -160,7 +168,20 @@ class HamsterGuestShareCard extends HTMLElement {
     }
   }
 
+  /**
+   * Encodes `url` as an SVG QR code and caches the result, keyed by URL -
+   * `_render()` embeds the cache synchronously so the code never has a
+   * moment on screen where it's missing (see below), and this is the
+   * only place that fills the cache in.
+   *
+   * `_pendingQrUrl` guards against a slow first encode (the dynamic
+   * `import()` below, one time only - the module itself is cached after
+   * that) landing after the panel has moved on to a different URL, e.g.
+   * the switch got flipped off and back on again before the first one
+   * finished: only inject if this is still the URL anyone asked for.
+   */
   async _renderQr(url) {
+    this._pendingQrUrl = url;
     if (!this._qrModule) {
       this._qrModule = import("./vendor/qrcode.js");
     }
@@ -169,8 +190,30 @@ class HamsterGuestShareCard extends HTMLElement {
     qr.addData(url);
     qr.make();
     const svg = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
-    const holder = this._panelEl.querySelector(".hgs-qr");
-    if (holder) holder.innerHTML = svg;
+    this._qrCache = { url, svg };
+    if (this._pendingQrUrl === url) {
+      const holder = this._panelEl.querySelector(".hgs-qr");
+      if (holder) holder.innerHTML = svg;
+    }
+  }
+
+  _sharePanelHtml(url, name) {
+    const cachedSvg =
+      this._qrCache && this._qrCache.url === url ? this._qrCache.svg : "";
+    return `
+      <div class="hgs-share">
+        <div class="hgs-qr" aria-hidden="true">${cachedSvg}</div>
+        <div class="hgs-share-text">
+          <div class="hgs-link-row">
+            <span class="hgs-url">${url}</span>
+            <button class="hgs-copy" data-action="copy" type="button">
+              <span class="hgs-copy-label">${t(this._hass, "guestShare.copy")}</span>
+            </button>
+          </div>
+          <p class="hgs-hint">${t(this._hass, "guestShare.onHint", { name })}</p>
+        </div>
+      </div>
+    `;
   }
 
   _render() {
@@ -204,40 +247,30 @@ class HamsterGuestShareCard extends HTMLElement {
     this._switchEl.setAttribute("aria-checked", String(isOn));
     this._switchEl.classList.toggle("hgs-switch-on", isOn);
 
-    const url = share.attributes.share_url;
+    const url = this._shareUrl();
 
-    if (!isOn) {
+    // Home Assistant calls `set hass()` on every state change anywhere in
+    // the instance, not just this hamster's - skipping a rebuild when
+    // nothing this card actually shows has changed avoids two problems
+    // at once: the copy button's "done" flash getting wiped by an
+    // unrelated update mid-flash, and (the reported bug) the QR code
+    // being visible for one render and gone on the very next, because
+    // that next render rebuilt the panel's HTML from scratch with an
+    // empty `.hgs-qr` div and had no reason to think the async encode
+    // needed running again.
+    const signature = `${isOn}|${url}|${name}`;
+    if (this._lastSignature === signature) return;
+    this._lastSignature = signature;
+
+    if (!isOn || !url) {
       this._panelEl.innerHTML = `<p class="hgs-hint">${t(this._hass, "guestShare.offHint", { name })}</p>`;
       return;
     }
 
-    if (!url) {
-      this._panelEl.innerHTML = `<p class="hgs-hint">${t(this._hass, "guestShare.noUrl")}</p>`;
-      return;
+    this._panelEl.innerHTML = this._sharePanelHtml(url, name);
+    if (!this._qrCache || this._qrCache.url !== url) {
+      this._renderQr(url);
     }
-
-    // Re-render the QR only when the URL actually changed (a fresh token
-    // after an off/on cycle) - not on every unrelated hass update, which
-    // would otherwise re-run the (cheap but pointless) QR encode on every
-    // coordinator refresh.
-    const rerenderQr = this._lastQrUrl !== url;
-    this._lastQrUrl = url;
-
-    this._panelEl.innerHTML = `
-      <div class="hgs-share">
-        <div class="hgs-qr" aria-hidden="true"></div>
-        <div class="hgs-share-text">
-          <div class="hgs-link-row">
-            <span class="hgs-url">${url}</span>
-            <button class="hgs-copy" data-action="copy" type="button">
-              <span class="hgs-copy-label">${t(this._hass, "guestShare.copy")}</span>
-            </button>
-          </div>
-          <p class="hgs-hint">${t(this._hass, "guestShare.onHint", { name })}</p>
-        </div>
-      </div>
-    `;
-    if (rerenderQr) this._renderQr(url);
   }
 
   static styles = `

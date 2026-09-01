@@ -60,7 +60,7 @@ import {
   sunElevation,
   t,
   WEATHER_SCENES,
-} from "./hamster-fitness-shared.js?v=21";
+} from "./hamster-fitness-shared.js?v=22";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
