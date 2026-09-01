@@ -7,6 +7,7 @@ isolation), and the rate limiter's own threshold logic.
 
 from __future__ import annotations
 
+from freezegun import freeze_time
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -141,6 +142,7 @@ async def test_guest_data_endpoint_returns_the_allowlisted_fields(
 
     assert body["name"] == "Taco"
     assert set(body.keys()) == {
+        "generated_at",
         "name",
         "coat_color_hex",
         "health_score",
@@ -149,6 +151,35 @@ async def test_guest_data_endpoint_returns_the_allowlisted_fields(
         "active",
         "since_minutes",
     }
+
+
+async def test_guest_data_generated_at_changes_between_responses(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """Two reads must carry different generated_at values.
+
+    The guest page uses this to tell a fresh answer apart from an older
+    one replayed by a caching proxy - reported from a real setup, where
+    the page looked healthy while Home Assistant was restarting behind a
+    reverse proxy. If the value ever stopped changing per response, the
+    page would decide it was permanently offline.
+
+    The clock is advanced explicitly rather than left to run: the suite
+    pins it (see conftest's fixed_clock), so two calls in the same test
+    would otherwise report the same instant and this would assert on a
+    test artefact instead of on the endpoint.
+    """
+    entry = await _setup_entry(hass)
+    await entry.runtime_data.async_set_guest_share(True)
+    token = entry.runtime_data.guest_share_token
+    client = await hass_client_no_auth()
+
+    with freeze_time("2026-08-09T05:00:00+00:00"):
+        first = await (await client.get(f"{GUEST_URL_PREFIX}/{token}/data")).json()
+    with freeze_time("2026-08-09T05:00:25+00:00"):
+        second = await (await client.get(f"{GUEST_URL_PREFIX}/{token}/data")).json()
+
+    assert first["generated_at"] != second["generated_at"]
 
 
 async def test_guest_data_endpoint_404s_for_an_unknown_token(
