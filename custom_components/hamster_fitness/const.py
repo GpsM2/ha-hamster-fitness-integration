@@ -421,5 +421,14 @@ GUEST_SHARE_TOKEN_BYTES: Final[int] = 32
 # Höflichkeitsschicht gegen plumpes Token-Raten von einer einzelnen IP -
 # kein Ersatz für die Token-Entropie, da sich die tatsächliche Adresse
 # hinter Nabu Casa/einem Reverse Proxy nicht verlässlich prüfen lässt.
-GUEST_SHARE_RATE_LIMIT_REQUESTS: Final[int] = 30
+#
+# Genau deshalb ist das Limit bewusst großzügig: hinter einem Reverse
+# Proxy (oder Nabu Casa) erscheinen ALLE Gäste unter derselben Adresse
+# und teilen sich damit EIN Kontingent. Die Gast-Seite pollt alle 25 s,
+# macht also rund 2,4 Anfragen/Minute pro geöffneter Seite - bei 30/min
+# wären schon ~12 gleichzeitige Gäste am Limit, obwohl sich keiner von
+# ihnen falsch verhält. Fürs Token-Raten ist die Höhe ohnehin egal: bei
+# 256 Bit Entropie scheitert ein Angreifer an der Mathematik, nicht an
+# einem Zähler.
+GUEST_SHARE_RATE_LIMIT_REQUESTS: Final[int] = 120
 GUEST_SHARE_RATE_LIMIT_WINDOW_SECONDS: Final[float] = 60.0

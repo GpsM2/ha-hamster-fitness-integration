@@ -113,13 +113,25 @@ def _find_entry(
     (`HamsterFitnessCoordinator._guest_share_token`) that owns the token,
     not two that could drift apart. `secrets.compare_digest` avoids
     leaking timing information about how much of a guess matched.
+
+    Both sides are compared as bytes, not str: `compare_digest` raises
+    TypeError on str arguments containing non-ASCII characters, and
+    `token` comes straight off the URL, where anyone can put anything.
+    A request for /hamster_fitness/guest/caf%C3%A9/data used to reach
+    this line and turn that TypeError into a 500 plus a logged
+    traceback, on a route that is reachable without any authentication.
+    Encoding first keeps the comparison constant-time while making every
+    possible input merely "not a match".
     """
+    probe = token.encode("utf-8")
     for entry in hass.config_entries.async_entries(DOMAIN):
         coordinator = getattr(entry, "runtime_data", None)
         if coordinator is None:
             continue
         candidate = coordinator.guest_share_token
-        if candidate is not None and secrets.compare_digest(candidate, token):
+        if candidate is not None and secrets.compare_digest(
+            candidate.encode("utf-8"), probe
+        ):
             return entry
     return None
 
@@ -135,6 +147,7 @@ class GuestPageView(HomeAssistantView):
         """Initialize the view."""
         self.hass = hass
         self._rate_limiter = rate_limiter
+        self._html: str | None = None
 
     async def get(self, request: web.Request, token: str) -> web.Response:
         """Return the shell HTML - same response regardless of token validity.
@@ -146,13 +159,24 @@ class GuestPageView(HomeAssistantView):
         free. `token` is unused on purpose - see above - but
         `HomeAssistantView` always calls handlers with every dynamic URL
         segment as a keyword argument, so it has to be accepted.
+
+        The file is read once and kept: it ships with the integration, so
+        it can only change via an update, which needs a Home Assistant
+        restart anyway - exactly the same lifetime the bundled card files
+        already assume. The no-cache headers stay: they are about the
+        *viewer's* browser not holding on to a page whose link may since
+        have been revoked, which is unrelated to re-reading it from disk
+        on every single request.
         """
         if not self._rate_limiter.allow(request.remote or "unknown"):
             return web.Response(status=429, text="Too many requests")
-        html = await self.hass.async_add_executor_job(
-            _GUEST_HTML_PATH.read_text, "utf-8"
+        if self._html is None:
+            self._html = await self.hass.async_add_executor_job(
+                _GUEST_HTML_PATH.read_text, "utf-8"
+            )
+        return web.Response(
+            text=self._html, content_type="text/html", headers=_NO_CACHE_HEADERS
         )
-        return web.Response(text=html, content_type="text/html", headers=_NO_CACHE_HEADERS)
 
 
 class GuestDataView(HomeAssistantView):

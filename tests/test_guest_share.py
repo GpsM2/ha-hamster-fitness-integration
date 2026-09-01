@@ -162,6 +162,26 @@ async def test_guest_data_endpoint_404s_for_an_unknown_token(
     assert resp.status == 404
 
 
+async def test_guest_data_endpoint_404s_for_a_non_ascii_token(
+    hass: HomeAssistant, hass_client_no_auth
+) -> None:
+    """A token with non-ASCII characters is just a miss, not a crash.
+
+    Regression test: secrets.compare_digest raises TypeError on str
+    arguments containing non-ASCII characters, and the token comes
+    straight off the URL. Requesting /guest/caf%C3%A9/data used to turn
+    that into a 500 plus a logged traceback - on a route reachable with
+    no authentication at all.
+    """
+    entry = await _setup_entry(hass)
+    await entry.runtime_data.async_set_guest_share(True)
+    client = await hass_client_no_auth()
+
+    for probe in ("caf%C3%A9", "%C3%BC%C3%B6%C3%A4", "%E4%B8%AD%E6%96%87"):
+        resp = await client.get(f"{GUEST_URL_PREFIX}/{probe}/data")
+        assert resp.status == 404, f"{probe} returned {resp.status}"
+
+
 async def test_guest_data_endpoint_404s_after_revocation(
     hass: HomeAssistant, hass_client_no_auth
 ) -> None:
