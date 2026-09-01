@@ -51,7 +51,7 @@ import {
   renderCardHeader,
   deviceDisplayName,
   t,
-} from "./hamster-fitness-shared.js?v=21";
+} from "./hamster-fitness-shared.js?v=22";
 
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
 

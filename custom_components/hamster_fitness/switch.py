@@ -12,7 +12,6 @@ coordinator (see coordinator.py), so `door_light.py`, this entity and the
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import voluptuous as vol
@@ -21,7 +20,6 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
@@ -38,8 +36,6 @@ from .coordinator import (
     hamster_device_info,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -49,7 +45,7 @@ async def async_setup_entry(
     """Set up the Hamster Fitness switches from a config entry."""
     entities: list[SwitchEntity] = [
         HamsterBoardingSwitch(entry.runtime_data, entry),
-        HamsterGuestShareSwitch(hass, entry.runtime_data, entry),
+        HamsterGuestShareSwitch(entry.runtime_data, entry),
     ]
 
     if not entry.data.get(CONF_LIGHT_ENTITY):
@@ -174,7 +170,7 @@ class HamsterGuestShareSwitch(
 
     The entity is the source of truth for whether a link exists at all -
     the `hamster-guest-share-card` is just a friendlier surface for the
-    same on/off state and its `share_url` attribute, and an automation
+    same on/off state and its `guest_path` attribute, and an automation
     can flip it exactly the same way. Turning it on mints a fresh,
     unguessable link; turning it off invalidates whatever was shared
     immediately, see `HamsterFitnessCoordinator.async_set_guest_share()`.
@@ -186,13 +182,11 @@ class HamsterGuestShareSwitch(
 
     def __init__(
         self,
-        hass: HomeAssistant,
         coordinator: HamsterFitnessCoordinator,
         entry: HamsterFitnessConfigEntry,
     ) -> None:
         """Initialize the guest-share switch."""
         super().__init__(coordinator)
-        self._hass = hass
         self._attr_unique_id = f"{entry.entry_id}_guest_share"
         self._attr_device_info = hamster_device_info(entry)
 
@@ -203,29 +197,27 @@ class HamsterGuestShareSwitch(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the full guest URL, if sharing is on.
+        """Expose the guest link's path (not a full URL), if sharing is on.
 
-        Built from Home Assistant's own configured URL rather than
-        stored - so it always reflects the instance's current
-        internal/external address instead of going stale if that ever
-        changes. Preferring the external URL matches the actual use case
-        (a boarding sitter checking in from outside the house); on a
-        purely local setup with no external URL configured at all, the
-        link falls back to the internal one, which still works for
-        anyone on the same network.
+        Deliberately just the path, for the card to prefix with
+        `window.location.origin` itself - not built here from Home
+        Assistant's own configured external/internal URL. Reported and
+        confirmed live: `get_url()` returned the instance's configured
+        `external_url`, a Fritz!Box dynamic-DNS address the user had
+        stopped actually using in favour of a proxied custom domain -
+        technically what HA was told, not what the browser looking at
+        this card was actually connected through. A relative path has
+        nothing to guess: whatever domain loaded this card is - by
+        definition - one the owner can currently reach Home Assistant
+        through, which is the only thing that matters for a link they're
+        about to hand to someone else. Same reasoning beatify uses for
+        its own shareable links (window.location.origin, not a
+        server-computed URL).
         """
         token = self.coordinator.guest_share_token
         if token is None:
-            return {"share_url": None}
-        try:
-            base_url = get_url(self._hass, prefer_external=True)
-        except NoURLAvailableError:
-            _LOGGER.warning(
-                "Hamster Fitness: Kein Gast-Link möglich - Home Assistant "
-                "hat weder eine interne noch eine externe URL konfiguriert."
-            )
-            return {"share_url": None}
-        return {"share_url": f"{base_url}{GUEST_URL_PREFIX}/{token}"}
+            return {"guest_path": None}
+        return {"guest_path": f"{GUEST_URL_PREFIX}/{token}"}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Generate a fresh guest link."""

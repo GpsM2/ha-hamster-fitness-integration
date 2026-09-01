@@ -422,8 +422,8 @@ function guestShareHass(on, coat = "#D48C46") {
   hass.states[id] = {
     state: on ? "on" : "off",
     attributes: on
-      ? { share_url: "https://ha.example.com/hamster_fitness/guest/kX9pQ2xY7mZ8vQoRstUvWxYzAbCdEfGhIjKlMnOp" }
-      : { share_url: null },
+      ? { guest_path: "/hamster_fitness/guest/kX9pQ2xY7mZ8vQoRstUvWxYzAbCdEfGhIjKlMnOp" }
+      : { guest_path: null },
   };
   hass.entities[id] = { device_id: "d1", translation_key: "guest_share" };
   hass.callService = () => {};

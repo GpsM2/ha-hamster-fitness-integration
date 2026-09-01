@@ -50,7 +50,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=21";
+} from "./hamster-fitness-shared.js?v=22";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
