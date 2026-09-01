@@ -77,3 +77,13 @@ entity: sensor.hamster_taco_health_score
   your personal Home Assistant theme — it's served outside any Home
   Assistant session, so your theme customisations aren't reachable
   there.
+- It also follows the visitor's own browser language (English or
+  German), including number and time formatting — deliberately theirs
+  and not your instance's, since the whole point is that they aren't
+  logged into it. A sitter whose phone is set to English sees
+  "Running for 2 h 18 min" and "6.1 km".
+- A momentary hiccup (your instance restarting, a phone losing signal)
+  leaves the last reading on screen and recovers by itself; the "last
+  updated" time visibly stops advancing while that lasts. Only a
+  genuinely revoked link replaces the page with "this link is no longer
+  valid".

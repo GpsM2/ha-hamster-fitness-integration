@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="de">
+<!-- lang is rewritten to the viewer's language as soon as the script runs;
+     every visible string is filled in from there, so nothing user-facing
+     depends on this initial value. -->
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -141,7 +144,7 @@
 </head>
 <body>
   <div class="card" id="card">
-    <div class="badge">🔒 Nur-Lese-Ansicht</div>
+    <div class="badge">🔒 <span id="badgeLabel"></span></div>
     <div class="illustration"><svg class="scene-svg" id="illustration" viewBox="0 0 220 200" aria-hidden="true"></svg></div>
     <div class="name" id="name">–</div>
     <div class="status-line" id="statusLine"></div>
@@ -152,16 +155,16 @@
           stroke-linecap="round" stroke-dasharray="351.9" stroke-dashoffset="351.9"
           transform="rotate(-90 66 66)"/>
         <text x="66" y="64" text-anchor="middle" dominant-baseline="central" class="ring-num" fill="var(--text)" id="ringNum">–</text>
-        <text x="66" y="86" text-anchor="middle" dominant-baseline="central" class="ring-label" fill="var(--muted)">Health</text>
+        <text x="66" y="86" text-anchor="middle" dominant-baseline="central" class="ring-label" fill="var(--muted)" id="ringLabel"></text>
       </svg>
     </div>
     <div class="stats">
-      <div class="stat"><div class="v" id="distanceVal">–</div><div class="l">Diese Nacht</div></div>
-      <div class="stat"><div class="v" id="speedVal">–</div><div class="l">Tempo</div></div>
+      <div class="stat"><div class="v" id="distanceVal">–</div><div class="l" id="labelDistance"></div></div>
+      <div class="stat"><div class="v" id="speedVal">–</div><div class="l" id="labelSpeed"></div></div>
     </div>
     <div class="footer" id="footer"></div>
   </div>
-  <div class="error hidden" id="errorState">Dieser Link ist nicht mehr gültig.</div>
+  <div class="error hidden" id="errorState"></div>
 
 <script>
 (function () {
@@ -207,6 +210,55 @@
     '<path d="M58 136 q5 4 10 0" fill="none" stroke="#3a2a1a" stroke-width="2.4" stroke-linecap="round"/>' +
     '<ellipse cx="79" cy="143" rx="5" ry="4" fill="#f4d9c6"/></g>';
 
+  // Follows the VIEWER's browser language, not the instance's - this is
+  // the one page in the integration aimed at someone outside the
+  // household, and it is served without a session, so Home Assistant's
+  // own configured language isn't available here (and wouldn't be the
+  // right signal anyway: the sitter's phone knows what the sitter reads).
+  // Same shape as hamster-fitness-shared.js's STRINGS/t(), duplicated
+  // rather than imported for the same reason shade() below is - see
+  // the note there.
+  var STRINGS = {
+    en: {
+      readOnly: "Read-only view",
+      health: "Health",
+      thisNight: "This night",
+      speed: "Speed",
+      runningFor: "Running for {time}",
+      restingFor: "Resting for {time}",
+      lastUpdated: "Last updated: {time}",
+      linkInvalid: "This link is no longer valid.",
+      minutes: "{m} min",
+      hoursMinutes: "{h} h {m} min",
+    },
+    de: {
+      readOnly: "Nur-Lese-Ansicht",
+      health: "Health",
+      thisNight: "Diese Nacht",
+      speed: "Tempo",
+      runningFor: "Läuft seit {time}",
+      restingFor: "Ruht seit {time}",
+      lastUpdated: "Zuletzt aktualisiert: {time}",
+      linkInvalid: "Dieser Link ist nicht mehr gültig.",
+      minutes: "{m} Min.",
+      hoursMinutes: "{h} Std. {m} Min.",
+    },
+  };
+
+  var LOCALE =
+    (typeof navigator !== "undefined" && navigator.language) || "en";
+  var LANG = String(LOCALE).toLowerCase().split("-")[0];
+  var TABLE = STRINGS[LANG] || STRINGS.en;
+
+  function t(key, vars) {
+    var text = TABLE[key];
+    if (text === undefined) text = STRINGS.en[key];
+    if (text === undefined) return key;
+    return text.replace(/\{(\w+)\}/g, function (match, name) {
+      return vars && vars[name] !== undefined ? String(vars[name]) : match;
+    });
+  }
+
   // Same derivation as hamster-fitness-shared.js's shade() - copied, not
   // imported, on purpose: this page runs outside any HA session and has
   // no access to the authenticated static path that file lives under.
@@ -230,13 +282,26 @@
     var total = Math.max(0, Math.round(min));
     var h = Math.floor(total / 60);
     var m = total % 60;
-    if (h === 0) return m + " Min.";
-    return h + " Std. " + m + " Min.";
+    if (h === 0) return t("minutes", { m: m });
+    return t("hoursMinutes", { h: h, m: m });
+  }
+
+  function fmtNumber(value, decimals) {
+    return value.toLocaleString(LOCALE, { maximumFractionDigits: decimals });
   }
 
   var root = document.documentElement;
   var illustrationEl = document.getElementById("illustration");
   var lastState = null;
+
+  // Static labels, filled in before the first fetch so the page never
+  // flashes empty chrome while waiting on the network.
+  root.lang = LANG;
+  document.getElementById("badgeLabel").textContent = t("readOnly");
+  document.getElementById("ringLabel").textContent = t("health");
+  document.getElementById("labelDistance").textContent = t("thisNight");
+  document.getElementById("labelSpeed").textContent = t("speed");
+  document.getElementById("errorState").textContent = t("linkInvalid");
 
   function render(data) {
     root.style.setProperty("--fur", data.coat_color_hex);
@@ -250,9 +315,10 @@
     }
 
     document.getElementById("name").textContent = data.name;
-    document.getElementById("statusLine").textContent = data.active
-      ? "Läuft seit " + fmtMinutes(data.since_minutes)
-      : "Ruht seit " + fmtMinutes(data.since_minutes);
+    document.getElementById("statusLine").textContent = t(
+      data.active ? "runningFor" : "restingFor",
+      { time: fmtMinutes(data.since_minutes) }
+    );
 
     var score = data.health_score;
     var ring = document.getElementById("ringProgress");
@@ -262,19 +328,28 @@
     document.getElementById("ringNum").textContent = String(Math.round(score));
 
     document.getElementById("distanceVal").textContent =
-      data.night_distance_km.toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " km";
+      fmtNumber(data.night_distance_km, 1) + " km";
     document.getElementById("speedVal").textContent =
-      (data.current_speed_kmh === null
+      data.current_speed_kmh === null
         ? "–"
-        : data.current_speed_kmh.toLocaleString("de-DE", { maximumFractionDigits: 1 }) + " km/h");
+        : fmtNumber(data.current_speed_kmh, 1) + " km/h";
 
-    document.getElementById("footer").textContent =
-      "Zuletzt aktualisiert: " + new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    document.getElementById("footer").textContent = t("lastUpdated", {
+      time: new Date().toLocaleTimeString(LOCALE, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    });
   }
 
   var pollTimer = null;
 
-  function showError() {
+  /**
+   * Only a 404 means the link is genuinely gone (revoked, or never
+   * existed) - that is the one case worth tearing the page down for,
+   * and the one case that can never fix itself.
+   */
+  function showRevoked() {
     document.getElementById("card").classList.add("hidden");
     document.getElementById("errorState").classList.remove("hidden");
     if (pollTimer !== null) {
@@ -289,11 +364,30 @@
   function poll() {
     fetch(dataUrl, { cache: "no-store" })
       .then(function (res) {
-        if (!res.ok) throw new Error("not ok");
+        if (res.status === 404) {
+          var gone = new Error("revoked");
+          gone.revoked = true;
+          throw gone;
+        }
+        if (!res.ok) throw new Error("transient");
         return res.json();
       })
       .then(render)
-      .catch(showError);
+      .catch(function (err) {
+        if (err && err.revoked) {
+          showRevoked();
+          return;
+        }
+        // Everything else is transient and recovers on its own: the
+        // phone dropped signal for a moment, Home Assistant is
+        // restarting, a proxy hiccuped, the rate limit was hit. Treating
+        // those the way a revocation is treated used to blank the page
+        // and permanently stop polling behind the message "this link is
+        // no longer valid" - actively wrong, and only fixable by
+        // manually reloading. Keep the last good reading on screen and
+        // let the next tick sort it out; the footer's "last updated"
+        // time visibly stops advancing, which is the honest signal.
+      });
   }
 
   poll();
