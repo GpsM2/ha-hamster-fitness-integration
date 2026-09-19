@@ -277,6 +277,7 @@
     },
     "notify": {
       "daily_summary": "Heute Nacht {distance} km gelaufen! {comparison}",
+      "daily_summary_no_data": "Keine Daten vom Rad-Sensor in der letzten Nacht - prüfe, ob er noch mit Strom versorgt und verbunden ist.",
       "more_than_yesterday": "Das sind {delta} m mehr als gestern.",
       "less_than_yesterday": "Das sind {delta} m weniger als gestern.",
       "same_as_yesterday": "Das ist genauso viel wie gestern.",

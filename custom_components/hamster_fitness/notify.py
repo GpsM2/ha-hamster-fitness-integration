@@ -257,15 +257,18 @@ class HamsterFitnessNotifier:
     def _async_handle_daily_time(self, now: datetime) -> None:
         """Run every time-based flow at the configured local time.
 
-        All stay quiet while the hamster is away (boarding mode): a
-        summary repeating a frozen distance, a nudge to weigh a hamster
-        that is at the vet, or advice to shade a cage the hamster isn't
-        in, is noise the user can do nothing about. Warnings are already
-        silent - the coordinator stops producing reasons while paused.
+        All stay quiet while the hamster is paused - away on boarding, or
+        departed for good (#164): a summary repeating a frozen distance, a
+        nudge to weigh a hamster that isn't there to weigh, or advice to
+        shade a cage nobody's using, is noise the user can do nothing
+        about. Warnings are already silent - the coordinator stops
+        producing reasons while paused - but that flow reacts to a
+        *change*; a departed hamster's frozen state never changes again,
+        so it needs its own check here, the same as boarding already had.
         """
-        if self._coordinator.boarding:
+        if self._coordinator.paused:
             _LOGGER.debug(
-                "Hamster Fitness (%s): vorübergehend abwesend, "
+                "Hamster Fitness (%s): pausiert (Boarding oder Auszug), "
                 "Tageszusammenfassung, Wiege- und Hitze-Erinnerung "
                 "übersprungen",
                 self._hamster_name,
@@ -288,7 +291,25 @@ class HamsterFitnessNotifier:
         the same relative point in the night, so "mehr/weniger als
         gestern" is a fair comparison even though the current window
         technically isn't "closed" yet at notification time.
+
+        If the wheel sensor produced no fresh reading all night (offline,
+        unplugged - see `wheel_sensor_available`),
+        `coordinator.data.night_distance_km` is just last night's number
+        frozen in place, not tonight's (#165 - a real report showed the
+        sensor off all night and the summary still arriving with the
+        previous night's distance, indistinguishable from a real one).
+        Sending that as tonight's figure would be presenting stale data
+        as fresh, so a distinct no-data message goes out instead, and the
+        comparison baseline is left untouched - there is nothing real to
+        roll forward, and doing so anyway would corrupt tomorrow's
+        "more/less than yesterday" comparison the moment real data
+        returns.
         """
+        if not self._coordinator.data.wheel_sensor_available:
+            message = render_message(self._hass, "notify.daily_summary_no_data")
+            self._hass.async_create_task(self._async_send(message))
+            return
+
         tonight_km = self._coordinator.data.night_distance_km
         delta_m = round((tonight_km - self._last_night_km) * 1000)
 

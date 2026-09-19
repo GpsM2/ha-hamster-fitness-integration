@@ -273,6 +273,14 @@ class HamsterFitnessData:
     # Der stabile code ermöglicht notify.py ein Cooldown pro Warngrund, ohne
     # durch schwankende Zahlenwerte im Text getäuscht zu werden.
     warning_reasons: dict[str, str] = field(default_factory=dict)
+    # False genau dann, wenn DIESE Berechnung keinen frischen Zählerstand
+    # bekommen hat (Sensor "unavailable"/"unknown" oder stromlos) - siehe
+    # _current_wheel_count(). night_distance_km bleibt in dem Fall auf dem
+    # zuletzt bekannten Stand eingefroren; notify.py nutzt dieses Flag, um
+    # so eine eingefrorene Zahl nicht als die Strecke DIESER Nacht zu
+    # verschicken (#165 - Push mit Werten der Vornacht, obwohl der
+    # Rad-Sensor die ganze Nacht nicht am Strom hing).
+    wheel_sensor_available: bool = True
 
 
 class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
@@ -1327,6 +1335,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         await self._async_save_state()
         self.async_update_listeners()
 
+    @property
+    def paused(self) -> bool:
+        """Public mirror of `_is_paused()`, for callers outside the coordinator.
+
+        notify.py's daily-time flows (summary, weigh-in, heat forecast)
+        need exactly this - "should anything fire for this hamster right
+        now" - not the boarding flag alone. A departed hamster used to
+        keep receiving them forever, since only `boarding` was checked
+        there.
+        """
+        return self._is_paused()
+
     def _is_paused(self) -> bool:
         """Return True while evaluation is suspended, for either reason.
 
@@ -1422,6 +1442,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         now = dt_util.utcnow()
         current_count = self._current_wheel_count()
+        wheel_sensor_available = current_count is not None
         if current_count is not None:
             activity_detected = (
                 self._last_known_count is not None
@@ -1718,6 +1739,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             min_distance_km=min_distance_km,
             warning_on=bool(reasons),
             warning_reasons=reasons,
+            wheel_sensor_available=wheel_sensor_available,
         )
 
 
