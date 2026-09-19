@@ -177,6 +177,32 @@ async def test_daily_notifications_stay_quiet_while_away(
     assert sent == []
 
 
+async def test_daily_notifications_stay_quiet_after_departure(
+    hass: HomeAssistant,
+) -> None:
+    """Regression for #164: a departed hamster kept getting notified forever.
+
+    Unlike boarding, a departure never flips back off, so the daily
+    summary/weigh-in/heat-forecast timer would otherwise fire on every
+    single configured notification time from here on - not once more,
+    forever. _async_handle_daily_time() only checked `boarding`, not
+    `paused` (which also covers departure).
+    """
+    sent = async_mock_service(hass, "notify", "send_message")
+    entry = await _setup_entry(hass, options={OPTION_WEIGHT_REMINDER_ENABLED: True})
+    coordinator = entry.runtime_data
+
+    await coordinator.async_set_departure_date(date(2026, 8, 1))
+    await hass.async_block_till_done()
+    sent.clear()
+
+    notifier = HamsterFitnessNotifier(hass, entry, coordinator)
+    notifier._async_handle_daily_time(None)
+    await hass.async_block_till_done()
+
+    assert sent == []
+
+
 async def test_score_sampling_pauses_while_away(hass: HomeAssistant) -> None:
     """A frozen score shouldn't pad the daily average."""
     entry = await _setup_entry(hass)

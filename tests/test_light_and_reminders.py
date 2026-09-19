@@ -29,6 +29,7 @@ from custom_components.hamster_fitness.const import (
     SERVICE_PAUSE_LIGHT_AUTOMATION,
 )
 from custom_components.hamster_fitness.notify import HamsterFitnessNotifier
+from custom_components.hamster_fitness.runtime_text import render_message
 
 WHEEL_SENSOR = "sensor.wheel_rotations"
 TEMPERATURE_SENSOR = "sensor.cage_temperature"
@@ -293,3 +294,52 @@ async def test_weight_reminder_nudges_when_never_weighed(
     await hass.async_block_till_done()
 
     assert len(sent) == 1
+
+
+async def test_daily_summary_reports_no_data_when_sensor_was_offline(
+    hass: HomeAssistant,
+) -> None:
+    """Regression for #165: a frozen distance must not go out as fresh.
+
+    While the wheel sensor is unavailable, coordinator.data.night_distance_km
+    stays frozen at its last good value (by design, for the sensor
+    entities - see test_unavailable_wheel_sensor.py) - but the daily
+    summary read that same frozen number as tonight's distance and sent
+    it, indistinguishable from a real one. A live report showed exactly
+    that: the sensor off all night, the push still arriving with the
+    previous night's number.
+
+    It must say "no data" instead, and must not treat the frozen number
+    as a legitimate new baseline for tomorrow's "more/less than
+    yesterday" comparison - there is nothing real from this night to
+    compare against.
+    """
+    sent = async_mock_service(hass, "notify", "send_message")
+    entry = await _setup_entry(hass, options={OPTION_WARNINGS_ENABLED: False})
+    coordinator = entry.runtime_data
+    notifier = HamsterFitnessNotifier(hass, entry, coordinator)
+
+    # A normal night establishes the comparison baseline.
+    hass.states.async_set(WHEEL_SENSOR, "1000")
+    await hass.async_block_till_done()
+    notifier._async_send_daily_summary()
+    await hass.async_block_till_done()
+    assert len(sent) == 1
+    baseline = notifier._last_night_km
+    assert baseline > 0
+
+    # The sensor drops off for the whole next night.
+    hass.states.async_set(WHEEL_SENSOR, "unavailable")
+    await hass.async_block_till_done()
+    assert coordinator.data.wheel_sensor_available is False
+
+    notifier._async_send_daily_summary()
+    await hass.async_block_till_done()
+
+    assert len(sent) == 2
+    assert sent[1].data["message"] == render_message(
+        hass, "notify.daily_summary_no_data"
+    )
+    # The baseline must survive the outage untouched, not roll forward to
+    # the frozen (== unchanged) figure as if it were a real reading.
+    assert notifier._last_night_km == baseline

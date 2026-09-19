@@ -277,6 +277,7 @@
     },
     "notify": {
       "daily_summary": "Ran {distance} km last night! {comparison}",
+      "daily_summary_no_data": "No data from the wheel sensor last night - check that it's still powered and connected.",
       "more_than_yesterday": "That's {delta} m more than yesterday.",
       "less_than_yesterday": "That's {delta} m less than yesterday.",
       "same_as_yesterday": "That's the same as yesterday.",

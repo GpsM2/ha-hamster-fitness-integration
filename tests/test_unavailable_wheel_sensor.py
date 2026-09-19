@@ -120,6 +120,36 @@ async def test_lifetime_holds_its_value_while_sensor_is_away(
     assert float(lifetime.state) == before
 
 
+async def test_wheel_sensor_available_flag_tracks_the_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Regression for #165: notify.py needs to tell a fresh reading from
+    a frozen one apart, and this flag is how.
+
+    night_distance_km itself can't say that on its own - it's
+    deliberately frozen at its last good value while the sensor is away
+    (see the tests above), so a reader looking only at the number cannot
+    tell "0.3 km, freshly measured" from "0.3 km, from before the sensor
+    dropped off". A live report showed the daily-summary push repeating
+    the previous night's distance as if it were the current one, for
+    exactly that reason.
+    """
+    hass.states.async_set(WHEEL_SENSOR, "0")
+    hass.states.async_set(TEMPERATURE_SENSOR, "22")
+    hass.states.async_set(DOOR_SENSOR, "off")
+    entry = await _setup_entry(hass)
+
+    assert entry.runtime_data.data.wheel_sensor_available is True
+
+    hass.states.async_set(WHEEL_SENSOR, "unavailable")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.wheel_sensor_available is False
+
+    hass.states.async_set(WHEEL_SENSOR, "1000")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.wheel_sensor_available is True
+
+
 async def test_lifetime_survives_a_reload_with_the_sensor_away(
     hass: HomeAssistant,
 ) -> None:
