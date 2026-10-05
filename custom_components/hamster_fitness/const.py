@@ -268,6 +268,28 @@ STORAGE_VERSION: Final[int] = 1
 # das Fenster echt bei 0 begann - deshalb wird verworfen statt geraten.
 BASELINE_TRUST_VERSION: Final[int] = 2
 
+# Dasselbe für die Geschwindigkeitsrekorde. Stufe 2 (0.11.3): Bis dahin
+# setzte ein einzelner Messwert den Rekord - in der Praxis immer ein
+# Störimpuls (11-13 km/h bei einem Median von 2,9 km/h, siehe #168). Nach
+# der neuen Regel (SUSTAINED_SPEED_READINGS) wäre so ein Rekord nie mehr zu
+# schlagen, also werden ältere Stufen einmalig verworfen.
+SPEED_TRUST_VERSION: Final[int] = 2
+
+# Ein Rekord zählt nur, wenn das Tempo über so viele aufeinanderfolgende
+# Messwerte gehalten wurde (gewertet wird der niedrigste davon). Ein
+# Störimpuls ist ein einzelner Wert, ein Sprint dauert mehrere Umdrehungen.
+# Gegen echte Produktionsdaten abgeglichen: 1 Wert -> 11-12,8 km/h jede
+# Nacht, 2 -> 6,3-9,5, 3 -> 4,7-6,2, 5 -> 3,7-5,2 (#168).
+SUSTAINED_SPEED_READINGS: Final[int] = 3
+
+# Ein Rückgang des Zählers gilt nur dann als echter Reset (Neu-Flashen,
+# Gerätetausch - der Zähler beginnt wieder bei 0), wenn der neue Wert unter
+# diesem Anteil des alten liegt. Ein kleinerer Rückschritt ist ein Gerät,
+# das nach einem Neustart einen etwas älteren Stand wiederhergestellt hat
+# (#167) - als Reset gewertet, landete der GESAMTE Zählerstand als Strecke
+# in der laufenden Nacht.
+COUNTER_RESET_FRACTION: Final[float] = 0.5
+
 # --- Benachrichtigungen ---
 NOTIFY_DOMAIN: Final = "notify"
 NOTIFY_SERVICE_SEND_MESSAGE: Final = "send_message"

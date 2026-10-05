@@ -292,8 +292,8 @@ class HamsterFitnessNotifier:
         gestern" is a fair comparison even though the current window
         technically isn't "closed" yet at notification time.
 
-        If the wheel sensor produced no fresh reading all night (offline,
-        unplugged - see `wheel_sensor_available`),
+        If the wheel sensor produced no reading at all since the night
+        window began (offline, unplugged - see `night_has_wheel_data`),
         `coordinator.data.night_distance_km` is just last night's number
         frozen in place, not tonight's (#165 - a real report showed the
         sensor off all night and the summary still arriving with the
@@ -304,8 +304,12 @@ class HamsterFitnessNotifier:
         roll forward, and doing so anyway would corrupt tomorrow's
         "more/less than yesterday" comparison the moment real data
         returns.
+
+        "Since the window began", not "right now" (#169): a sensor that
+        drops out after the hamster has finished still recorded a real
+        night, and that night's distance is what this message is for.
         """
-        if not self._coordinator.data.wheel_sensor_available:
+        if not self._coordinator.data.night_has_wheel_data:
             message = render_message(self._hass, "notify.daily_summary_no_data")
             self._hass.async_create_task(self._async_send(message))
             return

@@ -301,18 +301,12 @@ async def test_daily_summary_reports_no_data_when_sensor_was_offline(
 ) -> None:
     """Regression for #165: a frozen distance must not go out as fresh.
 
-    While the wheel sensor is unavailable, coordinator.data.night_distance_km
-    stays frozen at its last good value (by design, for the sensor
-    entities - see test_unavailable_wheel_sensor.py) - but the daily
-    summary read that same frozen number as tonight's distance and sent
-    it, indistinguishable from a real one. A live report showed exactly
-    that: the sensor off all night, the push still arriving with the
-    previous night's number.
-
-    It must say "no data" instead, and must not treat the frozen number
-    as a legitimate new baseline for tomorrow's "more/less than
-    yesterday" comparison - there is nothing real from this night to
-    compare against.
+    While the wheel sensor is unavailable, night_distance_km stays frozen
+    at its last good value (by design, for the sensor entities - see
+    test_unavailable_wheel_sensor.py). A live report showed the summary
+    still arriving with the previous night's number after the sensor had
+    been off all night. It must say "no data" instead, and must not treat
+    the frozen number as the baseline for tomorrow's comparison.
     """
     sent = async_mock_service(hass, "notify", "send_message")
     entry = await _setup_entry(hass, options={OPTION_WARNINGS_ENABLED: False})
@@ -328,10 +322,11 @@ async def test_daily_summary_reports_no_data_when_sensor_was_offline(
     baseline = notifier._last_night_km
     assert baseline > 0
 
-    # The sensor drops off for the whole next night.
+    # The sensor is gone before the next night starts and stays gone.
     hass.states.async_set(WHEEL_SENSOR, "unavailable")
     await hass.async_block_till_done()
-    assert coordinator.data.wheel_sensor_available is False
+    coordinator._async_handle_night_window_reset(dt_util.now())
+    await hass.async_block_till_done()
 
     notifier._async_send_daily_summary()
     await hass.async_block_till_done()
@@ -340,6 +335,34 @@ async def test_daily_summary_reports_no_data_when_sensor_was_offline(
     assert sent[1].data["message"] == render_message(
         hass, "notify.daily_summary_no_data"
     )
-    # The baseline must survive the outage untouched, not roll forward to
-    # the frozen (== unchanged) figure as if it were a real reading.
     assert notifier._last_night_km == baseline
+
+
+async def test_daily_summary_keeps_a_night_the_sensor_dropped_out_after(
+    hass: HomeAssistant,
+) -> None:
+    """Regression for #169: dropping out after the run is not "no data".
+
+    The hamster runs, then the device reboots and sits at "unknown" until
+    the next pulse. The night was recorded in full - the summary has to
+    report it, not throw it away because the sensor is unreadable at the
+    moment it is sent.
+    """
+    sent = async_mock_service(hass, "notify", "send_message")
+    entry = await _setup_entry(hass, options={OPTION_WARNINGS_ENABLED: False})
+    coordinator = entry.runtime_data
+    notifier = HamsterFitnessNotifier(hass, entry, coordinator)
+
+    hass.states.async_set(WHEEL_SENSOR, "1000")
+    await hass.async_block_till_done()
+    hass.states.async_set(WHEEL_SENSOR, "unknown")
+    await hass.async_block_till_done()
+
+    notifier._async_send_daily_summary()
+    await hass.async_block_till_done()
+
+    assert len(sent) == 1
+    assert sent[0].data["message"] != render_message(
+        hass, "notify.daily_summary_no_data"
+    )
+    assert notifier._last_night_km == coordinator.data.night_distance_km > 0

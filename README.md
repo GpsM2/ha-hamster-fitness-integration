@@ -282,7 +282,7 @@ came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
 | `sensor.hamster_<name>_daily_distance` | Distance run today (resets 9 AM) |
 | `sensor.hamster_<name>_lifetime_distance` | Total distance ever run |
 | `sensor.hamster_<name>_current_speed`¹ | Current wheel speed |
-| `sensor.hamster_<name>_max_speed_tonight`¹ | Fastest speed tonight |
+| `sensor.hamster_<name>_max_speed_tonight`¹ | Fastest speed tonight, held over three consecutive readings |
 | `sensor.hamster_<name>_active_duration` | How long the current running session has lasted |
 | `sensor.hamster_<name>_rest_duration` | How long your hamster has been resting |
 | `sensor.hamster_<name>_humidity`² | Cage humidity |

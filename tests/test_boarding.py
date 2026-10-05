@@ -28,6 +28,7 @@ from custom_components.hamster_fitness.const import (
     CONF_WHEEL_SENSOR,
     DOMAIN,
     OPTION_WEIGHT_REMINDER_ENABLED,
+    STORAGE_VERSION,
 )
 from custom_components.hamster_fitness.notify import HamsterFitnessNotifier
 
@@ -233,3 +234,50 @@ async def test_boarding_and_departure_are_independent(
     # Still departed, still archived - boarding only owns its own flag.
     assert coordinator.departure_date == date(2026, 8, 1)
     assert len(await archive.async_load(hass)) == 1
+
+
+async def test_a_snapshot_with_a_removed_field_still_restores(
+    hass: HomeAssistant, hass_storage: dict
+) -> None:
+    """A paused hamster's frozen snapshot outlives the version that wrote it.
+
+    0.11.2 saved `wheel_sensor_available`; 0.11.3 no longer has that
+    field. HamsterFitnessData(**snapshot) raised TypeError on it, which
+    would have failed setup for every hamster paused at the time of the
+    update.
+    """
+    hass_storage[f"{DOMAIN}_tacoentry_baseline"] = {
+        "version": STORAGE_VERSION,
+        "data": {
+            "wheel_sensor": WHEEL_SENSOR,
+            "boarding": True,
+            "frozen_snapshot": {
+                "health_score": 77,
+                "night_distance_km": 4.2,
+                "wheel_sensor_available": True,
+            },
+        },
+    }
+    hass.states.async_set(WHEEL_SENSOR, "0")
+    hass.states.async_set(TEMPERATURE_SENSOR, "22")
+    hass.states.async_set(DOOR_SENSOR, "off")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        entry_id="tacoentry",
+        unique_id="taco",
+        title="Taco",
+        data={
+            CONF_HAMSTER_NAME: "Taco",
+            CONF_ACQUISITION_DATE: "2024-01-01",
+            CONF_WHEEL_DIAMETER: 28.0,
+            CONF_WHEEL_SENSOR: WHEEL_SENSOR,
+            CONF_TEMPERATURE_SENSOR: TEMPERATURE_SENSOR,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.data.health_score == 77
+    assert entry.runtime_data.data.night_distance_km == 4.2
