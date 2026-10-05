@@ -126,6 +126,85 @@ async def test_counter_reset_survives_a_reload_in_between(
     assert entry.runtime_data.data.lifetime_distance_km == _km(1007)
 
 
+async def test_a_reset_is_not_counted_twice_after_a_reload(
+    hass: HomeAssistant,
+) -> None:
+    """The reset must be persisted together with the value it happened at.
+
+    async_create_task starts the save immediately, so saving from inside
+    the reset branch wrote the zeroed baselines next to the OLD comparison
+    value (1000). A reload then saw 5 < 1000 a second time and credited
+    the new counter again.
+    """
+    _seed_sources(hass, "0")
+    entry = await _setup(hass, _entry())
+
+    hass.states.async_set(WHEEL_SENSOR, "1000")
+    await hass.async_block_till_done()
+    hass.states.async_set(WHEEL_SENSOR, "5")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.lifetime_distance_km == _km(1005)
+
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.runtime_data.data.lifetime_distance_km == _km(1005)
+
+
+async def test_a_small_step_back_is_not_a_reset(hass: HomeAssistant) -> None:
+    """Regression for #167: a device restoring a slightly older count.
+
+    A counter that comes back a few rotations behind after a reboot used
+    to be read as a re-flash, so the *entire* counter was booked as
+    distance run tonight and added to the lifetime total - 40 rotations
+    back from 20,100 turned 0.09 km into 17.6 km. Now it only re-anchors:
+    nothing is credited, and tonight keeps the rotations it had already
+    shown.
+    """
+    _seed_sources(hass, "20000")
+    entry = await _setup(hass, _entry())
+    coordinator = entry.runtime_data
+
+    hass.states.async_set(WHEEL_SENSOR, "20100")
+    await hass.async_block_till_done()
+    assert coordinator.data.night_distance_km == _km(100)
+    assert coordinator.data.lifetime_distance_km == _km(100)
+
+    # Reboot: the device restores a count 40 behind the last one it sent.
+    hass.states.async_set(WHEEL_SENSOR, "unavailable")
+    await hass.async_block_till_done()
+    hass.states.async_set(WHEEL_SENSOR, "20060")
+    await hass.async_block_till_done()
+
+    assert coordinator.data.night_distance_km == _km(100)
+    assert coordinator.data.daily_distance_km == _km(100)
+    assert coordinator.data.lifetime_distance_km == _km(100)
+
+    # Counting carries on normally from the restored value.
+    hass.states.async_set(WHEEL_SENSOR, "20110")
+    await hass.async_block_till_done()
+    assert coordinator.data.night_distance_km == _km(150)
+    assert coordinator.data.lifetime_distance_km == _km(150)
+
+
+async def test_a_step_back_survives_a_reload(hass: HomeAssistant) -> None:
+    """The shifted baselines are persisted, not just held in memory."""
+    _seed_sources(hass, "20000")
+    entry = await _setup(hass, _entry())
+
+    hass.states.async_set(WHEEL_SENSOR, "20100")
+    await hass.async_block_till_done()
+    hass.states.async_set(WHEEL_SENSOR, "20060")
+    await hass.async_block_till_done()
+
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    data = entry.runtime_data.data
+    assert data.night_distance_km == _km(100)
+    assert data.lifetime_distance_km == _km(100)
+
+
 async def test_migration_from_the_offset_model_keeps_the_total(
     hass: HomeAssistant,
     hass_storage: dict,

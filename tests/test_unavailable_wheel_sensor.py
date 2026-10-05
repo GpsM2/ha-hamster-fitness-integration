@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hamster_fitness.const import (
@@ -120,34 +121,61 @@ async def test_lifetime_holds_its_value_while_sensor_is_away(
     assert float(lifetime.state) == before
 
 
-async def test_wheel_sensor_available_flag_tracks_the_sensor(
+async def test_night_data_flag_survives_a_later_dropout(
     hass: HomeAssistant,
 ) -> None:
-    """Regression for #165: notify.py needs to tell a fresh reading from
-    a frozen one apart, and this flag is how.
+    """Regression for #169: a night with readings stays a night with data.
 
-    night_distance_km itself can't say that on its own - it's
-    deliberately frozen at its last good value while the sensor is away
-    (see the tests above), so a reader looking only at the number cannot
-    tell "0.3 km, freshly measured" from "0.3 km, from before the sensor
-    dropped off". A live report showed the daily-summary push repeating
-    the previous night's distance as if it were the current one, for
-    exactly that reason.
+    The 0.11.2 flag asked "is the sensor readable right now", so a device
+    that rebooted after the hamster had finished - and sat at "unknown"
+    until the next pulse - made a fully recorded night count as "no
+    data". What matters is whether anything arrived since the window
+    began.
     """
     hass.states.async_set(WHEEL_SENSOR, "0")
     hass.states.async_set(TEMPERATURE_SENSOR, "22")
     hass.states.async_set(DOOR_SENSOR, "off")
     entry = await _setup_entry(hass)
 
-    assert entry.runtime_data.data.wheel_sensor_available is True
+    hass.states.async_set(WHEEL_SENSOR, "1000")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.night_has_wheel_data is True
+
+    hass.states.async_set(WHEEL_SENSOR, "unknown")
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.night_has_wheel_data is True
+    assert entry.runtime_data.data.night_distance_km == _km(1000)
+
+
+async def test_night_data_flag_is_false_for_a_night_without_readings(
+    hass: HomeAssistant,
+) -> None:
+    """Regression for #165: a sensor away for the whole window.
+
+    night_distance_km is then just the previous night's figure, frozen -
+    the flag is what lets the daily summary say so instead of sending it.
+    It comes back on with the first readable counter.
+    """
+    hass.states.async_set(WHEEL_SENSOR, "0")
+    hass.states.async_set(TEMPERATURE_SENSOR, "22")
+    hass.states.async_set(DOOR_SENSOR, "off")
+    entry = await _setup_entry(hass)
+    coordinator = entry.runtime_data
 
     hass.states.async_set(WHEEL_SENSOR, "unavailable")
     await hass.async_block_till_done()
-    assert entry.runtime_data.data.wheel_sensor_available is False
+    coordinator._async_handle_night_window_reset(dt_util.now())
+    await hass.async_block_till_done()
+    assert coordinator.data.night_has_wheel_data is False
+
+    # Survives a restart mid-night rather than defaulting back to True.
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.data.night_has_wheel_data is False
 
     hass.states.async_set(WHEEL_SENSOR, "1000")
     await hass.async_block_till_done()
-    assert entry.runtime_data.data.wheel_sensor_available is True
+    assert entry.runtime_data.data.night_has_wheel_data is True
 
 
 async def test_lifetime_survives_a_reload_with_the_sensor_away(

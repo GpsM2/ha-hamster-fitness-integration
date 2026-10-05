@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 import math
 import secrets
-from dataclasses import asdict, dataclass, field, replace
+from collections import deque
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Final
 
@@ -30,6 +31,7 @@ from homeassistant.core import (
     Event,
     EventStateChangedData,
     HomeAssistant,
+    State,
     callback,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -63,6 +65,7 @@ from .const import (
     CONF_WEATHER_ENTITY,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_SENSOR,
+    COUNTER_RESET_FRACTION,
     DAILY_RESET_HOUR,
     DEFAULT_BREED,
     DEFAULT_COAT_COLOR,
@@ -85,7 +88,9 @@ from .const import (
     SESSION_END_GAP_MINUTES,
     SLEEP_PHASE_END_HOUR,
     SLEEP_PHASE_START_HOUR,
+    SPEED_TRUST_VERSION,
     STORAGE_VERSION,
+    SUSTAINED_SPEED_READINGS,
     TEMP_BUFFER_C,
     WARNING_SCORE_THRESHOLD,
     WEIGHT_CLASSES,
@@ -273,14 +278,14 @@ class HamsterFitnessData:
     # Der stabile code ermöglicht notify.py ein Cooldown pro Warngrund, ohne
     # durch schwankende Zahlenwerte im Text getäuscht zu werden.
     warning_reasons: dict[str, str] = field(default_factory=dict)
-    # False genau dann, wenn DIESE Berechnung keinen frischen Zählerstand
-    # bekommen hat (Sensor "unavailable"/"unknown" oder stromlos) - siehe
-    # _current_wheel_count(). night_distance_km bleibt in dem Fall auf dem
-    # zuletzt bekannten Stand eingefroren; notify.py nutzt dieses Flag, um
-    # so eine eingefrorene Zahl nicht als die Strecke DIESER Nacht zu
-    # verschicken (#165 - Push mit Werten der Vornacht, obwohl der
-    # Rad-Sensor die ganze Nacht nicht am Strom hing).
-    wheel_sensor_available: bool = True
+    # Ob seit Beginn des laufenden Nachtfensters irgendein lesbarer
+    # Zählerstand ankam. Ohne einen einzigen ist night_distance_km nur der
+    # eingefrorene Stand der Vornacht, und notify.py meldet "keine Daten"
+    # statt ihn als heutige Strecke zu verschicken (#165). Bewusst NICHT
+    # "ist der Sensor gerade lesbar": ein ESP, der nach dem Laufen neu
+    # startet und bis zum nächsten Impuls auf "unknown" steht, hätte sonst
+    # eine vollständig erfasste Nacht verworfen (#169).
+    night_has_wheel_data: bool = True
 
 
 class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
@@ -350,6 +355,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         # den night_history-Eintrag der Nacht ein.
         self._max_speed_tonight_kmh: float | None = None
         self._lifetime_max_speed_kmh: float | None = None
+        # Die letzten Geschwindigkeits-Messwerte der laufenden Fahrt, für
+        # die Rekordregel (siehe SUSTAINED_SPEED_READINGS). Nur im Speicher:
+        # ein Neustart unterbricht ohnehin jede Fahrt.
+        self._recent_speeds: deque[float] = deque(maxlen=SUSTAINED_SPEED_READINGS)
+        # Der zuletzt aufgenommene Messwert, als State-Objekt. _calculate()
+        # läuft bei JEDEM überwachten Entity-Event und liest den
+        # Geschwindigkeitssensor dabei jedes Mal neu - ohne diese Marke würde
+        # ein einzelner Störimpuls, den z. B. ein Temperatur-Update erneut
+        # vorbeibringt, mehrfach gezählt und als "gehalten" durchgehen.
+        # Identität statt last_updated: Home Assistant legt für jede
+        # Änderung ein neues State-Objekt an, ein Zeitstempel kann dagegen
+        # bei zwei schnellen Werten gleich ausfallen.
+        self._last_speed_state: State | None = None
+        self._night_has_wheel_data: bool = False
         self._last_completed_night_km: float = 0.0
         # Sum of pulse-to-pulse gaps short enough to count as genuinely
         # moving (MOVING_PULSE_GAP_SECONDS), across every session tonight -
@@ -550,6 +569,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
     async def _async_restore_state(self) -> None:
         """Load persisted baselines, falling back to "start counting now"."""
         stored: dict[str, Any] = await self._store.async_load() or {}
+        speed_records_discarded = False
         if stored:
             self._previous_day_distance_km = stored.get(
                 "previous_day_distance_km", 0.0
@@ -572,6 +592,9 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             self._best_night_km = stored.get("best_night_km")
             self._best_night_date = stored.get("best_night_date")
             self._lifetime_max_speed_date = stored.get("lifetime_max_speed_date")
+            if stored.get("speed_trust_version", 1) < SPEED_TRUST_VERSION:
+                self._discard_glitch_speed_records()
+                speed_records_discarded = True
             self._light_automation_enabled = stored.get(
                 "light_automation_enabled", True
             )
@@ -631,10 +654,18 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             # unverändert zurückgibt.
             snapshot = stored.get("frozen_snapshot")
             if snapshot:
-                self.data = HamsterFitnessData(**snapshot)
+                # Nur bekannte Felder: Der Schnappschuss wurde von der
+                # Version geschrieben, die gerade lief. Ein seither
+                # entferntes Feld würde HamsterFitnessData(**snapshot) mit
+                # TypeError abbrechen lassen - und damit das Setup jedes
+                # pausierten Hamsters.
+                known = {f.name for f in fields(HamsterFitnessData)}
+                self.data = HamsterFitnessData(
+                    **{k: v for k, v in snapshot.items() if k in known}
+                )
             return
 
-        needs_save = False
+        needs_save = speed_records_discarded
 
         # Wenn der Rad-Sensor seit dem letzten Speichern gewechselt wurde
         # (z. B. per Reconfigure), sind die gespeicherten Baselines gegen
@@ -692,9 +723,14 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         if not sensor_changed and not stale_baselines and stored_night_start == expected_night_start:
             self._night_baseline_count = stored.get("night_baseline_count", 0.0)
             self._night_window_start = expected_night_start
+            # Fehlt bei einem Update mitten in der Nacht: lieber eine
+            # vorhandene Nacht als Nacht mit Daten werten, als eine echte
+            # Strecke morgens als "keine Daten" zu verschicken.
+            self._night_has_wheel_data = stored.get("night_has_wheel_data", True)
         else:
             self._night_baseline_count = self._current_wheel_count()
             self._night_window_start = expected_night_start
+            self._night_has_wheel_data = False
             needs_save = True
 
         # Ein Sensor-Wechsel invalidiert auch den Gesamtstand - siehe
@@ -753,6 +789,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             {
                 "wheel_sensor": self._wheel_sensor,
                 "baseline_trust_version": BASELINE_TRUST_VERSION,
+                "speed_trust_version": SPEED_TRUST_VERSION,
                 "baseline_count": self._baseline_count,
                 # Zuletzt berechnete Strecken. Nur dafür da, nach einem
                 # Neustart etwas Echtes anzeigen zu können, solange der
@@ -806,6 +843,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     else None
                 ),
                 "night_baseline_count": self._night_baseline_count,
+                "night_has_wheel_data": self._night_has_wheel_data,
                 "night_window_start": (
                     self._night_window_start.isoformat()
                     if self._night_window_start
@@ -923,6 +961,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_window_start = _compute_window_start(
             dt_util.now(), NIGHT_WINDOW_START_HOUR
         )
+        # Set again by the _calculate() just below if the counter is
+        # readable right now - this only stays False for a sensor that is
+        # already away when the new night begins.
+        self._night_has_wheel_data = False
         self._max_speed_tonight_kmh = None
         self._night_moving_minutes = 0.0
         self._night_sessions = 0
@@ -932,6 +974,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         self._night_humidity_samples = 0
         self.hass.async_create_task(self._async_save_state())
         self.async_set_updated_data(self._calculate())
+
+    def _discard_glitch_speed_records(self) -> None:
+        """Drop speed records set under the old single-reading rule (#168).
+
+        Every one of them measured a glitch, not the hamster, and the
+        sustained-speed rule can never beat a glitch - so keeping them
+        would freeze the records at a number that was never run.
+        """
+        self._lifetime_max_speed_kmh = None
+        self._lifetime_max_speed_date = None
+        self._max_speed_tonight_kmh = None
+        self._night_history = [
+            {**night, "max_speed_kmh": None} for night in self._night_history
+        ]
 
     @callback
     def _sample_night_climate(self) -> None:
@@ -1380,6 +1436,29 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         state = self.hass.states.get(self._wheel_sensor)
         return _as_float(state.state) if state else None
 
+    def _sustained_speed(
+        self, state: State | None, speed_kmh: float | None
+    ) -> float | None:
+        """Return the speed held over the last SUSTAINED_SPEED_READINGS readings.
+
+        That is the lowest of them, or None while the current run has
+        fewer readings than that. A single reading is never enough: in
+        production every nightly maximum came from an isolated glitch
+        pulse (11-13 km/h against a median of 2.9 km/h) - see #168. A stop
+        (0, unavailable) ends the run.
+        """
+        if state is None or not speed_kmh:
+            self._recent_speeds.clear()
+            self._last_speed_state = None
+            return None
+        if state is self._last_speed_state:
+            return None
+        self._last_speed_state = state
+        self._recent_speeds.append(speed_kmh)
+        if len(self._recent_speeds) < SUSTAINED_SPEED_READINGS:
+            return None
+        return min(self._recent_speeds)
+
     def _update_activity_session(self, now: datetime, activity_detected: bool) -> None:
         """Track the current run session / rest period.
 
@@ -1442,8 +1521,19 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
 
         now = dt_util.utcnow()
         current_count = self._current_wheel_count()
-        wheel_sensor_available = current_count is not None
         if current_count is not None:
+            # Gesammelt und erst NACH dem Fortschreiben von
+            # _last_known_count gespeichert: async_create_task startet den
+            # Speichervorgang sofort, der Datensatz entsteht also im
+            # Moment des Aufrufs. Mitten im Block gespeichert, landeten
+            # schon verschobene Baselines neben dem ALTEN Vergleichswert -
+            # und ein Neustart erkannte denselben Rückschritt bzw. Reset
+            # dann ein zweites Mal.
+            needs_save = False
+            if not self._night_has_wheel_data:
+                # Once per night, not on every pulse.
+                self._night_has_wheel_data = True
+                needs_save = True
             activity_detected = (
                 self._last_known_count is not None
                 and current_count > self._last_known_count
@@ -1456,7 +1546,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     self._lifetime_migration_offset + current_count
                 )
                 self._lifetime_migration_offset = None
-                self.hass.async_create_task(self._async_save_state())
+                needs_save = True
             elif self._last_known_count is None:
                 # Kein Vergleichswert (Neuinstallation): übernehmen, ohne
                 # etwas gutzuschreiben - was vor diesem Moment lief, ist
@@ -1464,6 +1554,20 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 pass
             elif current_count >= self._last_known_count:
                 self._lifetime_rotations += current_count - self._last_known_count
+            elif current_count >= self._last_known_count * COUNTER_RESET_FRACTION:
+                # Kein Reset, sondern ein Rückschritt: das Gerät hat nach
+                # einem Neustart einen etwas älteren Stand wiederhergestellt
+                # (#167). Nichts gutschreiben, nur neu verankern - und die
+                # Fenster-Baselines um denselben Betrag mitziehen, damit die
+                # Umdrehungen, die die Nacht schon gezeigt hat, nicht
+                # wieder verschwinden. Als Reset gewertet, landete hier der
+                # GESAMTE Zählerstand als Strecke in der laufenden Nacht.
+                step_back = self._last_known_count - current_count
+                if self._baseline_count is not None:
+                    self._baseline_count -= step_back
+                if self._night_baseline_count is not None:
+                    self._night_baseline_count -= step_back
+                needs_save = True
             else:
                 # Quell-Zähler wurde zurückgesetzt: Gerät neu geflasht oder
                 # ausgetauscht. Alles auf dem NEUEN Zähler zählt ab jetzt
@@ -1474,7 +1578,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                 self._lifetime_rotations += current_count
                 self._baseline_count = 0.0
                 self._night_baseline_count = 0.0
-                self.hass.async_create_task(self._async_save_state())
+                needs_save = True
             if self._baseline_count is None or self._night_baseline_count is None:
                 # Offene Baseline aus einer Phase, in der der Rad-Sensor
                 # nicht lesbar war: jetzt den ersten echten Zählerstand
@@ -1485,8 +1589,10 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
                     self._baseline_count = current_count
                 if self._night_baseline_count is None:
                     self._night_baseline_count = current_count
-                self.hass.async_create_task(self._async_save_state())
+                needs_save = True
             self._last_known_count = current_count
+            if needs_save:
+                self.hass.async_create_task(self._async_save_state())
             self._update_activity_session(now, activity_detected)
             rotations_today = max(0.0, current_count - self._baseline_count)
             distance_km = (
@@ -1536,12 +1642,13 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
         if self._speed_sensor:
             speed_state = self.hass.states.get(self._speed_sensor)
             current_speed_kmh = _as_float(speed_state.state) if speed_state else None
-            if current_speed_kmh is not None:
+            sustained_kmh = self._sustained_speed(speed_state, current_speed_kmh)
+            if sustained_kmh is not None:
                 self._max_speed_tonight_kmh = max(
-                    current_speed_kmh, self._max_speed_tonight_kmh or 0.0
+                    sustained_kmh, self._max_speed_tonight_kmh or 0.0
                 )
-                if current_speed_kmh > (self._lifetime_max_speed_kmh or 0.0):
-                    self._lifetime_max_speed_kmh = current_speed_kmh
+                if sustained_kmh > (self._lifetime_max_speed_kmh or 0.0):
+                    self._lifetime_max_speed_kmh = sustained_kmh
                     # Dated so the Running card can say when the record
                     # was set, not just what it is.
                     self._lifetime_max_speed_date = dt_util.now().date().isoformat()
@@ -1739,7 +1846,7 @@ class HamsterFitnessCoordinator(DataUpdateCoordinator[HamsterFitnessData]):
             min_distance_km=min_distance_km,
             warning_on=bool(reasons),
             warning_reasons=reasons,
-            wheel_sensor_available=wheel_sensor_available,
+            night_has_wheel_data=self._night_has_wheel_data,
         )
 
 

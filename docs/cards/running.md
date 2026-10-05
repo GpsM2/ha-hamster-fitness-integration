@@ -25,7 +25,12 @@ answers "is that normal". Seven bars, one per completed night, with:
   recorded before this existed simply show no number.
 - **Personal bests**: the longest single night and the fastest speed ever
   measured, each with the date it happened. Neither is capped to the
-  seven-night window — a record set months ago still stands.
+  seven-night window — a record set months ago still stands. A speed
+  only counts once it was held over three consecutive readings: a
+  single reading is far more often a glitch pulse than a sprint (in
+  practice, every nightly maximum taken from single readings was one).
+  Records set before 0.11.3 were measured the old way and were cleared
+  once on update.
 
 ### Climate overlays
 
