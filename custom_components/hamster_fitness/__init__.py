@@ -48,6 +48,8 @@ from .update_check import async_setup_update_check
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 NUMBER_DOMAIN = "number"
 NUMBER_SERVICE_SET_VALUE = "set_value"
 

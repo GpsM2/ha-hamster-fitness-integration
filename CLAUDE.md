@@ -65,7 +65,8 @@ Karte unbeschriftet ins Leere und die Doku wird still falsch:
   keine hartcodierten UI-Strings in `.py`-Dateien. Gilt auch für
   dynamisch zusammengesetzte Laufzeittexte (Warnmeldungen,
   Push-Benachrichtigungen) – siehe `runtime_text.py`, Schlüssel unter der
-  `messages`-Sektion. Ein `strings.json` gibt es bewusst nicht: Custom
+  `exceptions`-Sektion (die einzige Kategorie, die hassfest für frei
+  formulierte Laufzeittexte mit Platzhaltern zulässt). Ein `strings.json` gibt es bewusst nicht: Custom
   Integrations liefern fertige Dateien in `translations/`, eine zweite,
   händisch synchron zu haltende Kopie war in 0.2.6 schon einmal die
   Ursache eines echten Bugs.

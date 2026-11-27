@@ -264,25 +264,51 @@
       }
     }
   },
-  "messages": {
-    "warning": {
-      "low_score": "The health score has dropped to {score}%.",
-      "too_little_exercise": "Only {distance} km run so far, well below normal.",
-      "underweight": "At {weight} g, that's below the healthy range for this breed.",
-      "overweight": "At {weight} g, that's above the healthy range for this breed.",
-      "too_cold": "The cage has gotten cold: {temperature} °C.",
-      "too_hot": "The cage is quite warm: {temperature} °C.",
-      "neglected": "The cage hasn't been opened in {hours} hours."
+  "exceptions": {
+    "warning_low_score": {
+      "message": "The health score has dropped to {score}%."
     },
-    "notify": {
-      "daily_summary": "Ran {distance} km last night! {comparison}",
-      "daily_summary_no_data": "No data from the wheel sensor last night - check that it's still powered and connected.",
-      "more_than_yesterday": "That's {delta} m more than yesterday.",
-      "less_than_yesterday": "That's {delta} m less than yesterday.",
-      "same_as_yesterday": "That's the same as yesterday.",
-      "weight_reminder": "It's been {days} days since the last weigh-in.",
-      "weight_reminder_never": "No weight recorded yet - time for a first weigh-in?",
-      "heat_forecast": "Up to {temperature} °C forecast today. Give the cage shade, keep the room cool during the day, and refill the water more often so it doesn't spoil in the heat."
+    "warning_too_little_exercise": {
+      "message": "Only {distance} km run so far, well below normal."
+    },
+    "warning_underweight": {
+      "message": "At {weight} g, that's below the healthy range for this breed."
+    },
+    "warning_overweight": {
+      "message": "At {weight} g, that's above the healthy range for this breed."
+    },
+    "warning_too_cold": {
+      "message": "The cage has gotten cold: {temperature} °C."
+    },
+    "warning_too_hot": {
+      "message": "The cage is quite warm: {temperature} °C."
+    },
+    "warning_neglected": {
+      "message": "The cage hasn't been opened in {hours} hours."
+    },
+    "notify_daily_summary": {
+      "message": "Ran {distance} km last night! {comparison}"
+    },
+    "notify_daily_summary_no_data": {
+      "message": "No data from the wheel sensor last night - check that it's still powered and connected."
+    },
+    "notify_more_than_yesterday": {
+      "message": "That's {delta} m more than yesterday."
+    },
+    "notify_less_than_yesterday": {
+      "message": "That's {delta} m less than yesterday."
+    },
+    "notify_same_as_yesterday": {
+      "message": "That's the same as yesterday."
+    },
+    "notify_weight_reminder": {
+      "message": "It's been {days} days since the last weigh-in."
+    },
+    "notify_weight_reminder_never": {
+      "message": "No weight recorded yet - time for a first weigh-in?"
+    },
+    "notify_heat_forecast": {
+      "message": "Up to {temperature} °C forecast today. Give the cage shade, keep the room cool during the day, and refill the water more often so it doesn't spoil in the heat."
     }
   },
   "services": {
@@ -321,11 +347,10 @@
   "issues": {
     "restart_required": {
       "title": "Restart Home Assistant to finish the update",
-      "description": "Hamster Fitness {installed_version} has been downloaded, but Home Assistant is still running {running_version} — the new code only takes effect after a restart.\n\nClick **Fix** below to restart now, or go to **Settings → System → Restart** yourself. This notice disappears by itself once the restart is done.",
       "fix_flow": {
         "step": {
           "confirm": {
-            "description": "This will restart Home Assistant now to finish loading Hamster Fitness {installed_version}. All other integrations and any running automations restart along with it."
+            "description": "Hamster Fitness {installed_version} has been downloaded, but Home Assistant is still running {running_version} — the new code only takes effect after a restart.\n\nSubmit to restart Home Assistant now. All other integrations and any running automations restart along with it. This notice disappears by itself once the restart is done."
           }
         }
       }
