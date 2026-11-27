@@ -70,7 +70,7 @@ import {
   shade,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=22";
+} from "./hamster-fitness-shared.js?v=23";
 
 const WARNING_SCORE_THRESHOLD = 50;
 const GOOD_SCORE_THRESHOLD = 75;
@@ -1597,7 +1597,7 @@ class HamsterFitnessRankingCard extends HTMLElement {
                    data-entity="${row.entityId}" tabindex="0" role="button">
                 <span class="hfc-rank-medal">${medals[index] || `#${index + 1}`}</span>
                 <span class="hfc-rank-mark">${RANKING_HAMSTER_MARK}</span>
-                <span class="hfc-rank-name">${row.name}${row.isDeparted ? " 🪦" : ""}</span>
+                <span class="hfc-rank-name">${escapeXml(row.name)}${row.isDeparted ? " 🪦" : ""}</span>
                 <span class="hfc-rank-stats">
                   <span class="hfc-rank-stat">
                     <span class="hfc-rank-stat-label">${t(this._hass, "ranking.total")}</span>

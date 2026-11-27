@@ -1281,8 +1281,8 @@ export function renderCardHeader({ logoSvg, title, subtitle, badgeHtml = "", sha
     <div class="hf-header">
       <span class="hf-logo">${logoSvg}</span>
       <div class="hf-header-text">
-        <span class="hf-title">${title}</span>
-        <span class="hf-subtitle">${subtitle}</span>
+        <span class="hf-title">${escapeXml(title)}</span>
+        <span class="hf-subtitle">${escapeXml(subtitle)}</span>
       </div>
       ${badgeHtml}
       ${shareButton}

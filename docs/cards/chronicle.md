@@ -47,6 +47,11 @@ simply deleted (an **Archiv** row that isn't one you added this way)
 stays read-only — the archive record is tied to its coordinator, not to
 this dialog.
 
+Adding, editing and deleting these hamsters is for administrators only:
+the archive appears on everyone's dashboard. Other users don't see the
+**+** button, and the rows don't open for them. Everyday entries such as
+the weight are unaffected — every user can make those.
+
 ## Options
 
 | Option | Default | What it does |

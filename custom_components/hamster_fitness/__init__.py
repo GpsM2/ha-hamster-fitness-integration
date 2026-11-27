@@ -122,6 +122,9 @@ async def _ws_history(
     connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 
+# The archive is rendered on every dashboard, so writing to it (here and in
+# update/remove below) is admin-only.
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/add_historical_hamster",
@@ -175,6 +178,7 @@ async def _ws_add_historical_hamster(
     connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/update_historical_hamster",
@@ -231,6 +235,7 @@ async def _ws_update_historical_hamster(
     connection.send_result(msg["id"], {"hamsters": await archive.async_load(hass)})
 
 
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/remove_historical_hamster",
