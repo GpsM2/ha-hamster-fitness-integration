@@ -1,9 +1,9 @@
 # Hamster Fitness — Integration (Software)
 
-[![Version](https://img.shields.io/badge/version-0.11.1-blue.svg)](custom_components/hamster_fitness/manifest.json)
+[![Version](https://img.shields.io/github/v/release/GpsM2/ha-hamster-fitness-integration?label=version)](https://github.com/GpsM2/ha-hamster-fitness-integration/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.3%2B-41BDF5.svg)](https://www.home-assistant.io/)
+[![Marketplace](https://img.shields.io/badge/Marketplace-custom%20repository-orange.svg)](#step-2-install-the-integration)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.11%2B-41BDF5.svg)](https://www.home-assistant.io/)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R8O124JOD1)
 
 > **This is the software repository.** It contains only the Home
@@ -14,7 +14,7 @@
 
 Hamster Fitness is a free add-on for Home Assistant. It watches your
 hamster's running wheel, cage climate, and cage door, and turns that into
-one health score you can actually act on — plus alerts, six dashboard
+one health score you can actually act on — plus alerts, seven dashboard
 cards, and a cage light that switches itself on when you open the lid.
 
 ## Features
@@ -63,7 +63,7 @@ cards, and a cage light that switches itself on when you open the lid.
 
 ## What you need
 
-- Home Assistant 2026.3 or newer.
+- Home Assistant 2026.11 or newer.
 - A sensor that counts your hamster wheel's rotations. See
   [hamster-fitness-hardware](https://github.com/GpsM2/hamster-fitness-hardware)
   to build the small, cheap ESPHome-based one this project was designed
@@ -166,7 +166,7 @@ configure it:
 | [Hamster Fitness: Day & Night](docs/cards/day-and-night.md) | The illustrated live view |
 | [Hamster Fitness: Running](docs/cards/running.md) | One bar per night for the last week, with goal, records and climate |
 | [Hamster Fitness: Ranking](docs/cards/ranking.md) | All hamsters by lifetime distance |
-| [Hamster Fitness: Chronik](docs/cards/chronicle.md) | Every hamster that ever lived here |
+| [Hamster Fitness: Chronicle](docs/cards/chronicle.md) | Every hamster that ever lived here |
 | [Hamster Fitness: Track Weight](docs/cards/weighing.md) | Entering the weight, on a kitchen dial scale calibrated to the breed |
 | [Hamster Fitness: Guest Access](docs/cards/guest-share.md) | A read-only link and QR code for one hamster, no Home Assistant account needed |
 
@@ -175,7 +175,7 @@ to save and post, on a sky that follows the real weather.
 
 ## The cards
 
-All six follow Home Assistant's language (English and German), including
+All seven follow Home Assistant's language (English and German), including
 number and date formatting, and tint their illustrated hamster with the
 coat colour from its profile — so two hamsters on one dashboard never
 look like the same animal.
@@ -257,9 +257,10 @@ is what differs.
 
 ### If something looks wrong after an update
 
-Home Assistant caches translations and dashboard resources. After copying
-in a new version, a reload is often not enough: **restart Home Assistant
-completely** (Settings → System → Restart) and refresh your browser with
+Home Assistant caches translations and dashboard resources, so a new
+version only takes effect after a **full restart**. After an update the
+Marketplace offers one as a repair; otherwise use Settings → System →
+Restart. Then refresh your browser with
 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>. If a setup screen shows a
 raw name like `wheel_diameter` instead of a proper label, that is almost
 always the fix.
@@ -268,7 +269,10 @@ always the fix.
 
 Every entity is named after your hamster, so you can always tell where it
 came from — e.g. `sensor.hamster_taco_health_score` for a hamster called
-"Taco."
+"Taco." The IDs come from the entity names in Home Assistant's language
+at setup, so on a German installation most of them are German — e.g.
+`sensor.hamster_taco_nachtdistanz` instead of `…_night_distance`. The
+table lists the English ones.
 
 | Entity | What it shows |
 |---|---|
@@ -310,9 +314,11 @@ entity. The Day & Night card's button calls exactly this.
 The score starts at 100 and loses points for too little running at night,
 a cage that is too cold or too warm, a lid that hasn't been opened in
 days, and disturbances during the main sleep phase (10:00–17:00). The
-running distance is measured over the **night**, not the calendar day,
-and always against the better of the current and the last completed night
-— so the score never drops just because a new counting window started.
+running distance is measured over the **night** (from 20:00), not the
+calendar day. Until 10:00 the next morning it is graded against the
+better of tonight and the last completed night — so the score doesn't
+drop just because a new night started at 0 — and from then on against
+tonight's real distance.
 
 ## License
 
