@@ -86,48 +86,47 @@ the build guide in
 once the ESPHome firmware is flashed, Home Assistant finds the device on
 its own.
 
+<!-- ha-marketplace:exclude-start -->
 ### Step 2: Install the integration
 
-**Option A — with HACS** (recommended)
+Needs Home Assistant 2026.11 or newer.
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=GpsM2&repository=ha-hamster-fitness-integration&category=integration)
+**Option A — through the Marketplace** (recommended)
 
-The button opens this repository directly in your own HACS — no URL to
-type. Click **Download**, then restart Home Assistant.
+[![Open your Home Assistant instance and open a repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=GpsM2&repository=ha-hamster-fitness-integration&category=integration)
 
-Hamster Fitness isn't in the HACS default store, so searching HACS won't
+The button opens this repository in the Marketplace of your own Home
+Assistant (**Settings → Marketplace**) and offers to add it — no URL to
+type. Click **Download**.
+
+Hamster Fitness isn't in the Marketplace catalog yet, so searching won't
 find it until the repository has been added — which is precisely what the
-button does for you.
+button does for you. Adding a repository this way needs the Marketplace's
+GitHub connection. If the button can't reach your instance, add
+`https://github.com/GpsM2/ha-hamster-fitness-integration` as a custom
+repository with the category **Integration** yourself.
 
 <details>
-<summary>Adding it to HACS by hand, if the button can't reach your instance</summary>
-
-1. Open HACS → three-dot menu → **Custom repositories**.
-2. Paste `https://github.com/GpsM2/ha-hamster-fitness-integration`,
-   pick category **Integration**, and click **Add**.
-3. Search HACS for "Hamster Fitness" and download it.
-4. Restart Home Assistant.
-
-</details>
-
-<details>
-<summary><b>Option B — without HACS</b>, by copying the files yourself</summary>
+<summary><b>Option B — without the Marketplace</b>, by copying the files yourself</summary>
 
 Copy `custom_components/hamster_fitness/` into your Home Assistant
 `custom_components` folder and restart.
 
 Worth knowing: you'll have to repeat this for every update, and you won't
-be told when one is available — both of which HACS handles for you.
+be told when one is available — both of which the Marketplace handles for
+you.
 
 </details>
+<!-- ha-marketplace:exclude-end -->
 
 ### Step 3: Set up your hamster
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=hamster_fitness)
 
 This button starts the setup wizard straight away. It only works once
-step 2 is done **and** Home Assistant has been restarted — before that,
-Home Assistant doesn't know the integration exists yet and will say so.
+the integration is installed — before that, Home Assistant doesn't know
+it exists yet and will say so. A first install through the Marketplace
+needs no restart; after copying the files by hand, restart first.
 The manual route is **Settings → Devices & Services → Add Integration**,
 then search for "Hamster Fitness."
 

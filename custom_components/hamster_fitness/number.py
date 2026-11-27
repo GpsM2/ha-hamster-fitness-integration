@@ -85,6 +85,17 @@ class HamsterWeightNumber(
         with contextlib.suppress(ValueError):
             await self.coordinator.async_adopt_restored_weight(float(last_state.state))
 
+    async def async_entity_id_changed(self, old_entity_id: str) -> None:
+        """Opt in to in-place entity_id changes (Home Assistant 2026.11+).
+
+        Defining async_added_to_hass above would otherwise keep this entity
+        on the old remove-and-re-add path until 2027.11. Nothing here is
+        keyed on the entity_id, so there is nothing to update.
+        """
+        # ponytail: hook exists from HA 2026.11; the test library still pins
+        # 2026.10.4. unused-ignore keeps mypy quiet once it catches up.
+        await super().async_entity_id_changed(old_entity_id)  # type: ignore[misc, unused-ignore]
+
     @property
     def extra_state_attributes(self) -> dict[str, str | None]:
         """Expose when this weight was last entered.

@@ -20,7 +20,7 @@ CONF_COAT_COLOR: Final = "coat_color"
 
 # --- Hamster-Profil: Rassen ---
 # Symbolische Schlüssel statt Klartext, damit die Anzeige über
-# strings.json/translations/*.json übersetzbar bleibt (Selector-Optionen
+# translations/*.json übersetzbar bleibt (Selector-Optionen
 # unter "selector.breed.options.<key>").
 BREED_GOLDEN: Final = "golden"
 BREED_WINTER_WHITE: Final = "winter_white"

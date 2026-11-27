@@ -102,7 +102,7 @@ def test_card_versions_are_unique_per_file() -> None:
 
 # --- Card translations -------------------------------------------------
 #
-# Card labels cannot live in strings.json: Home Assistant only loads a
+# Card labels cannot live in translations/*.json: Home Assistant only loads a
 # fixed set of translation categories into the frontend, and card text
 # fits none of them. They sit in a table in hamster-fitness-shared.js
 # instead, which means nothing type-checks the keys - a typo silently

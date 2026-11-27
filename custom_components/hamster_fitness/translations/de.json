@@ -111,8 +111,7 @@
       "breed_required": "Bitte die Rasse benennen - oder oben statt \"Sonstige\" eine aus der Liste wählen."
     },
     "abort": {
-      "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert.",
-      "reconfigure_successful": "Die Neukonfiguration war erfolgreich."
+      "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert."
     }
   },
   "options": {
@@ -265,25 +264,51 @@
       }
     }
   },
-  "messages": {
-    "warning": {
-      "low_score": "Der Health-Score ist auf {score} % gesunken.",
-      "too_little_exercise": "Bisher erst {distance} km gelaufen, deutlich weniger als üblich.",
-      "underweight": "Mit {weight} g liegt das unter dem gesunden Bereich dieser Rasse.",
-      "overweight": "Mit {weight} g liegt das über dem gesunden Bereich dieser Rasse.",
-      "too_cold": "Im Käfig ist es kalt geworden: {temperature} °C.",
-      "too_hot": "Im Käfig ist es ziemlich warm: {temperature} °C.",
-      "neglected": "Der Käfig wurde seit {hours} Stunden nicht mehr geöffnet."
+  "exceptions": {
+    "warning_low_score": {
+      "message": "Der Health-Score ist auf {score} % gesunken."
     },
-    "notify": {
-      "daily_summary": "Heute Nacht {distance} km gelaufen! {comparison}",
-      "daily_summary_no_data": "Keine Daten vom Rad-Sensor in der letzten Nacht - prüfe, ob er noch mit Strom versorgt und verbunden ist.",
-      "more_than_yesterday": "Das sind {delta} m mehr als gestern.",
-      "less_than_yesterday": "Das sind {delta} m weniger als gestern.",
-      "same_as_yesterday": "Das ist genauso viel wie gestern.",
-      "weight_reminder": "Seit {days} Tagen wurde nicht mehr gewogen.",
-      "weight_reminder_never": "Noch kein Gewicht eingetragen - Zeit fürs erste Wiegen?",
-      "heat_forecast": "Heute bis zu {temperature} °C vorhergesagt. Sorge für Schatten am Käfig, halte den Raum tagsüber kühl und fülle das Wasser öfter nach, damit es in der Hitze nicht schlecht wird."
+    "warning_too_little_exercise": {
+      "message": "Bisher erst {distance} km gelaufen, deutlich weniger als üblich."
+    },
+    "warning_underweight": {
+      "message": "Mit {weight} g liegt das unter dem gesunden Bereich dieser Rasse."
+    },
+    "warning_overweight": {
+      "message": "Mit {weight} g liegt das über dem gesunden Bereich dieser Rasse."
+    },
+    "warning_too_cold": {
+      "message": "Im Käfig ist es kalt geworden: {temperature} °C."
+    },
+    "warning_too_hot": {
+      "message": "Im Käfig ist es ziemlich warm: {temperature} °C."
+    },
+    "warning_neglected": {
+      "message": "Der Käfig wurde seit {hours} Stunden nicht mehr geöffnet."
+    },
+    "notify_daily_summary": {
+      "message": "Heute Nacht {distance} km gelaufen! {comparison}"
+    },
+    "notify_daily_summary_no_data": {
+      "message": "Keine Daten vom Rad-Sensor in der letzten Nacht - prüfe, ob er noch mit Strom versorgt und verbunden ist."
+    },
+    "notify_more_than_yesterday": {
+      "message": "Das sind {delta} m mehr als gestern."
+    },
+    "notify_less_than_yesterday": {
+      "message": "Das sind {delta} m weniger als gestern."
+    },
+    "notify_same_as_yesterday": {
+      "message": "Das ist genauso viel wie gestern."
+    },
+    "notify_weight_reminder": {
+      "message": "Seit {days} Tagen wurde nicht mehr gewogen."
+    },
+    "notify_weight_reminder_never": {
+      "message": "Noch kein Gewicht eingetragen - Zeit fürs erste Wiegen?"
+    },
+    "notify_heat_forecast": {
+      "message": "Heute bis zu {temperature} °C vorhergesagt. Sorge für Schatten am Käfig, halte den Raum tagsüber kühl und fülle das Wasser öfter nach, damit es in der Hitze nicht schlecht wird."
     }
   },
   "services": {
@@ -316,19 +341,6 @@
         "silver_grey": "Silbergrau",
         "cream_sand": "Creme / Sand",
         "black": "Schwarz / Dunkel"
-      }
-    }
-  },
-  "issues": {
-    "restart_required": {
-      "title": "Home Assistant neu starten, um das Update abzuschließen",
-      "description": "Hamster Fitness {installed_version} wurde heruntergeladen, Home Assistant läuft aber noch mit {running_version} — der neue Code wird erst nach einem Neustart aktiv.\n\nKlicke unten auf **Reparieren**, um jetzt neu zu starten, oder gehe selbst zu **Einstellungen → System → Neu starten**. Dieser Hinweis verschwindet danach von selbst.",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "description": "Home Assistant wird jetzt neu gestartet, um Hamster Fitness {installed_version} vollständig zu laden. Alle anderen Integrationen und laufenden Automationen starten dabei mit neu."
-          }
-        }
       }
     }
   }

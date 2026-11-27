@@ -1,15 +1,15 @@
 """Localized, dynamically-composed runtime text (warnings, notifications).
 
 Config-flow/entity/options text is translated automatically by Home
-Assistant's frontend from strings.json/translations/*.json. The text
+Assistant's frontend from translations/*.json. The text
 handled here is different: it's built dynamically in Python with
 interpolated values (temperatures, distances, ...) and handed off as-is
 to a notify service or an entity attribute - Home Assistant's frontend
 never sees it, so its translation layer can't localize it for us.
 
 This module resolves these messages through the very same
-strings.json/translations/*.json files anyway, under a custom "messages"
-category, using the same lookup mechanism Home Assistant Core itself uses
+translations/*.json files anyway, under the "exceptions" category,
+using the same lookup mechanism Home Assistant Core itself uses
 for translated exception messages (see
 homeassistant.helpers.translation.async_get_exception_message). That way
 the source of truth for these texts stays in one place and follows
@@ -25,11 +25,14 @@ from homeassistant.helpers import translation
 
 from .const import DOMAIN
 
-MESSAGES_CATEGORY = "messages"
+# hassfest only accepts its own categories. "exceptions" is the one Home
+# Assistant itself uses for translated runtime text with placeholders,
+# which is exactly what these are, even though few of them are errors.
+MESSAGES_CATEGORY = "exceptions"
 
 
 async def async_warm_up(hass: HomeAssistant) -> None:
-    """Load this integration's "messages" translations into the cache.
+    """Load this integration's runtime translations into the cache.
 
     Must run once (from async_setup_entry(), before the coordinator's
     first refresh can construct a warning) - async_get_cached_translations()
@@ -43,12 +46,13 @@ async def async_warm_up(hass: HomeAssistant) -> None:
 def render_message(hass: HomeAssistant, key: str, **placeholders: str) -> str:
     """Return the translated, placeholder-filled runtime message for `key`.
 
-    `key` is a dotted path under the "messages" section of
-    strings.json/translations/*.json, e.g. "warning.too_hot" or
-    "notify.daily_summary". Falls back to `key` itself if translations
+    `key` is "<group>.<name>", e.g. "warning.too_hot" or
+    "notify.daily_summary", stored as "<group>_<name>" under the
+    "exceptions" section of translations/*.json. Falls back to `key` itself if translations
     haven't been loaded (see async_warm_up()) or the key doesn't exist.
     """
-    localize_key = f"component.{DOMAIN}.{MESSAGES_CATEGORY}.{key}"
+    slug = key.replace(".", "_")
+    localize_key = f"component.{DOMAIN}.{MESSAGES_CATEGORY}.{slug}.message"
     translations = translation.async_get_cached_translations(
         hass, hass.config.language, MESSAGES_CATEGORY, DOMAIN
     )
