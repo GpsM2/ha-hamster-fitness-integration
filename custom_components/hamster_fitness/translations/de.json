@@ -343,17 +343,5 @@
         "black": "Schwarz / Dunkel"
       }
     }
-  },
-  "issues": {
-    "restart_required": {
-      "title": "Home Assistant neu starten, um das Update abzuschließen",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "description": "Hamster Fitness {installed_version} wurde heruntergeladen, Home Assistant läuft aber noch mit {running_version} — der neue Code wird erst nach einem Neustart aktiv.\n\nBestätige, um Home Assistant jetzt neu zu starten. Alle anderen Integrationen und laufenden Automationen starten dabei mit neu. Dieser Hinweis verschwindet danach von selbst."
-          }
-        }
-      }
-    }
   }
 }

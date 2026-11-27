@@ -44,7 +44,6 @@ from .door_light import HamsterFitnessDoorLight
 from .frontend import JSModuleRegistration
 from .guest_share import async_setup_guest_share
 from .notify import HamsterFitnessNotifier
-from .update_check import async_setup_update_check
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,12 +97,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # the websocket commands above, since they serve every hamster through
     # the same URL prefix regardless of how many config entries exist.
     await async_setup_guest_share(hass)
-
-    # Raises a Repairs entry when HACS has written a new version to disk
-    # but Home Assistant is still running the old one. Domain-wide, like
-    # the commands above - the version belongs to the integration, not to
-    # any one hamster.
-    await async_setup_update_check(hass)
 
     return True
 
