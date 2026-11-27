@@ -1,4 +1,4 @@
-# Hamster Fitness: Chronik
+# Hamster Fitness: Chronicle
 
 Every hamster that ever lived in this Home Assistant, in one list — the
 ones currently set up and the ones long gone.
@@ -51,7 +51,7 @@ this dialog.
 
 | Option | Default | What it does |
 |---|---|---|
-| `title` | `Hamster-Chronik` | Heading in the banner |
+| `title` | `Hamster chronicle` (German: `Hamster-Chronik`) | Heading in the banner |
 | `columns` | `distance`, `days` | Which stats each row shows |
 
 Available columns: `distance` (lifetime distance), `top_speed`, `days`
