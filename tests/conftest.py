@@ -8,27 +8,11 @@ from collections.abc import AsyncGenerator, Generator
 import pytest
 import pytest_socket
 from freezegun import freeze_time
-from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntryState
 
 from custom_components.hamster_fitness.const import DOMAIN
 
 pytest_plugins = "pytest_homeassistant_custom_component"
-
-
-if not hasattr(config_entries, "OptionsFlowWithReload"):
-    # manifest.json requires Home Assistant 2026.3.0, where
-    # OptionsFlowWithReload (added in 2025.8) has long existed. The newest
-    # pytest-homeassistant-custom-component release still pins an older
-    # Core, so importing config_flow.py - and with it setting up ANY entry -
-    # would blow up here for a reason that cannot occur in a supported
-    # installation. Backfill the class so the suite is runnable; the only
-    # thing lost is the automatic entry reload on option changes, which no
-    # test asserts on. Disappears by itself once the pinned Core catches up.
-    class _OptionsFlowWithReload(config_entries.OptionsFlow):  # type: ignore[misc]
-        """Minimal stand-in for older Home Assistant Core versions."""
-
-    config_entries.OptionsFlowWithReload = _OptionsFlowWithReload  # type: ignore[attr-defined]
 
 
 # aiohttp's test client (hass_client/hass_client_no_auth - see

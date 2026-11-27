@@ -23,7 +23,7 @@ from custom_components.hamster_fitness.const import (
 from custom_components.hamster_fitness.guest_share import _RateLimiter
 
 # Entity ids are built from the entity NAME ("Guest access", see
-# strings.json), not the translation_key ("guest_share") - see the same
+# translations/en.json), not the translation_key ("guest_share") - see the same
 # note in test_health_score.py's test_pillar_scores_are_exposed_as_entities.
 SWITCH_ENTITY = "switch.hamster_taco_guest_access"
 

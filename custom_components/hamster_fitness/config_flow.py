@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Final
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant.components.sensor import (
     ATTR_STATE_CLASS,
     SensorStateClass,

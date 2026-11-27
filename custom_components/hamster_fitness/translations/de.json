@@ -111,8 +111,7 @@
       "breed_required": "Bitte die Rasse benennen - oder oben statt \"Sonstige\" eine aus der Liste wählen."
     },
     "abort": {
-      "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert.",
-      "reconfigure_successful": "Die Neukonfiguration war erfolgreich."
+      "already_configured": "Ein Hamster mit diesem Namen ist bereits konfiguriert."
     }
   },
   "options": {

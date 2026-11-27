@@ -5,15 +5,17 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant.components import websocket_api
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STARTED,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
+    Platform,
 )
 from homeassistant.core import CoreState, Event, HomeAssistant, State, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import service
 from homeassistant.helpers.event import (
     EventStateChangedData,
     async_track_state_change_event,
@@ -23,6 +25,7 @@ from homeassistant.util import dt as dt_util
 
 from . import archive, runtime_text
 from .const import (
+    ATTR_DURATION_MINUTES,
     BREED_OTHER,
     BREEDS,
     COAT_COLOR_HEX,
@@ -30,8 +33,11 @@ from .const import (
     CONF_HAMSTER_NAME,
     CONF_WHEEL_DIAMETER,
     CONF_WHEEL_DIAMETER_SYNC_ENTITY,
+    DEFAULT_LIGHT_PAUSE_MINUTES,
     DOMAIN,
+    MAX_LIGHT_PAUSE_MINUTES,
     PLATFORMS,
+    SERVICE_PAUSE_LIGHT_AUTOMATION,
 )
 from .coordinator import HamsterFitnessConfigEntry, HamsterFitnessCoordinator
 from .door_light import HamsterFitnessDoorLight
@@ -68,6 +74,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, _ws_add_historical_hamster)
     websocket_api.async_register_command(hass, _ws_update_historical_hamster)
     websocket_api.async_register_command(hass, _ws_remove_historical_hamster)
+
+    # An entity service rather than a domain-level one: the pause always
+    # applies to exactly one hamster's automation, so letting Home
+    # Assistant do the targeting keeps it correct with several hamsters
+    # set up side by side (and gives the UI a proper target picker).
+    service.async_register_platform_entity_service(
+        hass,
+        DOMAIN,
+        SERVICE_PAUSE_LIGHT_AUTOMATION,
+        entity_domain=Platform.SWITCH,
+        func="async_pause_automation",
+        schema={
+            vol.Optional(
+                ATTR_DURATION_MINUTES, default=DEFAULT_LIGHT_PAUSE_MINUTES
+            ): vol.All(vol.Coerce(float), vol.Range(min=1, max=MAX_LIGHT_PAUSE_MINUTES))
+        },
+    )
 
     # The two unauthenticated guest-view routes (#147) - domain-wide, like
     # the websocket commands above, since they serve every hamster through

@@ -13,11 +13,9 @@ from __future__ import annotations
 
 from logging import getLogger
 from pathlib import Path
-from typing import Any
 
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_call_later
 
 from ..const import JS_MODULES, URL_BASE
 
@@ -36,11 +34,14 @@ class JSModuleRegistration:
         """Register the static path and, if possible, the Lovelace resource."""
         await self._async_register_path()
 
-        mode = getattr(self.lovelace, "mode", None) or getattr(
-            self.lovelace, "resource_mode", "yaml"
-        )
-        if mode == "storage":
-            await self._async_wait_for_lovelace_resources()
+        if self.lovelace is not None and self.lovelace.resource_mode == "storage":
+            # Storage-mode resources load lazily, on first access. Waiting
+            # for a browser to trigger that registered our resource only
+            # after the first dashboard load following a restart, so the
+            # cards could be missing until a reload. async_get_info() loads
+            # the list if nothing has yet.
+            await self.lovelace.resources.async_get_info()
+            await self._async_register_modules()
         else:
             _LOGGER.info(
                 "Hamster Fitness: Dashboard läuft im YAML-Modus - die Karte "
@@ -60,23 +61,8 @@ class JSModuleRegistration:
             # Bereits registriert (z. B. Config-Entry-Reload) - kein Fehler.
             _LOGGER.debug("Pfad bereits registriert: %s", URL_BASE)
 
-    async def _async_wait_for_lovelace_resources(self) -> None:
-        """Retry every 5s until Lovelace's own resource list has loaded."""
-
-        async def _check_loaded(_now: Any) -> None:
-            if self.lovelace is None:
-                self.lovelace = self.hass.data.get("lovelace")
-            if self.lovelace and getattr(self.lovelace.resources, "loaded", False):
-                await self._async_register_modules()
-            else:
-                async_call_later(self.hass, 5, _check_loaded)
-
-        await _check_loaded(None)
-
     async def _async_register_modules(self) -> None:
         """Create or version-bump this integration's Lovelace resource(s)."""
-        # Only reached via _async_wait_for_lovelace_resources() once it
-        # confirmed self.lovelace is set and its resources are loaded.
         assert self.lovelace is not None
         existing = [
             resource

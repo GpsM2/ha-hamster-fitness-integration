@@ -15,9 +15,8 @@ from homeassistant.components.homeassistant import (
 from homeassistant.components.homeassistant import (
     SERVICE_HOMEASSISTANT_RESTART,
 )
-from homeassistant.components.repairs import RepairsFlow
+from homeassistant.components.repairs import RepairsFlow, RepairsFlowResult
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import issue_registry as ir
 
 from .update_check import ISSUE_RESTART_REQUIRED
@@ -35,13 +34,13 @@ class RestartRequiredRepairFlow(RepairsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         """Handle the initial step."""
         return await self.async_step_confirm()
 
     async def async_step_confirm(
         self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    ) -> RepairsFlowResult:
         """Handle the confirm step."""
         if user_input is not None:
             await self.hass.services.async_call(

@@ -14,21 +14,15 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    ATTR_DURATION_MINUTES,
     CONF_LIGHT_ENTITY,
-    DEFAULT_LIGHT_PAUSE_MINUTES,
     GUEST_URL_PREFIX,
-    MAX_LIGHT_PAUSE_MINUTES,
-    SERVICE_PAUSE_LIGHT_AUTOMATION,
 )
 from .coordinator import (
     HamsterFitnessConfigEntry,
@@ -48,25 +42,8 @@ async def async_setup_entry(
         HamsterGuestShareSwitch(entry.runtime_data, entry),
     ]
 
-    if not entry.data.get(CONF_LIGHT_ENTITY):
-        async_add_entities(entities)
-        return
-
-    # An entity service rather than a domain-level one: the pause always
-    # applies to exactly one hamster's automation, so letting Home
-    # Assistant do the targeting keeps it correct with several hamsters
-    # set up side by side (and gives the UI a proper target picker).
-    entity_platform.async_get_current_platform().async_register_entity_service(
-        SERVICE_PAUSE_LIGHT_AUTOMATION,
-        {
-            vol.Optional(
-                ATTR_DURATION_MINUTES, default=DEFAULT_LIGHT_PAUSE_MINUTES
-            ): vol.All(vol.Coerce(float), vol.Range(min=1, max=MAX_LIGHT_PAUSE_MINUTES))
-        },
-        "async_pause_automation",
-    )
-
-    entities.append(HamsterLightAutomationSwitch(entry.runtime_data, entry))
+    if entry.data.get(CONF_LIGHT_ENTITY):
+        entities.append(HamsterLightAutomationSwitch(entry.runtime_data, entry))
     async_add_entities(entities)
 
 

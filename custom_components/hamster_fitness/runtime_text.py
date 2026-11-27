@@ -1,14 +1,14 @@
 """Localized, dynamically-composed runtime text (warnings, notifications).
 
 Config-flow/entity/options text is translated automatically by Home
-Assistant's frontend from strings.json/translations/*.json. The text
+Assistant's frontend from translations/*.json. The text
 handled here is different: it's built dynamically in Python with
 interpolated values (temperatures, distances, ...) and handed off as-is
 to a notify service or an entity attribute - Home Assistant's frontend
 never sees it, so its translation layer can't localize it for us.
 
 This module resolves these messages through the very same
-strings.json/translations/*.json files anyway, under a custom "messages"
+translations/*.json files anyway, under a custom "messages"
 category, using the same lookup mechanism Home Assistant Core itself uses
 for translated exception messages (see
 homeassistant.helpers.translation.async_get_exception_message). That way
@@ -44,7 +44,7 @@ def render_message(hass: HomeAssistant, key: str, **placeholders: str) -> str:
     """Return the translated, placeholder-filled runtime message for `key`.
 
     `key` is a dotted path under the "messages" section of
-    strings.json/translations/*.json, e.g. "warning.too_hot" or
+    translations/*.json, e.g. "warning.too_hot" or
     "notify.daily_summary". Falls back to `key` itself if translations
     haven't been loaded (see async_warm_up()) or the key doesn't exist.
     """

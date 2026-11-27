@@ -49,7 +49,8 @@ Karte unbeschriftet ins Leere und die Doku wird still falsch:
 
 ## Standards (Home Assistant Quality Scale)
 
-- Python 3.12+, vollständig `asyncio`-basiert – keine blockierenden
+- Python 3.14+ (Mindestversion Home Assistant 2026.11, steht in
+  `hacs.json`), vollständig `asyncio`-basiert – keine blockierenden
   I/O-Aufrufe (kein `requests`, kein synchrones Networking-/Datei-I/O) im
   Event-Loop. Unvermeidbare blockierende Aufrufe laufen über
   `hass.async_add_executor_job`.
@@ -59,38 +60,42 @@ Karte unbeschriftet ins Leere und die Doku wird still falsch:
   annotations`, vollständige Signaturen inkl. Rückgabetypen).
 - Vordefinierte `DeviceClass`/`StateClass`/`UnitOf...`-Konstanten aus
   Home Assistant verwenden, keine Freitext-Einheiten.
-- UI-Texte (Config-Flow, Optionen, Entity-Namen) über `strings.json`
-  (englische Quelle) und `translations/*.json` pflegen – keine
-  hartcodierten UI-Strings in `.py`-Dateien. Gilt auch für dynamisch
-  zusammengesetzte Laufzeittexte (Warnmeldungen, Push-Benachrichtigungen) –
-  siehe `runtime_text.py`, Schlüssel unter der `messages`-Sektion.
-- **Wichtig:** Anders als bei echten Home-Assistant-Core-Integrationen wird
-  `translations/en.json` bei dieser (Custom-)Integration NICHT automatisch
-  aus `strings.json` generiert (das übernimmt nur hassfest beim Core-Build).
-  `strings.json` und `translations/en.json` müssen deshalb händisch
-  identisch gehalten werden – bei jeder Änderung an einem der beiden Werte
-  auch den anderen aktualisieren, sonst fehlt englischsprachigen Nutzern
-  der Text komplett (in 0.2.6 als echter Bug gefunden und behoben).
+- UI-Texte (Config-Flow, Optionen, Entity-Namen) über
+  `translations/en.json` (Quelle) und `translations/de.json` pflegen –
+  keine hartcodierten UI-Strings in `.py`-Dateien. Gilt auch für
+  dynamisch zusammengesetzte Laufzeittexte (Warnmeldungen,
+  Push-Benachrichtigungen) – siehe `runtime_text.py`, Schlüssel unter der
+  `messages`-Sektion. Ein `strings.json` gibt es bewusst nicht: Custom
+  Integrations liefern fertige Dateien in `translations/`, eine zweite,
+  händisch synchron zu haltende Kopie war in 0.2.6 schon einmal die
+  Ursache eines echten Bugs.
 - Tests unter `tests/` (pytest, idealerweise
   `pytest-homeassistant-custom-component`), mindestens für
   `config_flow.py` und die Sensor-Plattform.
 - Code sollte `ruff` und `mypy` sauber durchlaufen, bevor er gemergt wird.
 
-## Tests unter Windows
+## Tests
 
-`pytest tests/` läuft auf einer Windows-Maschine nur dank zweier eng
-begrenzter, in `tests/conftest.py` dokumentierter Ausnahmen: asyncio
-braucht dort einen AF_INET-Socketpair für seine Self-Pipe (Sockets werden
-deshalb wieder erlaubt, aber auf Loopback beschränkt), und der
-HTTP-Server-Accept-Task überlebt das Teardown. Beide greifen nur bei
-`sys.platform == "win32"`.
+Die Tests brauchen Python 3.14 (die aktuelle
+`pytest-homeassistant-custom-component` verlangt es). Auf dem
+Windows-Rechner ist nur 3.12 installiert, die lokale `.venv` taugt
+deshalb nicht mehr – gelaufen wird in Docker (kopiert nur, was die
+Tests brauchen; ein Kopieren des ganzen OneDrive-Ordners dauert Minuten),
+die CI macht dasselbe auf Ubuntu. Neue Testbibliothek: Volume
+`hf-venv-314` löschen, dann baut der Befehl es neu:
 
-Ebenfalls dort: ein Shim für `OptionsFlowWithReload`. Die neueste
-installierbare Version von `pytest-homeassistant-custom-component` pinnt
-noch Home Assistant 2025.1.4, `manifest.json` verlangt aber 2026.3.0 -
-derselbe Grund, weshalb `mypy` genau einen Fehler zu dieser Klasse
-meldet. Beides verschwindet von selbst, sobald die Testbibliothek
-nachzieht; nicht durch Produktionscode "reparieren".
+```bash
+MSYS_NO_PATHCONV=1 docker run --rm -e PYTHONDONTWRITEBYTECODE=1 -v "$(cygpath -w "$PWD"):/src:ro" -v hf-venv-314:/venv python:3.14-slim bash -c "mkdir /w && cd /src && cp -r custom_components tests pyproject.toml requirements_test.txt .github /w/ && cd /w && ([ -x /venv/bin/pytest ] || (python -m venv /venv && /venv/bin/pip install -q -r requirements_test.txt)) && /venv/bin/ruff check custom_components tests && /venv/bin/mypy custom_components/hamster_fitness && /venv/bin/pytest tests/ -q -p no:cacheprovider"
+```
+
+Die Testbibliothek hinkt Home Assistant um etwa eine Version hinterher
+(Stand 0.11.4: Tests gegen 2026.10.4, Mindestversion 2026.11). Was erst
+ab der Mindestversion existiert, ist deshalb mit einem `ponytail:`-
+Kommentar markiert und fällt weg, sobald die Bibliothek nachzieht.
+
+`tests/conftest.py` enthält zwei eng begrenzte Windows-Ausnahmen
+(Loopback-Socketpair für asyncio, überlebender Accept-Task); beide
+greifen nur bei `sys.platform == "win32"`.
 
 Ein autouse-Fixture entlädt nach jedem Test alle Config-Entries. Das ist
 kein Kosmetikschritt - ohne das bleiben die per `entry.async_on_unload()`
