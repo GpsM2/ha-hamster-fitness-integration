@@ -3,7 +3,7 @@
 Mirrors test_add_historical_hamster.py's approach (see that file's module
 docstring for why the WS layer is exercised without a real network
 connection): schema validation via `_ws_schema`, handler logic via
-`.__wrapped__`.
+`inspect.unwrap`.
 
 The one invariant worth testing hard here: a manually-added entry (keyed
 "manual_<uuid>") is editable/deletable through these commands, but a real
@@ -13,6 +13,7 @@ that record belongs to its coordinator, not to this dialog.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import pytest
@@ -75,14 +76,14 @@ def _validate_remove(msg: dict[str, Any]) -> dict[str, Any]:
 async def _call_update(hass: HomeAssistant, msg: dict[str, Any]) -> _FakeConnection:
     validated = _validate_update(msg)
     connection = _FakeConnection()
-    await _ws_update_historical_hamster.__wrapped__(hass, connection, validated)
+    await inspect.unwrap(_ws_update_historical_hamster)(hass, connection, validated)
     return connection
 
 
 async def _call_remove(hass: HomeAssistant, msg: dict[str, Any]) -> _FakeConnection:
     validated = _validate_remove(msg)
     connection = _FakeConnection()
-    await _ws_remove_historical_hamster.__wrapped__(hass, connection, validated)
+    await inspect.unwrap(_ws_remove_historical_hamster)(hass, connection, validated)
     return connection
 
 

@@ -19,9 +19,9 @@ aiodns) whenever aiodns is importable, and ThreadedResolver otherwise:
 Testing the command directly sidesteps both: run the message through its
 real voluptuous schema (`_ws_schema`, same validation a real WS message
 gets) to prove the schema itself rejects bad input, then call the
-handler's own coroutine directly (`.__wrapped__`, bypassing only the
+handler's own coroutine directly (`inspect.unwrap`, bypassing the
 background-task scheduling `@websocket_api.async_response` adds for the
-live server's benefit) to prove its business logic. No socket, no
+live server's benefit, and the admin check - see test_permissions.py) to prove its business logic. No socket, no
 thread, no event-loop requirement - and arguably a more precise test,
 since a schema rejection and a handler-level rejection are genuinely
 different things that a full round-trip WS test would have blurred
@@ -30,6 +30,7 @@ together into one "success: false".
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import pytest
@@ -66,7 +67,7 @@ async def _call(hass: HomeAssistant, msg: dict[str, Any]) -> _FakeConnection:
     """Validate `msg`, then run the handler inline, and return what it sent."""
     validated = _validate(msg)
     connection = _FakeConnection()
-    await _ws_add_historical_hamster.__wrapped__(hass, connection, validated)
+    await inspect.unwrap(_ws_add_historical_hamster)(hass, connection, validated)
     return connection
 
 

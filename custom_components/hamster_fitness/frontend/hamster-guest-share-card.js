@@ -22,12 +22,13 @@ import {
   applyFur,
   coatColor,
   deviceDisplayName,
+  escapeXml,
   healthScoreEntityFor,
   healthScoreEntitySelector,
   memoizedEditorSchema,
   siblingEntityId,
   t,
-} from "./hamster-fitness-shared.js?v=22";
+} from "./hamster-fitness-shared.js?v=23";
 
 const HEALTH_SCORE_SUFFIX = "_health_score";
 const ENTITY_PATTERN = /^sensor\.(.+)_health_score$/;
@@ -205,12 +206,12 @@ class HamsterGuestShareCard extends HTMLElement {
         <div class="hgs-qr" aria-hidden="true">${cachedSvg}</div>
         <div class="hgs-share-text">
           <div class="hgs-link-row">
-            <span class="hgs-url">${url}</span>
+            <span class="hgs-url">${escapeXml(url)}</span>
             <button class="hgs-copy" data-action="copy" type="button">
               <span class="hgs-copy-label">${t(this._hass, "guestShare.copy")}</span>
             </button>
           </div>
-          <p class="hgs-hint">${t(this._hass, "guestShare.onHint", { name })}</p>
+          <p class="hgs-hint">${t(this._hass, "guestShare.onHint", { name: escapeXml(name) })}</p>
         </div>
       </div>
     `;
@@ -263,7 +264,7 @@ class HamsterGuestShareCard extends HTMLElement {
     this._lastSignature = signature;
 
     if (!isOn || !url) {
-      this._panelEl.innerHTML = `<p class="hgs-hint">${t(this._hass, "guestShare.offHint", { name })}</p>`;
+      this._panelEl.innerHTML = `<p class="hgs-hint">${t(this._hass, "guestShare.offHint", { name: escapeXml(name) })}</p>`;
       return;
     }
 

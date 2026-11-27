@@ -50,7 +50,7 @@ import {
   deviceDisplayName,
   t,
   HAMSTER_PREFIX,
-} from "./hamster-fitness-shared.js?v=22";
+} from "./hamster-fitness-shared.js?v=23";
 
 const LIFETIME_DISTANCE_PATTERN = /^sensor\.(.+)_lifetime_distance$/;
 
@@ -334,6 +334,11 @@ class HamsterChronicleCard extends HTMLElement {
       }));
   }
 
+  /** Adding, editing and removing past hamsters is admin-only (see __init__.py). */
+  _isAdmin() {
+    return Boolean(this._hass && this._hass.user && this._hass.user.is_admin);
+  }
+
   _breedLabel(row) {
     if (row.breed === "other" && row.breedOther) return row.breedOther;
     return BREED_KEYS.has(row.breed) ? t(this._hass, `breed.${row.breed}`) : null;
@@ -383,7 +388,7 @@ class HamsterChronicleCard extends HTMLElement {
 
     const clickable = row.entityId
       ? `data-entity="${row.entityId}" tabindex="0" role="button"`
-      : row.manual
+      : row.manual && this._isAdmin()
       ? `data-manual-entry="${row.id}" tabindex="0" role="button" aria-label="${t(this._hass, "chronicle.editPast")}"`
       : "";
     const breed = this._breedLabel(row);
@@ -395,11 +400,11 @@ class HamsterChronicleCard extends HTMLElement {
         <span class="hch-mark">${HAMSTER_MARK}</span>
         <div class="hch-ident">
           <span class="hch-name">
-            <span class="hch-name-text">${row.name}</span>
+            <span class="hch-name-text">${escapeXml(row.name)}</span>
             ${row.departureDate ? `<span class="hch-tag">${t(this._hass, "chronicle.movedOut")}</span>` : ""}
             ${row.archived ? `<span class="hch-tag hch-tag-archive">${t(this._hass, "chronicle.archived")}</span>` : ""}
           </span>
-          <span class="hch-meta">${[breed, periodText].filter(Boolean).join(" · ")}</span>
+          <span class="hch-meta">${escapeXml([breed, periodText].filter(Boolean).join(" · "))}</span>
         </div>
         <div class="hch-stats">${stats}</div>
       </div>
@@ -759,9 +764,9 @@ class HamsterChronicleCard extends HTMLElement {
       share: { buttonLabel: t(this._hass, "share.button") },
       badgeHtml: `
         <span class="hf-badge">${t(this._hass, "chronicle.count", { count: rows.length })}</span>
-        <button class="hch-add-btn" data-action="add-past" type="button"
+        ${this._isAdmin() ? `<button class="hch-add-btn" data-action="add-past" type="button"
                 title="${t(this._hass, "chronicle.addPast")}"
-                aria-label="${t(this._hass, "chronicle.addPast")}">+</button>
+                aria-label="${t(this._hass, "chronicle.addPast")}">+</button>` : ""}
       `,
     });
 

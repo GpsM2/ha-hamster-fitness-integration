@@ -70,5 +70,5 @@ jobs:
           pip install playwright
           playwright install --with-deps chromium
 
-      - name: Check every card loads as a valid ES module
+      - name: Check every card loads as a valid ES module and escapes user text
         run: python tools/check_frontend_syntax.py

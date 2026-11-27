@@ -20,6 +20,12 @@ comment, say) still slips past it - this happened twice in one afternoon
 before this script existed. Actually loading the file in a browser is the
 only check that can't be fooled that way, and it catches any other JS
 syntax mistake the same way.
+
+It also renders user-entered text the way an attacker would type it - a
+hamster name of `<img src=x onerror=...>` - through the places that put
+names and titles into markup, and fails if any of them comes out as a
+real element instead of text (frenck's review of the catalog submission,
+hacs/default#15063).
 """
 
 from __future__ import annotations
@@ -53,6 +59,32 @@ def _serve(root: Path):
             yield f"http://127.0.0.1:{httpd.server_address[1]}"
         finally:
             httpd.shutdown()
+
+
+_ESCAPING_CHECK = """async (base) => {
+    const shared = await import(base + "hamster-fitness-shared.js");
+    await import(base + "hamster-chronicle-card.js");
+    await import(base + "hamster-guest-share-card.js");
+    const evil = '<img src=x onerror="window.__xss = 1">';
+    const hass = { language: "en", user: { is_admin: true }, states: {}, entities: {}, devices: {} };
+    const chronicle = document.createElement("hamster-chronicle-card");
+    chronicle._hass = hass;
+    chronicle._config = { columns: [] };
+    const guest = document.createElement("hamster-guest-share-card");
+    guest._hass = hass;
+    const samples = {
+        "card header": shared.renderCardHeader({ logoSvg: "", title: evil, subtitle: evil }),
+        "chronicle row": chronicle._row({ name: evil, breed: "other", breedOther: evil, coatHex: "#C4A07A", manual: true, id: "x" }),
+        "guest share panel": guest._sharePanelHtml("https://example.invalid/x", evil),
+    };
+    const leaks = [];
+    for (const [where, html] of Object.entries(samples)) {
+        const box = document.createElement("div");
+        box.innerHTML = html;
+        if (box.querySelector("img") || !box.textContent.includes("<img")) leaks.push(where);
+    }
+    return leaks;
+}"""
 
 
 def main() -> int:
@@ -99,6 +131,17 @@ def main() -> int:
             print(f"  {'OK  ' if result['ok'] else 'FAIL'}  {path.name}")
             if not result["ok"]:
                 failures[path.name] = result["message"]
+
+        if not failures:
+            page = browser.new_page()
+            page.goto(origin + "/")
+            leaks = page.evaluate(
+                _ESCAPING_CHECK, f"{origin}/custom_components/hamster_fitness/frontend/"
+            )
+            page.close()
+            print(f"  {'FAIL' if leaks else 'OK  '}  user-entered text is escaped")
+            for where in leaks:
+                failures[f"escaping: {where}"] = "a name or title came out as markup"
         browser.close()
 
     if failures:
