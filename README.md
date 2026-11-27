@@ -1,10 +1,12 @@
 # Hamster Fitness — Integration (Software)
 
+<!-- ha-marketplace:exclude-start -->
 [![Version](https://img.shields.io/github/v/release/GpsM2/ha-hamster-fitness-integration?label=version)](https://github.com/GpsM2/ha-hamster-fitness-integration/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Marketplace](https://img.shields.io/badge/Marketplace-custom%20repository-orange.svg)](#step-2-install-the-integration)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.11%2B-41BDF5.svg)](https://www.home-assistant.io/)
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R8O124JOD1)
+<!-- ha-marketplace:exclude-end -->
 
 > **This is the software repository.** It contains only the Home
 > Assistant integration (Python) and its Lovelace dashboard cards. The
